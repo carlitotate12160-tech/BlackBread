@@ -2,8 +2,8 @@ FROM python:3.12-slim-bookworm AS builder
 
 COPY --from=ghcr.io/astral-sh/uv:0.8.11 /uv /uvx /bin/
 WORKDIR /app
-COPY pyproject.toml ./
-RUN uv sync --no-dev --no-install-project
+COPY pyproject.toml uv.lock ./
+RUN uv sync --locked --no-dev --no-install-project
 
 FROM python:3.12-slim-bookworm AS runtime
 

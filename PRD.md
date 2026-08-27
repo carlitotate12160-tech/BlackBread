@@ -4,7 +4,25 @@
 - **Category:** Autonomous, threat-informed, external red-team / adversary-emulation platform
 - **Positioning:** An external red-team exploitation service that *works like an APT operator* — covert, patient, objective-driven, evidence-backed — while remaining strictly authorized, non-destructive, and agentless.
 - **Companion documents:** `ADR-FINAL-002.md` (architecture), `.devin/rules/blackbread.md` (engineering guardrails), `.devin/skills/build-blackbread-agent/SKILL.md` (build guidance).
-- **Status:** Draft for MVP execution.
+- **Status:** Accepted product baseline for M0–R1; implementation status is tracked by tests and release evidence, not this document.
+
+---
+
+## 0. Requirement Authority and Status
+
+`ADR-FINAL-002.md` governs architecture and safety. This PRD defines product behavior and measurable
+release outcomes. Rules and skills may prescribe implementation technique but may not weaken either.
+The machine-readable capability registry controls which tools an agent may propose; runtime policy
+controls whether an exact invocation may execute.
+
+Requirements use stable IDs and one of `PLANNED`, `IMPLEMENTED`, `VERIFIED`, or `RELEASED`. Status is
+never inferred from prose. `VERIFIED` requires automated positive and negative tests; `RELEASED`
+requires a milestone conformance record. Any missing P0/P1, authorization, scope, tenant-isolation,
+evidence-integrity, OPSEC-stop, cleanup, or legal-entry requirement blocks the relevant release.
+
+No release-blocking item may be hidden as `TODO`, `TBD`, dormant functionality, skipped/non-blocking
+CI, or an undocumented waiver. Deferral requires an accepted ADR amendment, named owner, target
+release, compensating control, verification plan, and expiry.
 
 ---
 
@@ -60,8 +78,8 @@ Access is **designated-only** (RBAC + MFA); there is **no open registration**. T
 
 | Tier | Scope | Agents/phases | Approval | Status |
 |------|-------|---------------|----------|--------|
-| **Recon-only** | Passive + active-read-only discovery; exposure/secret/takeover/origin findings | Scout + Report | Active-recon only | **MVP / first sellable** |
-| **Recon + Validate** | Adds non-destructive primitive confirmation | + Strike | + validation | Post-MVP |
+| **Recon-only** | Passive + active-read-only discovery and restricted offline/T1 candidate verification | Scout + restricted Strike + Report | Active recon; no online auth | **MVP / first sellable** |
+| **Recon + Validate** | Adds approved T2 non-destructive primitive confirmation | Full Strike profile | Per-validation approval | Post-MVP |
 | **Full kill-chain** | Adds controlled boundary proof + approved impact | + Exploit + Post-Exploit | Approval-gated | Gated (R3+) |
 
 Tier is selected in the client portal and gates capability families and which agents run.
@@ -74,7 +92,7 @@ Tier is selected in the client portal and gates capability families and which ag
 - Web setup wizard: scope (root domains, hosts, IPs, cloud tenants, exclusions, third-party boundaries), objective, tier, pacing profile (short vs long low-and-slow), budgets, window, stop conditions, deconfliction contacts.
 - In-app **attestation** (authorized-to-consent, scope confirmation, rules-of-engagement, click-sign) → machine-readable, platform-signed manifest. **No document upload**; the legal SOW is signed offline and private.
 - Attestation (who/when/scope/mode) recorded immutably in the hash-chained ledger.
-- **Ownership-proof challenge** (DNS TXT / hosted file) — built but **dormant** initially; interim manual operator verification.
+- **Ownership-proof challenge** (DNS TXT / hosted file) may be dormant initially, but evidence-backed manual ownership verification with reviewer, timestamp, and expiry is mandatory before active contact. Unknown/shared/third-party infrastructure fails closed.
 - **BYOK API keys** (Shodan/Censys/Dehashed/…): client keys → operator default → free-source fallback; keys encrypted, per-engagement, never logged.
 
 ### 6.2 Reconnaissance (Scout)
@@ -87,12 +105,21 @@ Tier is selected in the client portal and gates capability families and which ag
 
 ### 6.3 Validation (Strike)
 - Credential intelligence **offline-first** (breach-corpus applicability, hash cracking, provenance, ranking).
-- **Authentication Risk Governor** enforces spray-not-brute, ≤3 attempts (below lockout margin), delays, MFA-stop — deterministic abuse prevention.
+- **Authentication Risk Governor** allows online validation only when explicitly approved and a safe margin below a verified lockout policy is known. If prior failures or lockout state are unknown, default to zero attempts unless an operator approves one exact attempt. Spray shaping reduces but never eliminates lockout risk; MFA or anomaly signals hard-stop.
 - Authorization differential (IDOR/BOLA) via broker sessions; safe web/service vuln validation; distinguish WAF-blocked from not-vulnerable.
 
 ### 6.4 Vulnerability intelligence
 - Local cache of NVD/CVE + vendor advisories + exploit-db + EPSS + CISA KEV.
 - Map to fingerprinted product/version; **probabilistic** applicability confirmed behaviorally where safe (version strings lie; patches are back-ported).
+
+### 6.4a Capability and tool governance
+- `CAP-001` Every executable capability is present in `config/capability-registry.json`; absence means deny.
+- `CAP-002` Every entry declares one owning agent, typed adapter, pinned tool/image identity, lifecycle state, risk class, target-identity tier, approval, network path, budget, evidence/oracle, cleanup, and prohibited effects.
+- `CAP-003` Agents receive capability IDs and typed fields only—never arbitrary shell, tool flags, templates, URLs, callbacks, or raw binaries.
+- `CAP-004` Tool/template/version changes repeat admission review, fixture/negative-control testing, ARM64 qualification, and digest promotion.
+- `CAP-005` `PLANNED` and `ON_HOLD` inventory is non-executable. From M2, CI and runtime must load the same registry and default-deny drift.
+- `CAP-006` Tool output is untrusted evidence. It cannot directly create graph truth or a confirmed/payable finding.
+- `CAP-007` Scout owns passive/read-only discovery; restricted Strike owns offline/T1 verification in Recon-only; full Strike owns approved T2 validation; Exploit and Post-Exploit remain gated; Report uses offline evidence tooling and requests re-verification through the Conductor.
 
 ### 6.5 Controlled exploit (gated, R3+)
 - Reviewed capability library only; least-invasive proof; safe oracles preferred over RCE; on hold until the pre-production safety range validates stability.
@@ -108,7 +135,7 @@ Tier is selected in the client portal and gates capability families and which ag
 - Deterministic suspicion detection + heat state machine (COOL/WARM/HOT/BURNED).
 - Jitter engine (log-normal/Poisson/circadian/burst-idle/AIMD/token-bucket).
 - De-signaturing egress (browser-like UA/header/TLS-JA3/HTTP2 + pacing).
-- BURNED → auto passive-only + notify, then flank to a less-monitored surface.
+- BURNED → freeze all target-active work and notify; passive analysis may continue, but a different active path requires operator recovery approval, fresh target identity, and a new lease.
 - Honeypot/deception detection module; getting caught is reported as a client win.
 
 ### 6.8 Governance & safety
@@ -128,6 +155,9 @@ Tier is selected in the client portal and gates capability families and which ag
 - **Self-security:** per-engagement ephemeral scoped secrets, rotation, dual-control for sensitive ops (BlackBread is itself a high-value target).
 - **Resource fit:** runs on a single Oracle Cloud ARM VM (12 GB / 4 OCPU); browser concurrency capped; cloud LLM reasoning.
 - **Reproducibility:** NetworkX rebuildable from PostgreSQL; engagements resumable via ledger replay.
+- **Governance:** ADR/PRD/rules/skill/registry consistency is CI-tested; required checks cannot use `continue-on-error`, skipped safety tests, or mutable unpinned actions/tool images.
+- **Supply chain:** locked Python dependencies, digest-pinned runtime/tool images, SBOM, dependency/secret/container scans, and reviewed update automation.
+- **Release evidence:** every milestone publishes a conformance record mapping requirement IDs to commit, tests, open gaps, approver, and timestamp.
 
 ---
 
@@ -147,7 +177,7 @@ BlackBread borrows **discipline and TTPs** (not harm) from four groups: **APT41*
 
 - **North-star (MVP):** first cross-verified payable finding accepted by a real client, zero safety incidents.
 - **Quality:** false-positive rate; independent-evidence-family coverage; findings reproduced by clients.
-- **Stealth:** proportion of engagement time spent COOL; time-to-BURNED; recovery-after-BURNED success.
+- **Stealth:** proportion of engagement time spent COOL; time-to-BURNED; percentage of BURNED events with verified freeze and operator-authorized recovery.
 - **Efficiency:** actions per finding; information gain per request; external-source outage tolerance.
 - **Safety:** zero lockouts/outages/data-loss; 100% scope adherence; 100% cleanup verification.
 - **Business:** engagements sold; Recon-only → higher-tier conversion; per-engagement cost.
@@ -156,7 +186,9 @@ BlackBread borrows **discipline and TTPs** (not harm) from four groups: **APT41*
 
 ## 11. Milestones
 
-M0 skeleton → M1 trust spine → M2 capability gateway + OPSEC/egress + passive recon → M3 Scout + Target Identity Guard → M4 Strike + first-lane validation → M5 Report + first finding → M6 state/low-and-slow/backup. Releases R0–R5; Exploit (R3) held until the pre-production safety range validates stability. Detail in `ADR-FINAL-002.md` §35.
+M0 skeleton → M1 trust spine → M2 capability gateway + OPSEC/egress + passive recon → M3 Scout + Target Identity Guard → M4 restricted/full Strike profiles + first-lane validation → M5 Report + first finding → M6 state/low-and-slow/backup. Releases R0–R5; Exploit (R3) is held until the pre-production safety range validates stability. Milestones are dependency gates, not labels: the release cannot advance with inherited P0/P1 or safety blockers. Detail in `ADR-FINAL-002.md` §35.
+
+Before the first real-target R1 run, required CI checks must be branch-protected; the capability registry must be enforced on the live path; legal/SOW, UU ITE/UU PDP, cross-border processor, breach-data, retention/deletion, incident, responsible-disclosure, and shared-SaaS policies must be approved; ownership evidence and White Cell contacts must be sealed; and kill/dead-man, backup restore, cleanup, and deletion drills must pass.
 
 ---
 
@@ -169,14 +201,14 @@ M0 skeleton → M1 trust spine → M2 capability gateway + OPSEC/egress + passiv
 | Wrong-target / shared-infra action | Target Identity Guard tiers, origin verification, deep scope validation, TOCTOU re-validation |
 | Prompt injection from target content | Data/instruction separation, reader/planner split, typed-output backstop, injection test suite |
 | LLM refusal of security tasks | Authorization context, task decomposition, open-model routing, weaponization kept out of the LLM |
-| External-source flakiness (alpha's failure) | Resilience layer, caching, free-source floor, build-own resolver/CT |
+| External-source flakiness | Resilience layer, caching, free-source floor, build-own resolver/CT |
 | Getting detected / IP burned (single egress) | Stealth pacing, de-signaturing, flank-not-push; report detection as a client win |
 | Platform itself compromised (high-value target) | Per-engagement ephemeral secrets, isolation, egress firewall, dual-control, hardening |
 | False positives from version-only CVE matching | Probabilistic applicability + behavioral confirmation |
-| Abuse ("test my competitor") | Ownership-proof challenge (dormant) + manual verification interim |
+| Abuse ("test my competitor") | Evidence-backed manual ownership approval before active contact; automated challenge later; unknown/third-party deny |
 
 ---
 
 ## 13. Open Questions / Future
 
-Legal/compliance for Indonesia (UU ITE, UU PDP, cross-border data to cloud LLMs, breach-data handling); continuous re-assessment mode; compliance-aligned + Bahasa Indonesia reporting; responsible disclosure for third-party vulns; shared-SaaS boundary rule; dynamic scope for wildcards/cloud IPs; egress source rotation; on-box/dedicated local model for sensitive engagements. See `ADR-FINAL-002.md` §38.
+Legal/compliance and shared/third-party scope rules are release-entry work, not future debt. Counsel and the operator must close them before R1; this PRD does not invent legal conclusions. Future product work includes continuous re-assessment, compliance-aligned and Bahasa Indonesia reporting, responsible-disclosure automation, richer shared-SaaS handling, dynamic ownership for wildcard/cloud IPs, egress source rotation, and a dedicated local model for sensitive engagements. See `ADR-FINAL-002.md` §38.

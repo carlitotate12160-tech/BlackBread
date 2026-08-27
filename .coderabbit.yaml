@@ -21,37 +21,37 @@ reviews:
     - "!archive/**"
 
   path_instructions:
-    - path: "blackbread/conductor/**"
+    - path: "src/blackbread/conductor/**"
       instructions: >
         Review for authorization bypass, scope violation, and tenant isolation.
         No agent file may write authorization state. Every proposal-to-execution
         path must pass through the Policy Kernel.
-    - path: "blackbread/policy/**"
+    - path: "src/blackbread/policy/**"
       instructions: >
         Review for fail-closed behavior, scope validation of every host/IP/URL
         in all parameters, and TOCTOU re-validation inside leases. Deterministic
         only — no LLM calls in this module.
-    - path: "blackbread/recon/**"
+    - path: "src/blackbread/recon/**"
       instructions: >
         Review for double-fetch, soft-404 calibration correctness, and read-only
         GET-only enforcement. No form submission, no state-changing links, no
         account-lockout risk. Probes must use the typed PathProbeSpec catalog.
-    - path: "blackbread/opsec/**"
+    - path: "src/blackbread/opsec/**"
       instructions: >
         Review for heat FSM correctness (COOL/WARM/HOT/BURNED), jitter
         non-uniformity, and that the hard stop cannot be overridden by the LLM.
         BURNED must auto-passive and notify.
-    - path: "blackbread/tools/**"
+    - path: "src/blackbread/tools/**"
       instructions: >
         Review for credential handling — secrets must go through the vault,
         never plaintext. Check for bare except Exception without noqa. No raw
         secrets in logs, graph, prompts, or artifacts.
-    - path: "blackbread/security/**"
+    - path: "src/blackbread/security/**"
       instructions: >
         Review for crypto correctness, key management, vault integrity, and
         prompt-injection defense. No hardcoded keys. Target content must be
         treated as untrusted data, never instructions.
-    - path: "blackbread/ledger/**"
+    - path: "src/blackbread/ledger/**"
       instructions: >
         Review for hash-chain integrity, monotonic ordering, and append-only
         enforcement. No mutation of past events.
@@ -64,6 +64,11 @@ reviews:
       instructions: >
         Review for CI guard bypass — guards must not be skippable without admin
         override. Coverage gate (>=80%) and ruff/mypy must be blocking.
+    - path: "config/capability-registry.json"
+      instructions: >
+        Review capability ownership, lifecycle, risk/tier/approval, supply-chain
+        pinning, scope validation, budget, oracle, cleanup, and prohibited effects.
+        PLANNED and ON_HOLD capabilities must remain non-executable.
 
 chat:
   auto_reply: true
