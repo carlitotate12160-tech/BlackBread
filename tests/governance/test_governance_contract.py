@@ -48,17 +48,54 @@ REQUIRED_CAPABILITY_OWNERS = {
 }
 REQUIRED_CAPABILITY_IDS = set(REQUIRED_CAPABILITY_OWNERS)
 REQUIRED_PRD_REQUIREMENT_IDS = {
-    "ENG-001", "ENG-002", "ENG-003", "ENG-004", "ENG-005",
-    "REC-001", "REC-002", "REC-003", "REC-004", "REC-005", "REC-006",
-    "STR-001", "STR-002", "STR-003",
-    "VUL-001", "VUL-002",
-    "CAP-001", "CAP-002", "CAP-003", "CAP-004", "CAP-005", "CAP-006", "CAP-007",
+    "ENG-001",
+    "ENG-002",
+    "ENG-003",
+    "ENG-004",
+    "ENG-005",
+    "REC-001",
+    "REC-002",
+    "REC-003",
+    "REC-004",
+    "REC-005",
+    "REC-006",
+    "STR-001",
+    "STR-002",
+    "STR-003",
+    "VUL-001",
+    "VUL-002",
+    "CAP-001",
+    "CAP-002",
+    "CAP-003",
+    "CAP-004",
+    "CAP-005",
+    "CAP-006",
+    "CAP-007",
     "EXP-001",
-    "REP-001", "REP-002", "REP-003", "REP-004", "REP-005",
-    "OPS-001", "OPS-002", "OPS-003", "OPS-004", "OPS-005",
-    "GOV-001", "GOV-002", "GOV-003",
-    "NFR-001", "NFR-002", "NFR-003", "NFR-004", "NFR-005", "NFR-006",
-    "NFR-007", "NFR-008", "NFR-009", "NFR-010", "NFR-011",
+    "REP-001",
+    "REP-002",
+    "REP-003",
+    "REP-004",
+    "REP-005",
+    "OPS-001",
+    "OPS-002",
+    "OPS-003",
+    "OPS-004",
+    "OPS-005",
+    "GOV-001",
+    "GOV-002",
+    "GOV-003",
+    "NFR-001",
+    "NFR-002",
+    "NFR-003",
+    "NFR-004",
+    "NFR-005",
+    "NFR-006",
+    "NFR-007",
+    "NFR-008",
+    "NFR-009",
+    "NFR-010",
+    "NFR-011",
 }
 CANONICAL_REQUIREMENT_STATES = {"DECIDED", "IMPLEMENTED", "VERIFIED", "RELEASED"}
 ALLOWED_LIFECYCLES = {
@@ -280,7 +317,7 @@ def test_agent_delivery_authority_is_explicit_and_fail_closed() -> None:
     for path in documents:
         content = path.read_text(encoding="utf-8")
         assert "AI-bot comment" in content or "AI review findings" in content
-        assert "direct push to `main`" in content
+        assert re.search(r"(?:direct push to|push directly to) `main`", content)
         assert "changes requested" in content
         assert "blocking debt" in content or "blocking-debt" in content
 
