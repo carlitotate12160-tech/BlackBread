@@ -1,0 +1,10 @@
+# These users are required reviewers for all changes.
+# CodeRabbit AI review runs in parallel (configured via .coderabbit.yaml).
+
+# Default: require review for all changes
+* @carlitotate12160-tech
+
+# Safety-critical paths — highlight in review
+/.devin/         @carlitotate12160-tech
+/.coderabbit.yaml @carlitotate12160-tech
+/.github/        @carlitotate12160-tech
