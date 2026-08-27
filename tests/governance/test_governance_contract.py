@@ -1,4 +1,5 @@
 import json
+import re
 import tomllib
 from pathlib import Path
 
@@ -111,3 +112,11 @@ def test_unenforced_branch_checks_are_recorded_as_release_blocker() -> None:
     assert "**Status:** OPEN" in gaps
     assert "**Severity:** P0 governance" in gaps
     assert "**Blocks:** R0 and every real-target release" in gaps
+
+
+def test_gitleaks_baseline_contains_only_exact_historical_fingerprints() -> None:
+    fingerprints = (ROOT / ".gitleaksignore").read_text(encoding="utf-8").splitlines()
+    fingerprint_pattern = re.compile(r"^[0-9a-f]{40}:[A-Za-z0-9_./-]+:[A-Za-z0-9_-]+:[1-9][0-9]*$")
+
+    assert fingerprints
+    assert all(fingerprint_pattern.fullmatch(fingerprint) for fingerprint in fingerprints)

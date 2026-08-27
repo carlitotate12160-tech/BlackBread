@@ -58,7 +58,7 @@ jobs:
       - run: uv sync --locked --all-groups
       - run: uv run bandit -c pyproject.toml -r src/blackbread
       - run: uv run pip-audit
-      - run: go run github.com/zricethezav/gitleaks/v8@v8.24.3 git --redact --no-banner
+      - run: go run github.com/zricethezav/gitleaks/v8@v8.24.3 git --redact --no-banner --gitleaks-ignore-path .gitleaksignore
 
   governance:
     name: governance
