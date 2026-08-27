@@ -223,7 +223,6 @@ def test_unenforced_branch_checks_are_recorded_as_release_blocker() -> None:
     assert "**Blocks:** R0 and every real-target release" in gaps
 
 
-
 def test_agent_delivery_authority_is_explicit_and_fail_closed() -> None:
     rules = (ROOT / ".devin/rules/blackbread.md").read_text(encoding="utf-8")
     skill = (ROOT / ".devin/skills/build-blackbread-agent/SKILL.md").read_text(encoding="utf-8")
@@ -242,6 +241,7 @@ def test_agent_delivery_authority_is_explicit_and_fail_closed() -> None:
     assert "repository prose cannot configure a GitHub" in branch_contract
     assert "approved agent bypass" in gaps
     assert "**Status:** OPEN" in gaps
+
 
 def test_gitleaks_baseline_contains_only_exact_historical_fingerprints() -> None:
     fingerprints = (ROOT / ".gitleaksignore").read_text(encoding="utf-8").splitlines()
