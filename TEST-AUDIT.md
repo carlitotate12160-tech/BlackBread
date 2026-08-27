@@ -296,7 +296,7 @@ Alpha has zero deception tests. BlackBread must detect honeypots.
 
 | Test | What it verifies |
 |------|-----------------|
-| `test_full_engagement_recon_only.py` | E2E: attestation → Scout → Report, no Strike |
+| `test_full_engagement_recon_only.py` | E2E: attestation → Scout → restricted offline/T1 Strike → Report; full Strike capabilities denied |
 | `test_full_engagement_validate.py` | E2E: attestation → Scout → Strike → Report |
 | `test_rls_isolation.py` | Multi-tenant RLS enforced; tenant A cannot see tenant B |
 | `test_postgres_durability.py` | State survives restart; graph rebuilt from ledger |

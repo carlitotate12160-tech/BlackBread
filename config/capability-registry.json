@@ -21,7 +21,7 @@
       "evidence_oracle": "source-provenanced observation with collection timestamp",
       "cleanup": "expire cache according to engagement retention policy",
       "prohibited_effects": ["target_contact", "scope_expansion", "unproven_ownership_promotion"],
-      "admission": {"owner": "platform-engineering", "target_milestone": "M2", "blocking_release": "R1", "blockers": ["CAP-GAP-001-pin-and-qualify-passive-sources"]}
+      "admission": {"owner": "platform-engineering", "target_milestone": "M2", "blocking_release": "R1", "blockers": [{"id": "CAP-GAP-001-pin-and-qualify-passive-sources", "status": "OPEN", "severity": "P1", "owner": "platform-engineering", "target_milestone": "M2", "blocking_release": "R1", "verification": "tests/capabilities/test_passive_asset_intelligence.py::test_admission", "closure_evidence": null}]}
     },
     {
       "id": "scout.dns_tls_http_observe.v1",
@@ -39,8 +39,8 @@
       "budget": {"maximum_requests_per_host": 6, "maximum_concurrency": 2, "timeout_seconds": 15},
       "evidence_oracle": "raw DNS/TLS/HTTP artifact bound to target identity",
       "cleanup": "destroy worker and browser/network profile",
-      "prohibited_effects": ["non_get_or_head_http", "unchecked_redirect", "credential_entry", "arbitrary_flags"],
-      "admission": {"owner": "recon-engineering", "target_milestone": "M2", "blocking_release": "R1", "blockers": ["CAP-GAP-002-build-scope-locked-observation-adapter"]}
+      "prohibited_effects": ["non_get_http", "unchecked_redirect", "credential_entry", "arbitrary_flags"],
+      "admission": {"owner": "recon-engineering", "target_milestone": "M2", "blocking_release": "R1", "blockers": [{"id": "CAP-GAP-002-build-scope-locked-observation-adapter", "status": "OPEN", "severity": "P1", "owner": "recon-engineering", "target_milestone": "M2", "blocking_release": "R1", "verification": "tests/capabilities/test_dns_tls_http_observe.py::test_admission", "closure_evidence": null}]}
     },
     {
       "id": "scout.network_service_observe.v1",
@@ -59,7 +59,7 @@
       "evidence_oracle": "repeatable connect/banner observation with target binding",
       "cleanup": "destroy isolated worker",
       "prohibited_effects": ["udp_scan", "nse_without_allowlist", "brute_scripts", "os_detection", "arbitrary_ports_or_rate"],
-      "admission": {"owner": "recon-engineering", "target_milestone": "M3", "blocking_release": "R1", "blockers": ["CAP-GAP-003-qualify-safe-network-profile"]}
+      "admission": {"owner": "recon-engineering", "target_milestone": "M3", "blocking_release": "R1", "blockers": [{"id": "CAP-GAP-003-qualify-safe-network-profile", "status": "OPEN", "severity": "P1", "owner": "recon-engineering", "target_milestone": "M3", "blocking_release": "R1", "verification": "tests/capabilities/test_network_service_observe.py::test_admission", "closure_evidence": null}]}
     },
     {
       "id": "scout.route_browser_observe.v1",
@@ -78,7 +78,7 @@
       "evidence_oracle": "calibrated HTTP/DOM observation with HAR and target binding",
       "cleanup": "destroy browser context, profile, worker, and temporary downloads",
       "prohibited_effects": ["form_submit", "state_changing_navigation", "credential_entry", "unscoped_download", "unchecked_redirect"],
-      "admission": {"owner": "recon-engineering", "target_milestone": "M3", "blocking_release": "R1", "blockers": ["CAP-GAP-004-build-safe-browser-adapter"]}
+      "admission": {"owner": "recon-engineering", "target_milestone": "M3", "blocking_release": "R1", "blockers": [{"id": "CAP-GAP-004-build-safe-browser-adapter", "status": "OPEN", "severity": "P1", "owner": "recon-engineering", "target_milestone": "M3", "blocking_release": "R1", "verification": "tests/capabilities/test_route_browser_observe.py::test_admission", "closure_evidence": null}]}
     },
     {
       "id": "scout.public_artifact_secret_detect.v1",
@@ -97,7 +97,7 @@
       "evidence_oracle": "redacted match plus encrypted source-artifact reference and provenance",
       "cleanup": "destroy worker copy and retain only policy-approved evidence",
       "prohibited_effects": ["raw_secret_output", "credential_validation", "private_repo_clone", "target_contact"],
-      "admission": {"owner": "recon-engineering", "target_milestone": "M4", "blocking_release": "R1", "blockers": ["CAP-GAP-005-build-redacting-artifact-scanner"]}
+      "admission": {"owner": "recon-engineering", "target_milestone": "M4", "blocking_release": "R1", "blockers": [{"id": "CAP-GAP-005-build-redacting-artifact-scanner", "status": "OPEN", "severity": "P1", "owner": "recon-engineering", "target_milestone": "M4", "blocking_release": "R1", "verification": "tests/capabilities/test_public_artifact_secret_detect.py::test_admission", "closure_evidence": null}]}
     },
     {
       "id": "scout.discovery_signature.v1",
@@ -116,7 +116,7 @@
       "evidence_oracle": "reviewed template oracle plus raw redacted exchange",
       "cleanup": "destroy worker and temporary template set",
       "prohibited_effects": ["unreviewed_template", "fuzzing_tag", "headless_tag", "file_tag", "code_tag", "auth_tag", "destructive_tag"],
-      "admission": {"owner": "recon-engineering", "target_milestone": "M3", "blocking_release": "R1", "blockers": ["CAP-GAP-006-curate-and-pin-discovery-templates"]}
+      "admission": {"owner": "recon-engineering", "target_milestone": "M3", "blocking_release": "R1", "blockers": [{"id": "CAP-GAP-006-curate-and-pin-discovery-templates", "status": "OPEN", "severity": "P1", "owner": "recon-engineering", "target_milestone": "M3", "blocking_release": "R1", "verification": "tests/capabilities/test_discovery_signature.py::test_admission", "closure_evidence": null}]}
     },
     {
       "id": "strike.credential_intelligence_offline.v1",
@@ -135,7 +135,7 @@
       "evidence_oracle": "provenance-bound result stored as opaque secret reference",
       "cleanup": "destroy corpus worker and verify temporary-data deletion",
       "prohibited_effects": ["target_contact", "raw_secret_output", "unapproved_corpus", "cross_engagement_reuse"],
-      "admission": {"owner": "validation-engineering", "target_milestone": "M4", "blocking_release": "R2", "blockers": ["CAP-GAP-007-build-offline-credential-vault-path"]}
+      "admission": {"owner": "validation-engineering", "target_milestone": "M4", "blocking_release": "R2", "blockers": [{"id": "CAP-GAP-007-build-offline-credential-vault-path", "status": "OPEN", "severity": "P1", "owner": "validation-engineering", "target_milestone": "M4", "blocking_release": "R2", "verification": "tests/capabilities/test_credential_intelligence_offline.py::test_admission", "closure_evidence": null}]}
     },
     {
       "id": "strike.authentication_validate.v1",
@@ -154,7 +154,7 @@
       "evidence_oracle": "broker-observed exact-account outcome without exposing secret",
       "cleanup": "revoke session, destroy worker/profile, verify no residual login state",
       "prohibited_effects": ["unknown_lockout_margin", "mfa_challenge", "password_brute_force", "raw_secret_exposure", "autonomous_retry"],
-      "admission": {"owner": "validation-engineering", "target_milestone": "M4", "blocking_release": "R2", "blockers": ["CAP-GAP-008-verify-auth-risk-governor-and-broker"]}
+      "admission": {"owner": "validation-engineering", "target_milestone": "M4", "blocking_release": "R2", "blockers": [{"id": "CAP-GAP-008-verify-auth-risk-governor-and-broker", "status": "OPEN", "severity": "P1", "owner": "validation-engineering", "target_milestone": "M4", "blocking_release": "R2", "verification": "tests/capabilities/test_authentication_validate.py::test_admission", "closure_evidence": null}]}
     },
     {
       "id": "strike.authorization_differential.v1",
@@ -173,7 +173,7 @@
       "evidence_oracle": "bidirectional differential on approved client-seeded object markers",
       "cleanup": "revoke sessions and delete client-seeded temporary objects when applicable",
       "prohibited_effects": ["object_enumeration", "write_operation", "unapproved_principal", "customer_data_collection"],
-      "admission": {"owner": "validation-engineering", "target_milestone": "M4", "blocking_release": "R2", "blockers": ["CAP-GAP-009-build-safe-differential-harness"]}
+      "admission": {"owner": "validation-engineering", "target_milestone": "M4", "blocking_release": "R2", "blockers": [{"id": "CAP-GAP-009-build-safe-differential-harness", "status": "OPEN", "severity": "P1", "owner": "validation-engineering", "target_milestone": "M4", "blocking_release": "R2", "verification": "tests/capabilities/test_authorization_differential.py::test_admission", "closure_evidence": null}]}
     },
     {
       "id": "strike.service_vulnerability_verify.v1",
@@ -192,7 +192,7 @@
       "evidence_oracle": "one declared safe oracle with independent evidence when feasible",
       "cleanup": "destroy worker and temporary proxy state",
       "prohibited_effects": ["active_scanner_default", "unrestricted_spider", "unreviewed_template", "mutation", "arbitrary_payload"],
-      "admission": {"owner": "validation-engineering", "target_milestone": "M4", "blocking_release": "R1", "blockers": ["CAP-GAP-010-qualify-restricted-strike-profile"]}
+      "admission": {"owner": "validation-engineering", "target_milestone": "M4", "blocking_release": "R1", "blockers": [{"id": "CAP-GAP-010-qualify-restricted-strike-profile", "status": "OPEN", "severity": "P1", "owner": "validation-engineering", "target_milestone": "M4", "blocking_release": "R1", "verification": "tests/capabilities/test_service_vulnerability_verify.py::test_admission", "closure_evidence": null}]}
     },
     {
       "id": "exploit.controlled_proof.v1",
@@ -211,7 +211,7 @@
       "evidence_oracle": "predeclared boundary-crossing proof with negative control",
       "cleanup": "mandatory effect reversal, worker destruction, target reconciliation, cleanup evidence",
       "prohibited_effects": ["memory_corruption_on_production_edge", "persistence", "destruction", "arbitrary_payload", "unbounded_retry", "control_disabling"],
-      "admission": {"owner": "exploit-safety", "target_milestone": "R3", "blocking_release": "R3", "blockers": ["CAP-GAP-011-complete-capability-qualification-range"]}
+      "admission": {"owner": "exploit-safety", "target_milestone": "R3", "blocking_release": "R3", "blockers": [{"id": "CAP-GAP-011-complete-capability-qualification-range", "status": "OPEN", "severity": "P1", "owner": "exploit-safety", "target_milestone": "R3", "blocking_release": "R3", "verification": "tests/capabilities/test_controlled_proof.py::test_admission", "closure_evidence": null}]}
     },
     {
       "id": "post_exploit.objective_read.v1",
@@ -230,7 +230,7 @@
       "evidence_oracle": "client-seeded canary or approved read-only objective marker",
       "cleanup": "revoke access, remove temporary state, destroy worker, reconcile target",
       "prohibited_effects": ["credential_dumping", "persistence", "lateral_movement", "customer_data_collection", "covert_tunnel", "log_modification"],
-      "admission": {"owner": "post-exploit-safety", "target_milestone": "R4", "blocking_release": "R4", "blockers": ["CAP-GAP-012-approve-objective-and-cleanup-harness"]}
+      "admission": {"owner": "post-exploit-safety", "target_milestone": "R4", "blocking_release": "R4", "blockers": [{"id": "CAP-GAP-012-approve-objective-and-cleanup-harness", "status": "OPEN", "severity": "P1", "owner": "post-exploit-safety", "target_milestone": "R4", "blocking_release": "R4", "verification": "tests/capabilities/test_objective_read.py::test_admission", "closure_evidence": null}]}
     },
     {
       "id": "report.evidence_build.v1",
@@ -249,7 +249,7 @@
       "evidence_oracle": "deterministic maturity/severity checks over immutable evidence references",
       "cleanup": "remove temporary render files and retain sealed deliverable per policy",
       "prohibited_effects": ["target_contact", "raw_secret_output", "unverified_claim_promotion", "cross_tenant_evidence"],
-      "admission": {"owner": "reporting-engineering", "target_milestone": "M5", "blocking_release": "R1", "blockers": ["CAP-GAP-013-build-independent-proof-artifact-pipeline"]}
+      "admission": {"owner": "reporting-engineering", "target_milestone": "M5", "blocking_release": "R1", "blockers": [{"id": "CAP-GAP-013-build-independent-proof-artifact-pipeline", "status": "OPEN", "severity": "P1", "owner": "reporting-engineering", "target_milestone": "M5", "blocking_release": "R1", "verification": "tests/capabilities/test_evidence_build.py::test_admission", "closure_evidence": null}]}
     }
   ]
 }

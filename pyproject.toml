@@ -28,6 +28,7 @@ dev = [
   "pytest-cov>=6.2,<8",
   "pytest-randomly>=3.16,<4",
   "pytest-timeout>=2.4,<3",
+  "pyyaml>=6.0,<7",
   "ruff>=0.12,<1",
 ]
 

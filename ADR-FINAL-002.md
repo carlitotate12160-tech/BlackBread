@@ -540,7 +540,7 @@ The initial ownership matrix is binding:
 | Capability family | Owner | Candidate engines | Maximum default posture | Required restriction |
 |---|---|---|---|---|
 | Passive asset intelligence | Scout | own CT/DNS consumer, Subfinder, Amass, Wayback/CDX, Common Crawl, OTX, URLScan | T0 passive | source provenance, deadlines, cache, no target contact |
-| DNS/TLS/HTTP observation | Scout | dnsx, tlsx, httpx, curl-impersonate | T1 active read-only | exact destinations, GET/HEAD only for HTTP, redirect re-check |
+| DNS/TLS/HTTP observation | Scout | dnsx, tlsx, httpx, curl-impersonate | T1 active read-only | exact destinations, GET only for HTTP, redirect re-check |
 | Network-service observation | Scout | Naabu, Nmap safe profiles | T1 active read-only | approved ports/rates; no NSE, brute, UDP, or version script unless separately allowlisted |
 | Route and browser observation | Scout | gau, waybackurls, Katana, Playwright/Camoufox | T1 active read-only | no forms, downloads with side effects, state-changing links, or credential entry |
 | Public-artifact secret detection | Scout | Gitleaks, TruffleHog | offline artifact analysis | only already authorized/publicly retrieved artifacts; findings store redacted evidence |
@@ -566,6 +566,12 @@ tests including nested destinations and redirects, timeout/cancellation/process-
 and cost budgets, output redaction, evidence oracle, fixture and negative-control tests, OPSEC signal
 mapping, ARM64 qualification, and an owner. A missing field or failing test keeps the capability denied.
 `ON_HOLD` and `PLANNED` entries are visible design inventory, never executable runtime states.
+
+The lifecycle vocabulary is closed: `PLANNED`, `ON_HOLD`, `RESEARCH_DRAFT`, `STATIC_REVIEWED`,
+`FIXTURE_VERIFIED`, `NEGATIVE_CONTROL_VERIFIED`, `LAB_PROVEN`, `SAFETY_REVIEWED`,
+`CLIENT_ELIGIBLE`, `EXACT_TARGET_APPROVED`, `FIELD_OBSERVED`, `FIELD_PROVEN`, `REPEATABLE`,
+`SUSPENDED`, and `RETIRED`. Unknown values fail CI and runtime admission. `ON_HOLD` is lifted only by
+the release gate that imposed it; `SUSPENDED` and `RETIRED` always deny execution.
 
 **Passive-source resilience layer:** a `PassiveSource` interface with multi-source redundancy, a per-engagement PostgreSQL cache, per-source retry/backoff/circuit-breaker, async per-source deadlines (never stall the run), and source-health metrics. Free-source floor: Wayback Machine + Wayback CDX, Common Crawl, AlienVault OTX, VirusTotal (off the critical path), URLScan, and crt.sh via its public PostgreSQL. Paid sources (Shodan/Censys/Dehashed) are BYOK with operator-default fallback.
 
