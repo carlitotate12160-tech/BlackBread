@@ -126,6 +126,23 @@ REQUIRED_BLOCKER_FIELDS = {
     "verification",
     "closure_evidence",
 }
+EXPECTED_RUFF_RULES = {
+    "E",
+    "W",
+    "F",
+    "I",
+    "B",
+    "UP",
+    "N",
+    "S",
+    "ASYNC",
+    "C4",
+    "RET",
+    "SIM",
+    "PL",
+    "RUF",
+    "C90",
+}
 REQUIRED_CI_COMMANDS = {
     "quality": ("uv run ruff check .", "uv run ruff format --check .", "uv run mypy"),
     "tests": ("uv run pytest",),
@@ -160,13 +177,14 @@ def test_adr_is_accepted_without_claiming_implementation_complete() -> None:
 
 
 def test_active_contracts_do_not_inherit_agent_alpha_authority() -> None:
+    disclaimer = "Agent-Alpha is historical input only and has no authority over\nBlackBread."
+    adr = (ROOT / "ADR-FINAL-002.md").read_text(encoding="utf-8")
+    assert disclaimer in adr
+
     for path in ACTIVE_CONTRACTS:
         content = path.read_text(encoding="utf-8")
         if path.name == "ADR-FINAL-002.md":
-            content = content.replace(
-                "Agent-Alpha is historical input only and has no authority over\nBlackBread.",
-                "",
-            )
+            content = content.replace(disclaimer, "")
         assert "Agent-Alpha" not in content
         assert "ADR-FINAL-001" not in content
         assert "alpha's" not in content.lower()
@@ -230,7 +248,7 @@ def test_pyproject_enforces_documented_quality_gates() -> None:
     ruff_rules = set(config["tool"]["ruff"]["lint"]["select"])
     dev_dependencies = " ".join(config["dependency-groups"]["dev"])
 
-    assert {"S", "ASYNC", "PL", "C90"} <= ruff_rules
+    assert ruff_rules == EXPECTED_RUFF_RULES
     assert config["tool"]["ruff"]["lint"]["mccabe"]["max-complexity"] == 10
     assert config["tool"]["coverage"]["report"]["fail_under"] == 80
     for package in (
