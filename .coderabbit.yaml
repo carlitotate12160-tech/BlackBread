@@ -40,7 +40,7 @@ reviews:
       instructions: >
         Review for heat FSM correctness (COOL/WARM/HOT/BURNED), jitter
         non-uniformity, and that the hard stop cannot be overridden by the LLM.
-        BURNED must auto-passive and notify.
+        BURNED must freeze target-active work and require operator-approved recovery.
     - path: "src/blackbread/tools/**"
       instructions: >
         Review for credential handling — secrets must go through the vault,
