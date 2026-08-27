@@ -98,6 +98,7 @@ REQUIRED_PRD_REQUIREMENT_IDS = {
     "NFR-011",
 }
 CANONICAL_REQUIREMENT_STATES = {"DECIDED", "IMPLEMENTED", "VERIFIED", "RELEASED"}
+EXPECTED_PRD_REQUIREMENT_STATES = dict.fromkeys(REQUIRED_PRD_REQUIREMENT_IDS, "DECIDED")
 ALLOWED_LIFECYCLES = {
     "PLANNED",
     "ON_HOLD",
@@ -216,10 +217,12 @@ def test_prd_requirements_use_canonical_explicit_states() -> None:
     prd = (ROOT / "PRD.md").read_text(encoding="utf-8")
     requirements = re.findall(r"`([A-Z]+-[0-9]{3})(?: \[([A-Z_]+)\])?`", prd)
     ids = [requirement_id for requirement_id, _ in requirements]
+    states = dict(requirements)
 
     assert set(ids) == REQUIRED_PRD_REQUIREMENT_IDS
     assert len(ids) == len(REQUIRED_PRD_REQUIREMENT_IDS)
     assert all(state in CANONICAL_REQUIREMENT_STATES for _, state in requirements)
+    assert states == EXPECTED_PRD_REQUIREMENT_STATES
 
 
 def test_pyproject_enforces_documented_quality_gates() -> None:
