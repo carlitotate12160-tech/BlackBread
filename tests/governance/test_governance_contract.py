@@ -223,6 +223,26 @@ def test_unenforced_branch_checks_are_recorded_as_release_blocker() -> None:
     assert "**Blocks:** R0 and every real-target release" in gaps
 
 
+
+def test_agent_delivery_authority_is_explicit_and_fail_closed() -> None:
+    rules = (ROOT / ".devin/rules/blackbread.md").read_text(encoding="utf-8")
+    skill = (ROOT / ".devin/skills/build-blackbread-agent/SKILL.md").read_text(encoding="utf-8")
+    branch_contract = (ROOT / ".github/BRANCH-PROTECTION.md").read_text(encoding="utf-8")
+    gaps = (ROOT / "GAP-REGISTER.md").read_text(encoding="utf-8")
+
+    for content in (rules, skill):
+        assert "commit" in content
+        assert "push" in content
+        assert "merge" in content
+        assert "expected head SHA" in content
+        assert "blocking debt" in content
+        assert "force-push" in content
+    assert "Approved automation bypass" in branch_contract
+    assert "specific actor" in branch_contract
+    assert "repository prose cannot configure a GitHub" in branch_contract
+    assert "approved agent bypass" in gaps
+    assert "**Status:** OPEN" in gaps
+
 def test_gitleaks_baseline_contains_only_exact_historical_fingerprints() -> None:
     fingerprints = (ROOT / ".gitleaksignore").read_text(encoding="utf-8").splitlines()
     fingerprint_pattern = re.compile(r"^[0-9a-f]{40}:[A-Za-z0-9_./-]+:[A-Za-z0-9_-]+:[1-9][0-9]*$")

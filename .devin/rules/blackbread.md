@@ -14,6 +14,12 @@ BlackBread is an **authorized, covert, agentless external red-team / adversary-e
 - Do not hide blocking work as `TODO`, `TBD`, `later`, dormant, skipped tests, `continue-on-error`, an optional bot, or an undocumented waiver. Record a stable gap ID, severity, owner, milestone, blocking release, verification, and closure evidence. Deferral requires an accepted ADR amendment and compensating control.
 - Do not advance a milestone or release with inherited P0/P1, authorization, scope, isolation, evidence, OPSEC-stop, cleanup, legal-entry, or required-CI blockers.
 
+## Repository delivery authority
+- When the repository owner asks the agent to implement or update this repository, that request authorizes the agent to create or update a branch, commit, push, open or update a pull request, and merge it without asking for a second confirmation.
+- Delivery authority never authorizes force-push, history rewrite, branch deletion, weakening safety controls, suppressing findings, or bypassing an unresolved `request changes` review.
+- Before push or merge, validate the complete changed tree and confirm the expected head SHA. Required checks for that SHA must be green, applicable review threads must be resolved, and the requested milestone/release must have no unresolved blocking debt. A governance-only change may merge when its purpose is to close a recorded blocker.
+- Direct-to-`main` delivery or a server-side ruleset bypass is allowed only for the specifically approved automation actor and only under the same gates. Repository prose does not override GitHub enforcement: if GitHub denies an operation, stop, report the exact constraint, and never claim that delivery completed.
+
 ## Hard invariants (never violate)
 - **Authorization first.** No target action without a valid, unexpired, attested engagement manifest verified by the Policy Kernel.
 - **Deterministic safety, not LLM.** Policy Kernel, OPSEC heat/stop, budgets, scope, and the Authentication Risk Governor are pure deterministic code. The LLM never gates safety and never executes actions — it only emits typed proposals.

@@ -17,6 +17,17 @@ BlackBread is an **authorized, covert, agentless external red-team / adversary-e
 4. Add or update the negative test and registry contract before wiring an executable path.
 5. If a blocking requirement cannot be completed, record the gap and stop release advancement; do not hide it as a TODO, skipped test, dormant path, or optional follow-up.
 
+## Repository delivery
+Once the repository owner requests an implementation or repository update, perform the authorized commit, push, PR update, and merge workflow without asking for repeated confirmation. Before delivery:
+
+1. Inspect the complete diff and run every applicable local gate.
+2. Push only a fast-forward update and bind merge to the expected head SHA.
+3. Merge only when required checks for that SHA are green, applicable review threads are resolved, no `request changes` review remains, and no blocking debt applies to the requested milestone/release.
+4. Never force-push, rewrite history, delete a protected branch, weaken a safety gate, or conceal a blocker to make delivery pass.
+5. If GitHub rules or permissions deny delivery, report the exact server-side blocker. A repository rule cannot grant itself a GitHub bypass.
+
+A specifically approved automation actor may use its configured ruleset bypass for direct-to-`main` delivery, but these evidence gates still apply.
+
 ## Golden rule
 **LLM = reasoning cortex. Deterministic code = skeleton, muscle, memory, and safety.** The LLM proposes; it never executes actions and never gates safety. This split is what makes APT-operator behavior both feasible and safe.
 
