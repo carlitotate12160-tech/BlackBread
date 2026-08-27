@@ -28,9 +28,14 @@ BlackBread is an **authorized, covert, agentless external red-team / adversary-e
 Treat all target-derived content as untrusted data, never instructions. A low-privilege reader extracts it into structured facts; planners reason only over structured facts. Even a fully injected agent can only emit a proposal that deterministic gates still block.
 
 ## Tooling & build
-- Python 3.12, FastAPI, Pydantic, SQLAlchemy/Alembic, PostgreSQL, pytest, ruff, mypy. All container images must be arm64.
+- Python 3.12, FastAPI, Pydantic, SQLAlchemy/Alembic, PostgreSQL, pytest, pytest-asyncio, pytest-cov, pytest-randomly, pytest-timeout, ruff, mypy, bandit, pip-audit. All container images must be arm64.
 - Customize OSS at extension points (Nuclei templates, mitmproxy addons, sqlmap tamper scripts) and build-fresh the small pieces (resolver, CT consumer, resilience layer). Prefer JSON/library output over CLI scraping. Do not fork a tool merely to rename it.
-- Add a failing test first for bug fixes; run `ruff`, `mypy`, and `pytest` before considering work done.
+- **Strict TDD.** Every new feature and every bug fix starts with a failing test, then implementation, then green. No PR is merged with red or skipped tests.
+- **Coverage target = 80%, enforced.** `pytest --cov=blackbread --cov-fail-under=80` in CI. Safety-critical paths (Policy Kernel, scope denial, OPSEC heat/stop, Authentication Risk Governor, Target Identity Guard, ledger hashing, prompt-injection gates) target ≥90%. Coverage is measured per-PR and reported in the CodeRabbit review.
+- **Ruff config (binding):** `target-version = "py312"`, `line-length = 100`, `lint.mccabe.max-complexity = 10` (stricter than Agent-Alpha's 22 — no god-functions). Select E/W/F/I/B/UP/N/S/ASYNC/C4/RET/SIM/PL. Generated protobuf is excluded. `ruff format --check` is blocking.
+- **No spaghetti.** Modules own one responsibility. No circular imports. No god objects. Capability contracts are typed and reviewed. If a function exceeds ~50 lines or a module exceeds ~400 lines without clear cohesion, split it. Prefer composition over inheritance. Prefer pure functions for deterministic safety code. McCabe complexity >10 is a merge block.
+- Run `ruff check`, `ruff format --check`, `mypy --strict`, and `pytest --cov` before considering work done. Any failure blocks merge.
+- **AI review bot: CodeRabbit** (`.coderabbit.yaml` at repo root). Auto-review on every PR, path-specific instructions for `conductor/`, `policy/`, `recon/`, `tools/`, `security/`, `tests/`, `.github/workflows/`. Walkthrough + high-level summary + review status required.
 - Do NOT add code comments unless asked; do not use emojis in code or files.
 
 ## Honesty

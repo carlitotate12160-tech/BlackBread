@@ -1,0 +1,69 @@
+# CodeRabbit AI Review Configuration for BlackBread
+# Docs: https://docs.coderabbit.ai/configure-coderabbit
+
+reviews:
+  auto_review:
+    enabled: true
+    drafts: false
+
+  language: en
+
+  high_level_summary: true
+  walkthrough: true
+  review_status: true
+
+  # Only review production code; skip generated/lab/debug files
+  path_filters:
+    - "!**/*_pb2.py"
+    - "!**/*_pb2_grpc.py"
+    - "!debug_*.py"
+    - "!**/seed.sh"
+    - "!archive/**"
+
+  path_instructions:
+    - path: "blackbread/conductor/**"
+      instructions: >
+        Review for authorization bypass, scope violation, and tenant isolation.
+        No agent file may write authorization state. Every proposal-to-execution
+        path must pass through the Policy Kernel.
+    - path: "blackbread/policy/**"
+      instructions: >
+        Review for fail-closed behavior, scope validation of every host/IP/URL
+        in all parameters, and TOCTOU re-validation inside leases. Deterministic
+        only — no LLM calls in this module.
+    - path: "blackbread/recon/**"
+      instructions: >
+        Review for double-fetch, soft-404 calibration correctness, and read-only
+        GET-only enforcement. No form submission, no state-changing links, no
+        account-lockout risk. Probes must use the typed PathProbeSpec catalog.
+    - path: "blackbread/opsec/**"
+      instructions: >
+        Review for heat FSM correctness (COOL/WARM/HOT/BURNED), jitter
+        non-uniformity, and that the hard stop cannot be overridden by the LLM.
+        BURNED must auto-passive and notify.
+    - path: "blackbread/tools/**"
+      instructions: >
+        Review for credential handling — secrets must go through the vault,
+        never plaintext. Check for bare except Exception without noqa. No raw
+        secrets in logs, graph, prompts, or artifacts.
+    - path: "blackbread/security/**"
+      instructions: >
+        Review for crypto correctness, key management, vault integrity, and
+        prompt-injection defense. No hardcoded keys. Target content must be
+        treated as untrusted data, never instructions.
+    - path: "blackbread/ledger/**"
+      instructions: >
+        Review for hash-chain integrity, monotonic ordering, and append-only
+        enforcement. No mutation of past events.
+    - path: "tests/**"
+      instructions: >
+        Review for test isolation — no real network calls, no real LLM calls,
+        no real target contact. Tests must not weaken existing assertions.
+        Safety-critical path coverage must be >=90%.
+    - path: ".github/workflows/**"
+      instructions: >
+        Review for CI guard bypass — guards must not be skippable without admin
+        override. Coverage gate (>=80%) and ruff/mypy must be blocking.
+
+chat:
+  auto_reply: true
