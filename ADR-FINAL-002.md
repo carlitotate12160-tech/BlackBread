@@ -57,7 +57,14 @@ states the compensating control and the release at which it becomes mandatory.
 Each milestone is a hard dependency gate. Work for the next milestone may be prototyped, but the
 release cannot advance while any current or inherited `P0`/`P1`, safety, authorization, scope,
 tenant-isolation, evidence-integrity, or cleanup blocker remains open. CI validates contract drift;
-branch protection makes the CI checks required; neither can be bypassed by an agent or ordinary PR.
+branch protection makes the CI checks required. An agent may not waive these substantive gates.
+
+For this sole-owner repository, an authenticated owner instruction authorizes the named automation
+integration to create commits, push a feature branch, update a pull request, and perform the final
+merge without repeated confirmation. A configured integration bypass is transport authority only:
+it may be used to execute the merge after the same checks, review disposition, stable-head, and
+blocking-debt gates pass. It never authorizes direct push to `main`, force-push, history rewrite,
+suppression of AI review findings, or merge while a `changes requested` review remains.
 
 ---
 

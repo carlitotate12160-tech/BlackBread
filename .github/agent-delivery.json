@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "agent_delivery": {
+    "owner_instruction_required": true,
+    "feature_branch_commit_push_allowed": true,
+    "pull_request_required": true,
+    "direct_push_main_allowed": false,
+    "force_push_allowed": false,
+    "expected_head_sha_required": true,
+    "required_approving_reviews": 1,
+    "require_code_owner_review": false,
+    "dismiss_stale_reviews": true,
+    "require_review_thread_resolution": true,
+    "allow_changes_requested": false,
+    "require_ai_bot_comment_disposition": true,
+    "require_branch_up_to_date": true,
+    "required_status_checks": [
+      "governance",
+      "quality",
+      "security",
+      "tests"
+    ],
+    "allow_blocking_debt": false,
+    "ruleset_bypass_actor_type": "Integration",
+    "ruleset_bypass_actor_id": 1144995,
+    "ruleset_bypass_may_waive_gates": false
+  }
+}

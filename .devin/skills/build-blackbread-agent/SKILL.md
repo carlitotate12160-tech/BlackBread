@@ -18,15 +18,23 @@ BlackBread is an **authorized, covert, agentless external red-team / adversary-e
 5. If a blocking requirement cannot be completed, record the gap and stop release advancement; do not hide it as a TODO, skipped test, dormant path, or optional follow-up.
 
 ## Repository delivery
-Once the repository owner requests an implementation or repository update, perform the authorized commit, push, PR update, and merge workflow without asking for repeated confirmation. Before delivery:
+Once the repository owner requests an implementation or repository update, perform the authorized
+feature-branch commit, push, PR update, and final merge workflow without asking for repeated
+confirmation. Load and enforce `.github/agent-delivery.json` before delivery.
 
 1. Inspect the complete diff and run every applicable local gate.
-2. Push only a fast-forward update and bind merge to the expected head SHA.
-3. Merge only when required checks for that SHA are green, applicable review threads are resolved, no `request changes` review remains, and no blocking debt applies to the requested milestone/release.
-4. Never force-push, rewrite history, delete a protected branch, weaken a safety gate, or conceal a blocker to make delivery pass.
-5. If GitHub rules or permissions deny delivery, report the exact server-side blocker. A repository rule cannot grant itself a GitHub bypass.
-
-A specifically approved automation actor may use its configured ruleset bypass for direct-to-`main` delivery, but these evidence gates still apply.
+2. Push only a fast-forward feature-branch update and bind merge to the expected head SHA.
+3. Evaluate every AI-bot comment against the latest tree. Fix valid findings; reply with evidence to
+   addressed, stale, or false-positive findings; resolve their threads only after that disposition.
+4. Merge only when every named check for that SHA is green, all review threads are resolved, at least
+   one approving review exists, no `changes requested` review remains, the branch is current, and no
+   blocking debt applies to the requested milestone/release.
+5. A configured automation-integration bypass is transport authority for the final PR merge only. It
+   cannot waive a gate and never permits direct push to `main`.
+6. Never force-push, rewrite history, delete a protected branch, weaken a safety gate, conceal a
+   blocker, or dismiss a valid review merely to make delivery pass.
+7. If GitHub rules or permissions deny delivery, report the exact server-side blocker and never claim
+   the merge completed.
 
 ## Golden rule
 **LLM = reasoning cortex. Deterministic code = skeleton, muscle, memory, and safety.** The LLM proposes; it never executes actions and never gates safety. This split is what makes APT-operator behavior both feasible and safe.

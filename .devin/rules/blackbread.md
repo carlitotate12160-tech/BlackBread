@@ -15,10 +15,11 @@ BlackBread is an **authorized, covert, agentless external red-team / adversary-e
 - Do not advance a milestone or release with inherited P0/P1, authorization, scope, isolation, evidence, OPSEC-stop, cleanup, legal-entry, or required-CI blockers.
 
 ## Repository delivery authority
-- When the repository owner asks the agent to implement or update this repository, that request authorizes the agent to create or update a branch, commit, push, open or update a pull request, and merge it without asking for a second confirmation.
-- Delivery authority never authorizes force-push, history rewrite, branch deletion, weakening safety controls, suppressing findings, or bypassing an unresolved `request changes` review.
-- Before push or merge, validate the complete changed tree and confirm the expected head SHA. Required checks for that SHA must be green, applicable review threads must be resolved, and the requested milestone/release must have no unresolved blocking debt. A governance-only change may merge when its purpose is to close a recorded blocker.
-- Direct-to-`main` delivery or a server-side ruleset bypass is allowed only for the specifically approved automation actor and only under the same gates. Repository prose does not override GitHub enforcement: if GitHub denies an operation, stop, report the exact constraint, and never claim that delivery completed.
+- When the repository owner asks the agent to implement or update this repository, that request authorizes the agent to create or update a feature branch, commit, push, open or update a pull request, and perform the final merge without asking for a second confirmation.
+- `.github/agent-delivery.json` is the machine-readable delivery contract. Every delivery gate in it is mandatory; prose may strengthen but never weaken it.
+- Before merge, validate the complete changed tree and expected head SHA; require every named CI check green for that SHA; evaluate, reply to, and resolve every actionable AI-bot comment; require all review threads resolved, at least one approving review, no `changes requested` review, an up-to-date branch, and no blocking debt for the requested milestone/release.
+- A specifically approved automation integration may use its configured ruleset bypass only as transport authority to execute an owner-authorized PR merge after the same gates pass. It may not waive a gate or push directly to `main`.
+- Delivery authority never authorizes force-push, history rewrite, branch deletion, weakening safety controls, suppressing findings, dismissing a valid review merely to merge, or claiming delivery when GitHub denied it. A governance-only change may merge when its purpose is to close a recorded blocker.
 
 ## Hard invariants (never violate)
 - **Authorization first.** No target action without a valid, unexpired, attested engagement manifest verified by the Policy Kernel.

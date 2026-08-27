@@ -31,21 +31,36 @@ REQUIRED_CAPABILITY_FIELDS = {
     "prohibited_effects",
     "admission",
 }
-REQUIRED_CAPABILITY_IDS = {
-    "scout.passive_asset_intelligence.v1",
-    "scout.dns_tls_http_observe.v1",
-    "scout.network_service_observe.v1",
-    "scout.route_browser_observe.v1",
-    "scout.public_artifact_secret_detect.v1",
-    "scout.discovery_signature.v1",
-    "strike.credential_intelligence_offline.v1",
-    "strike.authentication_validate.v1",
-    "strike.authorization_differential.v1",
-    "strike.service_vulnerability_verify.v1",
-    "exploit.controlled_proof.v1",
-    "post_exploit.objective_read.v1",
-    "report.evidence_build.v1",
+REQUIRED_CAPABILITY_OWNERS = {
+    "scout.passive_asset_intelligence.v1": "Scout",
+    "scout.dns_tls_http_observe.v1": "Scout",
+    "scout.network_service_observe.v1": "Scout",
+    "scout.route_browser_observe.v1": "Scout",
+    "scout.public_artifact_secret_detect.v1": "Scout",
+    "scout.discovery_signature.v1": "Scout",
+    "strike.credential_intelligence_offline.v1": "Strike",
+    "strike.authentication_validate.v1": "Strike",
+    "strike.authorization_differential.v1": "Strike",
+    "strike.service_vulnerability_verify.v1": "Strike",
+    "exploit.controlled_proof.v1": "Exploit",
+    "post_exploit.objective_read.v1": "Post-Exploit",
+    "report.evidence_build.v1": "Report",
 }
+REQUIRED_CAPABILITY_IDS = set(REQUIRED_CAPABILITY_OWNERS)
+REQUIRED_PRD_REQUIREMENT_IDS = {
+    "ENG-001", "ENG-002", "ENG-003", "ENG-004", "ENG-005",
+    "REC-001", "REC-002", "REC-003", "REC-004", "REC-005", "REC-006",
+    "STR-001", "STR-002", "STR-003",
+    "VUL-001", "VUL-002",
+    "CAP-001", "CAP-002", "CAP-003", "CAP-004", "CAP-005", "CAP-006", "CAP-007",
+    "EXP-001",
+    "REP-001", "REP-002", "REP-003", "REP-004", "REP-005",
+    "OPS-001", "OPS-002", "OPS-003", "OPS-004", "OPS-005",
+    "GOV-001", "GOV-002", "GOV-003",
+    "NFR-001", "NFR-002", "NFR-003", "NFR-004", "NFR-005", "NFR-006",
+    "NFR-007", "NFR-008", "NFR-009", "NFR-010", "NFR-011",
+}
+CANONICAL_REQUIREMENT_STATES = {"DECIDED", "IMPLEMENTED", "VERIFIED", "RELEASED"}
 ALLOWED_LIFECYCLES = {
     "PLANNED",
     "ON_HOLD",
@@ -94,6 +109,11 @@ def load_workflow() -> dict[str, object]:
     return workflow
 
 
+def load_delivery_contract() -> dict[str, object]:
+    path = ROOT / ".github/agent-delivery.json"
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
 def test_adr_is_accepted_without_claiming_implementation_complete() -> None:
     adr = (ROOT / "ADR-FINAL-002.md").read_text(encoding="utf-8")
 
@@ -122,8 +142,10 @@ def test_capability_registry_is_default_deny_and_has_binding_ids() -> None:
     assert registry["default_decision"] == "DENY"
     assert isinstance(capabilities, list)
     ids = [capability["id"] for capability in capabilities]
+    owners = {capability["id"]: capability["owner_agent"] for capability in capabilities}
     assert set(ids) == REQUIRED_CAPABILITY_IDS
     assert len(ids) == len(set(ids))
+    assert owners == REQUIRED_CAPABILITY_OWNERS
 
 
 def test_capability_entries_are_complete_and_explicitly_blocked() -> None:
@@ -155,13 +177,12 @@ def test_capability_entries_are_complete_and_explicitly_blocked() -> None:
 
 def test_prd_requirements_use_canonical_explicit_states() -> None:
     prd = (ROOT / "PRD.md").read_text(encoding="utf-8")
-    requirements = re.findall(
-        r"`([A-Z]+-[0-9]{3}) \[(DECIDED|IMPLEMENTED|VERIFIED|RELEASED)\]`", prd
-    )
+    requirements = re.findall(r"`([A-Z]+-[0-9]{3})(?: \[([A-Z_]+)\])?`", prd)
     ids = [requirement_id for requirement_id, _ in requirements]
 
-    assert len(ids) == len(set(ids))
-    assert {f"CAP-{number:03d}" for number in range(1, 8)} <= set(ids)
+    assert set(ids) == REQUIRED_PRD_REQUIREMENT_IDS
+    assert len(ids) == len(REQUIRED_PRD_REQUIREMENT_IDS)
+    assert all(state in CANONICAL_REQUIREMENT_STATES for _, state in requirements)
 
 
 def test_pyproject_enforces_documented_quality_gates() -> None:
@@ -224,22 +245,48 @@ def test_unenforced_branch_checks_are_recorded_as_release_blocker() -> None:
 
 
 def test_agent_delivery_authority_is_explicit_and_fail_closed() -> None:
-    rules = (ROOT / ".devin/rules/blackbread.md").read_text(encoding="utf-8")
-    skill = (ROOT / ".devin/skills/build-blackbread-agent/SKILL.md").read_text(encoding="utf-8")
-    branch_contract = (ROOT / ".github/BRANCH-PROTECTION.md").read_text(encoding="utf-8")
-    gaps = (ROOT / "GAP-REGISTER.md").read_text(encoding="utf-8")
+    contract = load_delivery_contract()
+    delivery = contract["agent_delivery"]
+    expected = {
+        "owner_instruction_required": True,
+        "feature_branch_commit_push_allowed": True,
+        "pull_request_required": True,
+        "direct_push_main_allowed": False,
+        "force_push_allowed": False,
+        "expected_head_sha_required": True,
+        "required_approving_reviews": 1,
+        "require_code_owner_review": False,
+        "dismiss_stale_reviews": True,
+        "require_review_thread_resolution": True,
+        "allow_changes_requested": False,
+        "require_ai_bot_comment_disposition": True,
+        "require_branch_up_to_date": True,
+        "required_status_checks": ["governance", "quality", "security", "tests"],
+        "allow_blocking_debt": False,
+        "ruleset_bypass_actor_type": "Integration",
+        "ruleset_bypass_actor_id": 1144995,
+        "ruleset_bypass_may_waive_gates": False,
+    }
 
-    for content in (rules, skill):
-        assert "commit" in content
-        assert "push" in content
-        assert "merge" in content
-        assert "expected head SHA" in content
-        assert "blocking debt" in content
-        assert "force-push" in content
-    assert "Approved automation bypass" in branch_contract
-    assert "specific actor" in branch_contract
-    assert "repository prose cannot configure a GitHub" in branch_contract
-    assert "approved agent bypass" in gaps
+    assert contract["schema_version"] == 1
+    assert delivery == expected
+
+    documents = (
+        ROOT / "ADR-FINAL-002.md",
+        ROOT / ".devin/rules/blackbread.md",
+        ROOT / ".devin/skills/build-blackbread-agent/SKILL.md",
+        ROOT / ".github/BRANCH-PROTECTION.md",
+    )
+    for path in documents:
+        content = path.read_text(encoding="utf-8")
+        assert "AI-bot comment" in content or "AI review findings" in content
+        assert "direct push to `main`" in content
+        assert "changes requested" in content
+        assert "blocking debt" in content or "blocking-debt" in content
+
+    gaps = (ROOT / "GAP-REGISTER.md").read_text(encoding="utf-8")
+    assert "actor_id: 1144995" in gaps
+    assert "does not require an up-to-date branch or any status check" in gaps
     assert "**Status:** OPEN" in gaps
 
 
