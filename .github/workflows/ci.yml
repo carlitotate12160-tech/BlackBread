@@ -19,6 +19,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
       - uses: ./.github/actions/setup-uv
       - run: uv run ruff check .
       - run: uv run ruff format --check .
@@ -29,6 +30,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
       - uses: ./.github/actions/setup-uv
       - run: uv run pytest
       - name: Safety-critical coverage (90% threshold)
@@ -39,9 +41,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: ./.github/actions/setup-uv
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
-          fetch-depth: "0"
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-uv
       - run: uv run bandit -c pyproject.toml -r src/blackbread
       - run: uv run pip-audit
       - uses: ./.github/actions/install-gitleaks
@@ -52,6 +55,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
       - uses: ./.github/actions/setup-uv
       - run: uv lock --check
       - run: uv run pytest tests/governance --no-cov

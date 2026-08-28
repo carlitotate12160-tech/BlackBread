@@ -310,9 +310,9 @@ def test_ci_uses_composite_actions_and_safety_script() -> None:
     assert (ROOT / "scripts/check_safety_coverage.py").exists()
 
     setup_uv = (ROOT / ".github/actions/setup-uv/action.yml").read_text(encoding="utf-8")
-    assert "actions/checkout@" in setup_uv
     assert "actions/setup-python@" in setup_uv
     assert "uv sync --locked --all-groups" in setup_uv
+    assert "actions/checkout@" not in setup_uv
 
     gitleaks = (ROOT / ".github/actions/install-gitleaks/action.yml").read_text(encoding="utf-8")
     assert "sha256sum -c -" in gitleaks
