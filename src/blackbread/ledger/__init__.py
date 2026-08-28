@@ -5,14 +5,26 @@ from blackbread.ledger.errors import (
     LedgerError,
     LedgerValidationError,
 )
+from blackbread.ledger.schema import (
+    EventEnvelope,
+    EventPayload,
+    EventRegistry,
+    UnknownEventSchemaError,
+    to_draft,
+)
 from blackbread.ledger.verify import ChainVerification, verify_chain
 
 __all__ = [
     "ChainVerification",
     "EventDraft",
+    "EventEnvelope",
+    "EventPayload",
+    "EventRegistry",
     "LedgerAccessError",
     "LedgerError",
     "LedgerValidationError",
+    "UnknownEventSchemaError",
     "append_event",
+    "to_draft",
     "verify_chain",
 ]
