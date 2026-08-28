@@ -35,9 +35,7 @@ def main() -> int:
         return 0
 
     threshold = load_threshold()
-    include_patterns = ",".join(
-        f"blackbread.{mod}.*" for mod in SAFETY_MODULES
-    )
+    include_patterns = ",".join(f"blackbread.{mod}.*" for mod in SAFETY_MODULES)
 
     result = subprocess.run(
         [
