@@ -55,6 +55,11 @@ class _BoolVersion(EventPayload):
     SCHEMA_VERSION: ClassVar[int] = True
 
 
+class _OversizedVersion(EventPayload):
+    SCHEMA_NAME: ClassVar[str] = "test.oversized_version"
+    SCHEMA_VERSION: ClassVar[int] = 2_147_483_648
+
+
 class _UndeclaredThing(EventPayload):
     value: str
 
@@ -149,7 +154,7 @@ def test_default_registry_is_complete_and_frozen() -> None:
 
 @pytest.mark.parametrize(
     "model",
-    [_BadName, _BoolVersion, object],
+    [_BadName, _BoolVersion, _OversizedVersion, object],
 )
 def test_register_rejects_invalid_schema_declarations(model: object) -> None:
     registry = EventRegistry()
@@ -249,6 +254,16 @@ def test_parse_rejects_missing_field_and_non_mapping() -> None:
     [
         {"root_domains": ("Example.com",)},
         {"root_domains": ("*.example.com",)},
+        {"root_domains": ("127.0.0.1",)},
+        {"root_domains": ("127.1",)},
+        {"root_domains": ("0177.0.0.1",)},
+        {"root_domains": ("0x7f.0.0.1",)},
+        {"exact_hosts": ("127.0.0.1",)},
+        {"exact_hosts": ("127.1",)},
+        {
+            "exclusions": ({"target_type": "exact_host", "value": "0x7f.0.0.1"},),
+            "root_domains": ("example.com",),
+        },
         {"root_domains": ("example.com", "example.com")},
         {"root_domains": ("z.example.com", "a.example.com")},
         {"root_domains": tuple(f"{index}.example.com" for index in range(501))},
@@ -268,6 +283,12 @@ def test_parse_rejects_missing_field_and_non_mapping() -> None:
 def test_scope_rejects_noncanonical_or_empty_values(scope: dict[str, object]) -> None:
     with pytest.raises((ValidationError, ValueError)):
         EngagementScope(**scope)
+
+
+def test_scope_allows_numeric_labels_when_hostname_has_domain_suffix() -> None:
+    scope = EngagementScope(exact_hosts=("127.1.example.com",))
+
+    assert scope.exact_hosts == ("127.1.example.com",)
 
 
 def test_attestation_rejects_invalid_validity_and_naive_time() -> None:

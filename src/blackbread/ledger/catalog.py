@@ -11,7 +11,9 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from blackbread.ledger.schema import EventPayload, EventRegistry
 
 _DOMAIN_LABEL_PATTERN = re.compile(r"^(?!-)[a-z0-9-]{1,63}(?<!-)$")
+_LEGACY_IPV4_COMPONENT_PATTERN = re.compile(r"^(?:0x[0-9a-f]+|[0-9]+)$")
 _HEX_DIGEST_PATTERN = r"^[0-9a-f]{64}$"
+_MAX_IPV4_COMPONENTS = 4
 _MAX_SCOPE_ENTRIES = 500
 _MIN_DOMAIN_LABELS = 2
 
@@ -32,7 +34,17 @@ def _canonical_text(value: str, field: str, maximum: int) -> str:
 
 def _canonical_domain(value: str) -> str:
     _canonical_text(value, "domain", 253)
+    try:
+        ip_address(value)
+    except ValueError:
+        pass
+    else:
+        raise ValueError("domain fields cannot contain IP address literals")
     labels = value.split(".")
+    if len(labels) <= _MAX_IPV4_COMPONENTS and all(
+        _LEGACY_IPV4_COMPONENT_PATTERN.fullmatch(label) is not None for label in labels
+    ):
+        raise ValueError("domain fields cannot contain legacy IPv4 address spellings")
     if len(labels) < _MIN_DOMAIN_LABELS or value != value.lower():
         raise ValueError("domain must be a lowercase fully-qualified name")
     if any(_DOMAIN_LABEL_PATTERN.fullmatch(label) is None for label in labels):

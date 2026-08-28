@@ -12,6 +12,7 @@ from blackbread.ledger.hashing import canonical_json, canonical_timestamp
 ALLOWED_SENSITIVITIES = frozenset({"public", "internal", "confidential", "restricted"})
 MAX_EVENT_PAYLOAD_BYTES = 1_048_576
 MAX_REDACTION_REFS = 100
+MAX_SCHEMA_VERSION = 2_147_483_647
 
 
 def _validate_text(value: str, field: str, maximum: int) -> None:
@@ -37,6 +38,8 @@ def _validate_schema_version(value: object) -> None:
         raise LedgerValidationError("schema_version must be an integer")
     if value < 1:
         raise LedgerValidationError("schema_version must be positive")
+    if value > MAX_SCHEMA_VERSION:
+        raise LedgerValidationError("schema_version exceeds the PostgreSQL INTEGER range")
 
 
 def _snapshot_payload(payload: object) -> tuple[Mapping[str, object], str]:
