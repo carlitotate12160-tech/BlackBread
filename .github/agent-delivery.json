@@ -23,6 +23,9 @@
     "allow_blocking_debt": false,
     "ruleset_bypass_actor_type": "Integration",
     "ruleset_bypass_actor_id": 1144995,
-    "ruleset_bypass_may_waive_gates": false
+    "ruleset_bypass_may_waive_gates": false,
+    "ruleset_bypass_scope": "approval_only",
+    "ruleset_no_bypass_id": 21644438,
+    "ruleset_bypass_id": 21698082
   }
 }
