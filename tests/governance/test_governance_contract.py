@@ -8,6 +8,8 @@ from alembic.config import Config
 from alembic.script import ScriptDirectory
 
 from blackbread.health import EXPECTED_SCHEMA_REVISION
+from blackbread.models.base import Base
+from blackbread.models.core import PlatformMetadata
 
 ROOT = Path(__file__).parents[2]
 ACTIVE_CONTRACTS = (
@@ -335,6 +337,8 @@ def test_container_and_downloaded_tools_are_immutable() -> None:
     assert (ROOT / "deploy/postgres/init-runtime.sh").exists()
     migration = (ROOT / "migrations/versions/0002_m1_ledger.py").read_text(encoding="utf-8")
     assert "GRANT SELECT, INSERT ON TABLE agent_events TO blackbread_runtime" in migration
+    assert "GRANT UPDATE (ledger_lock_token) ON TABLE engagements" in migration
+    assert "SECURITY DEFINER" in migration
     assert "REVOKE ALL ON TABLE clients, engagements, agent_events FROM PUBLIC" in migration
     assert "sha256sum -c -" in gitleaks_action
 
@@ -353,8 +357,8 @@ def test_ci_uses_composite_actions_and_safety_script() -> None:
     assert "sha256sum -c -" in gitleaks
 
     safety = (ROOT / "scripts/check_safety_coverage.py").read_text(encoding="utf-8")
-    assert "SAFETY_MODULES" in safety
-    assert "90" in safety
+    assert "load_safety_includes" in safety
+    assert "SAFETY_MODULES" not in safety
 
 
 def test_unenforced_branch_checks_are_recorded_as_release_blocker() -> None:
@@ -414,6 +418,10 @@ def test_agent_delivery_authority_is_explicit_and_fail_closed() -> None:
     assert "21644438" in gaps
     assert "21698082" in gaps
     assert "**Status:** CLOSED" in gaps
+
+
+def test_bootstrap_table_is_registered_in_model_metadata() -> None:
+    assert PlatformMetadata.__table__ is Base.metadata.tables["platform_metadata"]
 
 
 def test_runtime_expected_schema_revision_matches_alembic_head() -> None:

@@ -2,11 +2,13 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
+    BigInteger,
     CheckConstraint,
     DateTime,
     ForeignKey,
     Integer,
     String,
+    Text,
     UniqueConstraint,
     func,
     text,
@@ -15,6 +17,20 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from blackbread.models.base import Base
+
+EMPTY_LEDGER_HEAD = "0" * 64
+
+
+class PlatformMetadata(Base):
+    __tablename__ = "platform_metadata"
+
+    key: Mapped[str] = mapped_column(String(100), primary_key=True)
+    value: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
 
 
 class Client(Base):
@@ -48,6 +64,14 @@ class Engagement(Base):
             "ledger_lock_token = 0",
             name="ck_engagements_ledger_lock_token",
         ),
+        CheckConstraint(
+            "ledger_event_count >= 0",
+            name="ck_engagements_ledger_event_count",
+        ),
+        CheckConstraint(
+            "ledger_head_hash ~ '^[0-9a-f]{64}$'",
+            name="ck_engagements_ledger_head_hash",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -69,6 +93,18 @@ class Engagement(Base):
         default=0,
         server_default=text("0"),
         comment="Immutable sentinel used only to authorize engagement row locks.",
+    )
+    ledger_event_count: Mapped[int] = mapped_column(
+        BigInteger,
+        nullable=False,
+        default=0,
+        server_default=text("0"),
+    )
+    ledger_head_hash: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        default=EMPTY_LEDGER_HEAD,
+        server_default=text(f"'{EMPTY_LEDGER_HEAD}'"),
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

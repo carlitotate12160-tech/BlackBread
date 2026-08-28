@@ -62,7 +62,7 @@ async def _prepare_runtime_roles() -> None:
             if not role_exists:
                 await connection.execute(
                     text(
-                        "CREATE ROLE blackbread_runtime NOLOGIN NOSUPERUSER "
+                        "CREATE ROLE blackbread_runtime NOLOGIN NOINHERIT NOSUPERUSER "
                         "NOCREATEDB NOCREATEROLE NOREPLICATION"
                     )
                 )

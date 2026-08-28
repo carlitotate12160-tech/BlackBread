@@ -1,4 +1,5 @@
 import asyncio
+from importlib import import_module
 from logging.config import fileConfig
 
 from alembic import context
@@ -7,15 +8,16 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from blackbread.config import get_settings
-from blackbread.ledger.event import AgentEvent
 from blackbread.models.base import Base
-from blackbread.models.core import Client, Engagement
+
+MODEL_MODULES = ("blackbread.models.core", "blackbread.ledger.event")
+for model_module in MODEL_MODULES:
+    import_module(model_module)
 
 config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 config.set_main_option("sqlalchemy.url", get_settings().database_url)
-registered_models = (AgentEvent, Client, Engagement)
 target_metadata = Base.metadata
 
 

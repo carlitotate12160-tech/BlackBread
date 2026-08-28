@@ -11,8 +11,8 @@ contains the M0 foundation and an in-progress M1 trust-spine ledger slice descri
 3. PostgreSQL persistence and Alembic migrations.
 4. Encrypted, content-addressed local artifact storage.
 5. ARM64-compatible Docker Compose runtime.
-6. Tenant-bound, hash-versioned event ledger with a non-owner runtime role, replay verification,
-   and tamper tests.
+6. Tenant-bound, hash-versioned event ledger with a non-owner runtime role, anchored replay
+   verification, and tamper tests.
 
 ## Local development
 
@@ -52,7 +52,9 @@ docker compose up --build
 The database initialization script creates `blackbread_app` as a non-owner member of the
 `blackbread_runtime` NOLOGIN role. The migration container uses `blackbread_migration`; the API
 uses `blackbread_app`, which receives only the table privileges required by the implemented slice.
-Existing development volumes created before this split must be reinitialized deliberately.
+A constrained lock sentinel permits row locking without business-column UPDATE access, while a
+security-definer insert trigger advances an external count/hash anchor so tail truncation is
+detectable. Existing development volumes created before this split must be reinitialized deliberately.
 
 The API exposes `GET /health/live` for process liveness and `GET /health/ready` for database and
 migration readiness. The API is available at `http://localhost:8000`.
