@@ -14,6 +14,15 @@ HASH_HEX_LENGTH = 64
 GENESIS_PREV_HASH = "0" * HASH_HEX_LENGTH
 MAX_JSON_DEPTH = 100
 
+_NUL_CODEPOINT = 0
+_UNICODE_SURROGATE_LOW = 0xD800
+_UNICODE_SURROGATE_HIGH = 0xDFFF
+_ASCII_CONTROL_BOUNDARY = 0x20
+_ASCII_MAX = 0x7F
+_TWO_BYTE_UTF_MAX = 0x7FF
+_THREE_BYTE_UTF_MAX = 0xFFFF
+_JSON_ESCAPE_CHARS = frozenset({'"', "\\", "\b", "\f", "\n", "\r", "\t"})
+
 
 class _JsonBudget:
     def __init__(self, maximum: int) -> None:
@@ -52,6 +61,32 @@ def canonical_timestamp(value: datetime) -> str:
     return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
+def _check_char_validity(codepoint: int, path: str) -> None:
+    if codepoint == _NUL_CODEPOINT:
+        raise LedgerValidationError(f"{path} contains a NUL character unsupported by JSONB")
+    if _UNICODE_SURROGATE_LOW <= codepoint <= _UNICODE_SURROGATE_HIGH:
+        raise LedgerValidationError(f"{path} contains invalid Unicode")
+
+
+def _consume_char_budget(
+    character: str,
+    codepoint: int,
+    budget: _JsonBudget,
+) -> None:
+    if character in _JSON_ESCAPE_CHARS:
+        budget.consume(2)
+    elif codepoint < _ASCII_CONTROL_BOUNDARY:
+        budget.consume(6)
+    elif codepoint <= _ASCII_MAX:
+        budget.consume(1)
+    elif codepoint <= _TWO_BYTE_UTF_MAX:
+        budget.consume(2)
+    elif codepoint <= _THREE_BYTE_UTF_MAX:
+        budget.consume(3)
+    else:
+        budget.consume(4)
+
+
 def _validate_json_string(
     value: str,
     path: str,
@@ -61,24 +96,9 @@ def _validate_json_string(
         budget.consume(2)
     for character in value:
         codepoint = ord(character)
-        if codepoint == 0:
-            raise LedgerValidationError(f"{path} contains a NUL character unsupported by JSONB")
-        if 0xD800 <= codepoint <= 0xDFFF:
-            raise LedgerValidationError(f"{path} contains invalid Unicode")
-        if budget is None:
-            continue
-        if character in {'"', "\\"} or character in {"\b", "\f", "\n", "\r", "\t"}:
-            budget.consume(2)
-        elif codepoint < 0x20:
-            budget.consume(6)
-        elif codepoint <= 0x7F:
-            budget.consume(1)
-        elif codepoint <= 0x7FF:
-            budget.consume(2)
-        elif codepoint <= 0xFFFF:
-            budget.consume(3)
-        else:
-            budget.consume(4)
+        _check_char_validity(codepoint, path)
+        if budget is not None:
+            _consume_char_budget(character, codepoint, budget)
     return value
 
 
