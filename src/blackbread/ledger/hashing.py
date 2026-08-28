@@ -54,8 +54,9 @@ def _validate_json_string(value: str, path: str) -> str:
 def _normalize_json_float(value: float, path: str) -> float:
     if not math.isfinite(value):
         raise LedgerValidationError(f"{path} contains a non-finite number")
-    token = json.dumps(value, allow_nan=False)
-    if "e" in token.lower() or token == "-0.0":
+    encoded_float = json.dumps(value, allow_nan=False)
+    is_negative_zero = value == 0.0 and math.copysign(1.0, value) < 0
+    if "e" in encoded_float.lower() or is_negative_zero:
         raise LedgerValidationError(
             f"{path} contains a float that cannot round-trip through PostgreSQL JSONB"
         )
