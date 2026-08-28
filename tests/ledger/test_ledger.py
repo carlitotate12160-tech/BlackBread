@@ -141,7 +141,7 @@ async def test_verify_passes_for_untampered_chain(
 
 
 @pytest.mark.parametrize(
-    ("column", "value", "reason"),
+    "case",
     [
         ("payload", {"marker": "TAMPERED"}, "payload hash mismatch"),
         ("prev_event_hash", "f" * 64, "broken prev-hash link"),
@@ -154,10 +154,9 @@ async def test_verify_detects_tamper(
     session: AsyncSession,
     admin_session: AsyncSession,
     engagement: Engagement,
-    column: str,
-    value: object,
-    reason: str,
+    case: tuple[str, object, str],
 ) -> None:
+    column, value, reason = case
     await _append(session, engagement, "a")
     target = await _append(session, engagement, "b")
     await _append(session, engagement, "c")
@@ -373,7 +372,7 @@ async def test_composite_foreign_key_rejects_tenant_drift(
 
 
 async def test_runtime_role_cannot_disable_integrity_triggers(session: AsyncSession) -> None:
-    with pytest.raises(DBAPIError, match="must be owner|permission denied"):
+    with pytest.raises(DBAPIError, match=r"must be owner|permission denied"):
         await session.execute(DISABLE_MUTATION_TRIGGER)
     await session.rollback()
 

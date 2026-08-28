@@ -72,7 +72,7 @@ async def _prepare_runtime_roles() -> None:
                     "SELECT format("
                     "'CREATE ROLE blackbread_test_runtime LOGIN NOSUPERUSER NOCREATEDB "
                     "NOCREATEROLE NOREPLICATION PASSWORD %L IN ROLE blackbread_runtime', "
-                    ":password)"
+                    "CAST(:password AS text))"
                 ),
                 {"password": TEST_RUNTIME_PASSWORD},
             )
