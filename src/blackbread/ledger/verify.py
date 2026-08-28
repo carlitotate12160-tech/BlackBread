@@ -30,21 +30,30 @@ def _first_failure(
     tenant_id: str,
     expected_prev: str,
 ) -> str | None:
-    if event.sequence != expected_sequence:
-        return "non-contiguous sequence"
-    if event.tenant_id != tenant_id:
-        return "tenant mismatch"
-    if event.prev_event_hash != expected_prev:
-        return "broken prev-hash link"
-    if event.hash_algorithm != HASH_ALGORITHM or event.hash_version != HASH_VERSION:
-        return "unsupported hash scheme"
+    invariant_checks = (
+        (event.sequence != expected_sequence, "non-contiguous sequence"),
+        (event.tenant_id != tenant_id, "tenant mismatch"),
+        (event.prev_event_hash != expected_prev, "broken prev-hash link"),
+        (
+            event.hash_algorithm != HASH_ALGORITHM or event.hash_version != HASH_VERSION,
+            "unsupported hash scheme",
+        ),
+    )
+    invariant_failure = next(
+        (reason for failed, reason in invariant_checks if failed),
+        None,
+    )
+    if invariant_failure is not None:
+        return invariant_failure
     try:
-        if compute_payload_hash(event.payload) != event.payload_hash:
-            return "payload hash mismatch"
-        if compute_event_hash(event) != event.event_hash:
-            return "event hash mismatch"
+        payload_matches = compute_payload_hash(event.payload) == event.payload_hash
+        event_matches = compute_event_hash(event) == event.event_hash
     except LedgerValidationError:
         return "non-canonical event data"
+    if not payload_matches:
+        return "payload hash mismatch"
+    if not event_matches:
+        return "event hash mismatch"
     return None
 
 

@@ -18,6 +18,37 @@ def _validate_text(value: str, field: str, maximum: int) -> None:
         raise LedgerValidationError(f"{field} exceeds {maximum} characters")
 
 
+def _validate_optional_uuid(value: object, field: str) -> None:
+    if value is not None and not isinstance(value, uuid.UUID):
+        raise LedgerValidationError(f"{field} must be a UUID or None")
+
+
+def _validate_schema_version(value: object) -> None:
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise LedgerValidationError("schema_version must be an integer")
+    if value < 1:
+        raise LedgerValidationError("schema_version must be positive")
+
+
+def _validate_payload(payload: object) -> None:
+    if not isinstance(payload, Mapping):
+        raise LedgerValidationError("payload must be a mapping")
+    payload_json = canonical_json(payload)
+    if len(payload_json.encode("utf-8")) > MAX_EVENT_PAYLOAD_BYTES:
+        raise LedgerValidationError("payload exceeds the event size limit")
+
+
+def _validate_redaction_refs(redaction_refs: object) -> tuple[str, ...]:
+    if isinstance(redaction_refs, (str, bytes)) or not isinstance(redaction_refs, Sequence):
+        raise LedgerValidationError("redaction_refs must be a sequence of opaque references")
+    refs = tuple(redaction_refs)
+    if len(refs) > MAX_REDACTION_REFS:
+        raise LedgerValidationError("too many redaction references")
+    for reference in refs:
+        _validate_text(reference, "redaction reference", 500)
+    return refs
+
+
 @dataclass(frozen=True, kw_only=True, slots=True)
 class EventDraft:
     tenant_id: str
@@ -38,31 +69,14 @@ class EventDraft:
         _validate_text(self.producer, "producer", 200)
         if not isinstance(self.engagement_id, uuid.UUID):
             raise LedgerValidationError("engagement_id must be a UUID")
-        if not isinstance(self.schema_version, int) or isinstance(self.schema_version, bool):
-            raise LedgerValidationError("schema_version must be an integer")
-        if self.schema_version < 1:
-            raise LedgerValidationError("schema_version must be positive")
+        _validate_schema_version(self.schema_version)
         if not isinstance(self.occurred_at, datetime):
             raise LedgerValidationError("occurred_at must be a datetime")
         canonical_timestamp(self.occurred_at)
         if self.sensitivity not in ALLOWED_SENSITIVITIES:
             raise LedgerValidationError("unsupported sensitivity")
-        for field, value in (
-            ("correlation_id", self.correlation_id),
-            ("causation_id", self.causation_id),
-        ):
-            if value is not None and not isinstance(value, uuid.UUID):
-                raise LedgerValidationError(f"{field} must be a UUID or None")
-        if not isinstance(self.payload, Mapping):
-            raise LedgerValidationError("payload must be a mapping")
-        payload_json = canonical_json(self.payload)
-        if len(payload_json.encode("utf-8")) > MAX_EVENT_PAYLOAD_BYTES:
-            raise LedgerValidationError("payload exceeds the event size limit")
-        if isinstance(self.redaction_refs, (str, bytes)):
-            raise LedgerValidationError("redaction_refs must be a sequence of opaque references")
-        refs = tuple(self.redaction_refs)
-        if len(refs) > MAX_REDACTION_REFS:
-            raise LedgerValidationError("too many redaction references")
-        for reference in refs:
-            _validate_text(reference, "redaction reference", 500)
+        _validate_optional_uuid(self.correlation_id, "correlation_id")
+        _validate_optional_uuid(self.causation_id, "causation_id")
+        _validate_payload(self.payload)
+        refs = _validate_redaction_refs(self.redaction_refs)
         object.__setattr__(self, "redaction_refs", refs)

@@ -23,7 +23,7 @@ from blackbread.ledger.hashing import (
 )
 from blackbread.models.base import Base
 
-__all__ = ["AgentEvent", "GENESIS_PREV_HASH", "HASH_HEX_LENGTH"]
+__all__ = ["GENESIS_PREV_HASH", "HASH_HEX_LENGTH", "AgentEvent"]
 
 
 class AgentEvent(Base):

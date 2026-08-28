@@ -11,6 +11,13 @@ from blackbread.ledger import EventDraft, LedgerAccessError, append_event, verif
 from blackbread.ledger.event import GENESIS_PREV_HASH, AgentEvent
 from blackbread.models.core import Client, Engagement
 
+DISABLE_MUTATION_TRIGGER = text(
+    "ALTER TABLE agent_events DISABLE TRIGGER agent_events_reject_mutation"
+)
+ENABLE_MUTATION_TRIGGER = text(
+    "ALTER TABLE agent_events ENABLE TRIGGER agent_events_reject_mutation"
+)
+
 
 def _draft(engagement: Engagement, marker: str) -> EventDraft:
     return EventDraft(
@@ -35,9 +42,9 @@ async def _append(session: AsyncSession, engagement: Engagement, marker: str) ->
 
 
 async def _corrupt(session: AsyncSession, statement: object) -> None:
-    await session.execute(text("ALTER TABLE agent_events DISABLE TRIGGER agent_events_reject_mutation"))
+    await session.execute(DISABLE_MUTATION_TRIGGER)
     await session.execute(statement)
-    await session.execute(text("ALTER TABLE agent_events ENABLE TRIGGER agent_events_reject_mutation"))
+    await session.execute(ENABLE_MUTATION_TRIGGER)
     await session.commit()
 
 
@@ -251,9 +258,9 @@ async def test_verify_detects_deleted_middle_event(
     await _append(session, engagement, "c")
     await session.commit()
 
-    await session.execute(text("ALTER TABLE agent_events DISABLE TRIGGER agent_events_reject_mutation"))
+    await session.execute(DISABLE_MUTATION_TRIGGER)
     await session.execute(AgentEvent.__table__.delete().where(AgentEvent.id == middle.id))
-    await session.execute(text("ALTER TABLE agent_events ENABLE TRIGGER agent_events_reject_mutation"))
+    await session.execute(ENABLE_MUTATION_TRIGGER)
     await session.commit()
 
     result = await verify_chain(
@@ -276,7 +283,11 @@ async def test_database_rejects_event_mutation(
     await session.commit()
 
     if operation == "update":
-        statement = AgentEvent.__table__.update().where(AgentEvent.id == event.id).values(producer="x")
+        statement = (
+            AgentEvent.__table__.update()
+            .where(AgentEvent.id == event.id)
+            .values(producer="x")
+        )
     elif operation == "delete":
         statement = AgentEvent.__table__.delete().where(AgentEvent.id == event.id)
     else:
@@ -294,7 +305,7 @@ async def test_composite_foreign_key_rejects_tenant_drift(
     event = await _append(session, engagement, "a")
     await session.commit()
 
-    await session.execute(text("ALTER TABLE agent_events DISABLE TRIGGER agent_events_reject_mutation"))
+    await session.execute(DISABLE_MUTATION_TRIGGER)
     with pytest.raises(IntegrityError):
         await session.execute(
             AgentEvent.__table__.update()
