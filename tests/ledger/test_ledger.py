@@ -1,6 +1,7 @@
 import asyncio
 import uuid
 from datetime import UTC, datetime
+from types import MappingProxyType
 
 import pytest
 from sqlalchemy import select, text
@@ -63,6 +64,40 @@ async def test_append_builds_genesis_linked_chain(
     assert third.prev_event_hash == second.event_hash
     assert first.tenant_id == engagement.tenant_id
     assert len({first.event_hash, second.event_hash, third.event_hash}) == 3
+
+
+async def test_mapping_and_stable_float_round_trip_through_jsonb(
+    session: AsyncSession,
+    engagement: Engagement,
+) -> None:
+    draft = EventDraft(
+        tenant_id=engagement.tenant_id,
+        engagement_id=engagement.id,
+        schema_name="test.numeric",
+        schema_version=1,
+        producer="test-producer",
+        payload=MappingProxyType(
+            {"score": 1.5, "nested": MappingProxyType({"marker": "x"})}
+        ),
+        occurred_at=datetime.now(UTC),
+    )
+    event = await append_event(session, draft)
+    event_id = event.id
+    await session.commit()
+    session.expunge_all()
+
+    reloaded = (
+        await session.execute(select(AgentEvent).where(AgentEvent.id == event_id))
+    ).scalar_one()
+    result = await verify_chain(
+        session,
+        tenant_id=engagement.tenant_id,
+        engagement_id=engagement.id,
+    )
+
+    assert reloaded.payload == {"score": 1.5, "nested": {"marker": "x"}}
+    assert result.ok is True
+    assert result.event_count == 1
 
 
 async def test_verify_passes_for_untampered_chain(

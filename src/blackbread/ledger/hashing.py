@@ -12,6 +12,7 @@ HASH_ALGORITHM = "sha256"
 HASH_VERSION = 1
 HASH_HEX_LENGTH = 64
 GENESIS_PREV_HASH = "0" * HASH_HEX_LENGTH
+MAX_JSON_DEPTH = 100
 
 
 class SealedEvent(Protocol):
@@ -40,46 +41,79 @@ def canonical_timestamp(value: datetime) -> str:
     return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
-def _validate_json_value(value: object, path: str = "$") -> None:
-    if value is None or isinstance(value, (str, bool, int)):
-        return
+def _validate_json_string(value: str, path: str) -> str:
+    if "\x00" in value:
+        raise LedgerValidationError(f"{path} contains a NUL character unsupported by JSONB")
+    try:
+        value.encode("utf-8")
+    except UnicodeEncodeError as exc:
+        raise LedgerValidationError(f"{path} contains invalid Unicode") from exc
+    return value
+
+
+def _normalize_json_float(value: float, path: str) -> float:
+    if not math.isfinite(value):
+        raise LedgerValidationError(f"{path} contains a non-finite number")
+    token = json.dumps(value, allow_nan=False)
+    if "e" in token.lower() or token == "-0.0":
+        raise LedgerValidationError(
+            f"{path} contains a float that cannot round-trip through PostgreSQL JSONB"
+        )
+    return value
+
+
+def _normalize_json_value(value: object, path: str = "$", depth: int = 0) -> object:
+    if depth > MAX_JSON_DEPTH:
+        raise LedgerValidationError(f"{path} exceeds the maximum JSON nesting depth")
+    if value is None or isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return _validate_json_string(value, path)
+    if isinstance(value, int):
+        return value
     if isinstance(value, float):
-        if not math.isfinite(value):
-            raise LedgerValidationError(f"{path} contains a non-finite number")
-        return
+        return _normalize_json_float(value, path)
     if isinstance(value, list):
-        for index, item in enumerate(value):
-            _validate_json_value(item, f"{path}[{index}]")
-        return
+        return [
+            _normalize_json_value(item, f"{path}[{index}]", depth + 1)
+            for index, item in enumerate(value)
+        ]
     if isinstance(value, Mapping):
+        normalized: dict[str, object] = {}
         for key, item in value.items():
             if not isinstance(key, str):
                 raise LedgerValidationError(f"{path} contains a non-string object key")
-            _validate_json_value(item, f"{path}.{key}")
-        return
+            normalized_key = _validate_json_string(key, path)
+            normalized[normalized_key] = _normalize_json_value(
+                item,
+                f"{path}.{key}",
+                depth + 1,
+            )
+        return normalized
     raise LedgerValidationError(f"{path} contains a non-JSON value")
 
 
 def canonical_json(value: object) -> str:
-    _validate_json_value(value)
     try:
+        normalized = _normalize_json_value(value)
         return json.dumps(
-            value,
+            normalized,
             sort_keys=True,
             separators=(",", ":"),
             ensure_ascii=False,
             allow_nan=False,
         )
-    except (TypeError, ValueError) as exc:
+    except LedgerValidationError:
+        raise
+    except (RecursionError, TypeError, UnicodeEncodeError, ValueError) as exc:
         raise LedgerValidationError("value cannot be canonicalized as JSON") from exc
 
 
 def normalize_json_object(value: Mapping[str, object]) -> dict[str, object]:
-    encoded = canonical_json(value)
-    decoded: object = json.loads(encoded)
-    if not isinstance(decoded, dict):
+    normalized = _normalize_json_value(value)
+    if not isinstance(normalized, dict):
         raise LedgerValidationError("event payload must be a JSON object")
-    return cast(dict[str, object], decoded)
+    return cast(dict[str, object], normalized)
 
 
 def sha256_hex(data: str) -> str:

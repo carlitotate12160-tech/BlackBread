@@ -4,6 +4,10 @@ import tomllib
 from pathlib import Path
 
 import yaml
+from alembic.config import Config
+from alembic.script import ScriptDirectory
+
+from blackbread.health import EXPECTED_SCHEMA_REVISION
 
 ROOT = Path(__file__).parents[2]
 ACTIVE_CONTRACTS = (
@@ -397,6 +401,13 @@ def test_agent_delivery_authority_is_explicit_and_fail_closed() -> None:
     assert "21644438" in gaps
     assert "21698082" in gaps
     assert "**Status:** CLOSED" in gaps
+
+
+def test_runtime_expected_schema_revision_matches_alembic_head() -> None:
+    config = Config(str(ROOT / "alembic.ini"))
+    scripts = ScriptDirectory.from_config(config)
+
+    assert scripts.get_heads() == [EXPECTED_SCHEMA_REVISION]
 
 
 def test_m1_ledger_work_is_honest_about_remaining_r0_blockers() -> None:

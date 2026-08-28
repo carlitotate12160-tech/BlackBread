@@ -16,6 +16,12 @@ def _validate_text(value: str, field: str, maximum: int) -> None:
         raise LedgerValidationError(f"{field} must be a non-blank string")
     if len(value) > maximum:
         raise LedgerValidationError(f"{field} exceeds {maximum} characters")
+    if "\x00" in value:
+        raise LedgerValidationError(f"{field} contains a NUL character")
+    try:
+        value.encode("utf-8")
+    except UnicodeEncodeError as exc:
+        raise LedgerValidationError(f"{field} contains invalid Unicode") from exc
 
 
 def _validate_optional_uuid(value: object, field: str) -> None:

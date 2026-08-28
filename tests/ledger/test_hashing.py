@@ -1,6 +1,7 @@
 import uuid
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
+from types import MappingProxyType
 from typing import Any
 
 import pytest
@@ -82,11 +83,21 @@ def test_canonical_json_is_key_order_independent() -> None:
         {"value": float("inf")},
         {1: "non-string-key"},
         {"value": ("tuple",)},
+        {"value": "\x00"},
+        {"value": 1e20},
+        {"value": -0.0},
     ],
 )
 def test_canonical_json_rejects_non_json_values(value: object) -> None:
     with pytest.raises(LedgerValidationError):
         canonical_json(value)
+
+
+def test_canonical_json_normalises_generic_mappings() -> None:
+    value = MappingProxyType(
+        {"nested": MappingProxyType({"marker": "x"}), "items": [MappingProxyType({"id": 1})]}
+    )
+    assert canonical_json(value) == '{"items":[{"id":1}],"nested":{"marker":"x"}}'
 
 
 def test_payload_hash_is_stable_across_key_order() -> None:
