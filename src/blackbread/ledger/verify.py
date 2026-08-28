@@ -85,9 +85,9 @@ async def verify_chain(
     )
     stream = await session.stream_scalars(statement)
     expected_prev = GENESIS_PREV_HASH
+    expected_sequence = 1
     try:
         async for event in stream:
-            expected_sequence = 1 if expected_prev == GENESIS_PREV_HASH else event.sequence
             failure = _first_failure(
                 event,
                 expected_sequence,
@@ -102,6 +102,7 @@ async def verify_chain(
                     reason=failure,
                 )
             expected_prev = event.event_hash
+            expected_sequence += 1
     finally:
         await stream.close()
 

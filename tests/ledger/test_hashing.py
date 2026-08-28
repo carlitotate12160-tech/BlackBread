@@ -102,7 +102,6 @@ def test_payload_hash_is_stable_across_key_order() -> None:
         ("redaction_refs", ["artifact://redacted/2"]),
         ("tenant_id", "tenant-b"),
         ("schema_version", 2),
-        ("hash_version", 2),
     ],
 )
 def test_event_hash_binds_envelope_security_fields(field: str, value: object) -> None:
@@ -110,6 +109,10 @@ def test_event_hash_binds_envelope_security_fields(field: str, value: object) ->
     assert compute_event_hash(replace(original, **{field: value})) != compute_event_hash(original)
 
 
-def test_event_hash_rejects_unknown_hash_scheme() -> None:
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("hash_algorithm", "sha512"), ("hash_version", 2)],
+)
+def test_event_hash_rejects_unknown_hash_scheme(field: str, value: object) -> None:
     with pytest.raises(LedgerValidationError, match="unsupported"):
-        compute_event_hash(_event(hash_algorithm="sha512"))
+        compute_event_hash(replace(_event(), **{field: value}))
