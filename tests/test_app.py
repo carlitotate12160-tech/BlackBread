@@ -1,3 +1,4 @@
+import base64
 from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
@@ -9,8 +10,8 @@ from blackbread.health import Readiness
 
 def settings() -> Settings:
     return Settings(
-        database_url="postgresql+asyncpg://user:password@localhost/test",
-        artifact_key="AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+        database_url="postgresql+asyncpg://user:password@localhost/test",  # gitleaks:allow
+        artifact_key=base64.urlsafe_b64encode(bytes(range(32))).decode("ascii"),
     )
 
 

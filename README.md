@@ -16,11 +16,13 @@ currently implements the M0 foundation described in `ADR-FINAL-002.md`.
 Install the project and run its checks:
 
 ```bash
-uv sync
-uv run ruff check .
-uv run mypy
-uv run pytest
+uv sync --locked --all-groups
+make check
 ```
+
+`ADR-FINAL-002.md` is the accepted architecture decision; the live implementation remains M0 only.
+Planned capabilities are default-denied in `config/capability-registry.json`. See `GAP-REGISTER.md`
+before claiming a milestone or release complete.
 
 Generate an artifact encryption key and start the stack:
 
@@ -31,4 +33,3 @@ docker compose up --build
 
 The API exposes `GET /health/live` for process liveness and `GET /health/ready` for database and
 migration readiness. The API is available at `http://localhost:8000`.
-

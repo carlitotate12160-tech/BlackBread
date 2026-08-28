@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  GITLEAKS_LINUX_X64_SHA256: 9991e0b2903da4c8f6122b5c3186448b927a5da4deef1fe45271c3793f4ee29c
+  GITLEAKS_VERSION: 8.24.3
+  UV_VERSION: 0.8.11
+
+jobs:
+  quality:
+    name: quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12"
+      - run: python -m pip install "uv==$UV_VERSION"
+      - run: uv sync --locked --all-groups
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy
+
+  tests:
+    name: tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12"
+      - run: python -m pip install "uv==$UV_VERSION"
+      - run: uv sync --locked --all-groups
+      - run: uv run pytest
+
+  security:
+    name: security
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12"
+      - run: python -m pip install "uv==$UV_VERSION"
+      - run: uv sync --locked --all-groups
+      - run: uv run bandit -c pyproject.toml -r src/blackbread
+      - run: uv run pip-audit
+      - name: Install verified Gitleaks
+        run: |
+          curl -fsSLo gitleaks.tar.gz "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_LINUX_X64_SHA256}  gitleaks.tar.gz" | sha256sum -c -
+          tar --no-same-owner -xzf gitleaks.tar.gz gitleaks
+      - run: ./gitleaks git --redact --no-banner --gitleaks-ignore-path .gitleaksignore
+
+  governance:
+    name: governance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12"
+      - run: python -m pip install "uv==$UV_VERSION"
+      - run: uv lock --check
+      - run: uv sync --locked --all-groups
+      - run: uv run pytest tests/governance --no-cov
