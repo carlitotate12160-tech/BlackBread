@@ -2,19 +2,21 @@ name: blackbread
 
 services:
   database:
-    image: postgres:17-bookworm
+    image: postgres:17.11-bookworm@sha256:051f7b7b3abdd564d5d1bd1e8c4b9c1b6e77087d1dd22020ede611c096a272e0
     environment:
+      BLACKBREAD_RUNTIME_DB_PASSWORD: ${BLACKBREAD_RUNTIME_DB_PASSWORD:-blackbread-runtime}
       POSTGRES_DB: blackbread
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-blackbread}
-      POSTGRES_USER: blackbread
+      POSTGRES_PASSWORD: ${POSTGRES_MIGRATION_PASSWORD:-blackbread-migration}
+      POSTGRES_USER: blackbread_migration
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U blackbread -d blackbread"]
+      test: ["CMD-SHELL", "pg_isready -U blackbread_migration -d blackbread"]
       interval: 5s
       timeout: 3s
       retries: 10
     networks:
       - control-plane
     volumes:
+      - ./deploy/postgres/init-runtime.sh:/docker-entrypoint-initdb.d/10-runtime.sh:ro
       - postgres-data:/var/lib/postgresql/data
 
   migrate:
@@ -23,7 +25,7 @@ services:
     command: ["alembic", "upgrade", "head"]
     environment:
       BLACKBREAD_ARTIFACT_KEY: ${BLACKBREAD_ARTIFACT_KEY:?set BLACKBREAD_ARTIFACT_KEY}
-      BLACKBREAD_DATABASE_URL: postgresql+asyncpg://blackbread:${POSTGRES_PASSWORD:-blackbread}@database:5432/blackbread
+      BLACKBREAD_DATABASE_URL: postgresql+asyncpg://blackbread_migration:${POSTGRES_MIGRATION_PASSWORD:-blackbread-migration}@database:5432/blackbread
     depends_on:
       database:
         condition: service_healthy
@@ -37,7 +39,7 @@ services:
     environment:
       BLACKBREAD_ARTIFACT_KEY: ${BLACKBREAD_ARTIFACT_KEY:?set BLACKBREAD_ARTIFACT_KEY}
       BLACKBREAD_ARTIFACT_ROOT: /var/lib/blackbread/artifacts
-      BLACKBREAD_DATABASE_URL: postgresql+asyncpg://blackbread:${POSTGRES_PASSWORD:-blackbread}@database:5432/blackbread
+      BLACKBREAD_DATABASE_URL: postgresql+asyncpg://blackbread_app:${BLACKBREAD_RUNTIME_DB_PASSWORD:-blackbread-runtime}@database:5432/blackbread
     depends_on:
       database:
         condition: service_healthy
@@ -67,4 +69,3 @@ networks:
 volumes:
   artifacts:
   postgres-data:
-

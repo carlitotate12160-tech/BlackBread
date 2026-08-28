@@ -25,3 +25,23 @@ admission blockers are recorded with their owner, milestone, and release in
   `required_status_checks` and `strict_required_status_checks_policy: true` in ruleset 21644438
   with no bypass actors, and Codex bypass limited to ruleset 21698082 (approval only).
 - **Compensating control:** none needed — server-side configuration verified.
+
+## LEDGER-GAP-001 — R0 trust-spine integration remains incomplete
+
+- **Status:** OPEN
+- **Severity:** P0 architecture
+- **Owner:** trust-spine
+- **Target milestone:** M1
+- **Blocks:** R0 and every target-facing release
+- **Current evidence:** the tenant-bound, hash-versioned PostgreSQL ledger supports serialized append,
+  replay verification, immutable envelope hashing, and database-level UPDATE/DELETE/TRUNCATE denial.
+  Graph projection, NetworkX rebuild, Conductor, Policy Kernel v1, execution leases, dual kill-switch,
+  and authenticated PostgreSQL row-level tenant context are not implemented.
+- **Required closure:** wire every trust-spine publisher through the ledger; implement projector/rebuild,
+  deterministic Conductor and Policy Kernel paths, lease and kill-switch enforcement, and database-role
+  tenant isolation; prove replay and negative scope/lease paths end to end.
+- **Verification:** `tests/ledger/` plus future trust-spine integration suites and the versioned R0
+  conformance record.
+- **Compensating control:** none. The ledger slice may merge, but R0/M1 and target-facing execution
+  remain blocked until closure evidence is attached.
+

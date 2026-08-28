@@ -12,7 +12,9 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    database_url: str = "postgresql+asyncpg://blackbread:blackbread@localhost:5432/blackbread"
+    database_url: str = (
+        "postgresql+asyncpg://blackbread_app:blackbread-runtime@localhost:5432/blackbread"
+    )
     artifact_root: Path = Path("artifacts")
     artifact_key: SecretStr
 
