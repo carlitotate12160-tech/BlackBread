@@ -13,6 +13,7 @@ contains the M0 foundation and an in-progress M1 trust-spine ledger slice descri
 5. ARM64-compatible Docker Compose runtime.
 6. Tenant-bound, hash-versioned event ledger with a non-owner runtime role, anchored replay
    verification, and tamper tests.
+7. Frozen, fail-closed M1 event-schema registry with typed authorization and stop-event records.
 
 ## Local development
 
@@ -38,6 +39,11 @@ uv run pytest tests/ledger
 `ADR-FINAL-002.md` is the accepted architecture decision. Planned capabilities remain default-denied
 in `config/capability-registry.json`, and `LEDGER-GAP-001` blocks R0 and every target-facing release
 until the remaining trust spine is verified.
+
+The typed event catalog validates immutable ledger record shapes only. An
+`engagement.attested` record does not itself authorize execution: signature verification,
+Conductor admission, Policy Kernel enforcement, leases, and the kill switch remain blocked by
+`LEDGER-GAP-001` until their runtime paths are implemented and tested.
 
 Generate separate migration/runtime database credentials and an artifact encryption key before
 starting the stack:
