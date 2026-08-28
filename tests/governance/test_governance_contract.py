@@ -145,7 +145,7 @@ EXPECTED_RUFF_RULES = {
 }
 REQUIRED_CI_COMMANDS = {
     "quality": ("uv run ruff check .", "uv run ruff format --check .", "uv run mypy"),
-    "tests": ("uv run pytest",),
+    "tests": ("uv run pytest", "check_safety_coverage.py"),
     "security": ("uv run bandit", "uv run pip-audit", "./gitleaks git"),
     "governance": ("uv lock --check", "uv run pytest tests/governance --no-cov"),
 }
@@ -250,6 +250,14 @@ def test_pyproject_enforces_documented_quality_gates() -> None:
     assert ruff_rules == EXPECTED_RUFF_RULES
     assert config["tool"]["ruff"]["lint"]["mccabe"]["max-complexity"] == 10
     assert config["tool"]["coverage"]["report"]["fail_under"] == 80
+    assert config["tool"]["coverage"]["safety_critical"]["fail_under"] == 90
+    safety_include = config["tool"]["coverage"]["safety_critical"]["include"]
+    assert "blackbread.policy.*" in safety_include
+    assert "blackbread.opsec.*" in safety_include
+    assert "blackbread.scope.*" in safety_include
+    assert "blackbread.identity.*" in safety_include
+    assert "blackbread.ledger.*" in safety_include
+    assert "blackbread.security.*" in safety_include
     for package in (
         "pytest-cov",
         "pytest-randomly",
@@ -280,16 +288,40 @@ def test_ci_defines_required_non_optional_jobs() -> None:
         assert all(command in run_script for command in commands)
         for step in steps:
             if "uses" in step:
-                assert re.fullmatch(r"[^@]+@[0-9a-f]{40}", step["uses"])
+                uses = step["uses"]
+                if uses.startswith("./"):
+                    assert (ROOT / uses[2:]).exists()
+                else:
+                    assert re.fullmatch(r"[^@]+@[0-9a-f]{40}", uses)
 
 
 def test_container_and_downloaded_tools_are_immutable() -> None:
     dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
     workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    gitleaks_path = ROOT / ".github/actions/install-gitleaks/action.yml"
+    gitleaks_action = gitleaks_path.read_text(encoding="utf-8")
 
     assert dockerfile.count("@sha256:") == 3
     assert "GITLEAKS_LINUX_X64_SHA256" in workflow
-    assert "sha256sum -c -" in workflow
+    assert "sha256sum -c -" in gitleaks_action
+
+
+def test_ci_uses_composite_actions_and_safety_script() -> None:
+    assert (ROOT / ".github/actions/setup-uv/action.yml").exists()
+    assert (ROOT / ".github/actions/install-gitleaks/action.yml").exists()
+    assert (ROOT / "scripts/check_safety_coverage.py").exists()
+
+    setup_uv = (ROOT / ".github/actions/setup-uv/action.yml").read_text(encoding="utf-8")
+    assert "actions/setup-python@" in setup_uv
+    assert "uv sync --locked --all-groups" in setup_uv
+    assert "actions/checkout@" not in setup_uv
+
+    gitleaks = (ROOT / ".github/actions/install-gitleaks/action.yml").read_text(encoding="utf-8")
+    assert "sha256sum -c -" in gitleaks
+
+    safety = (ROOT / "scripts/check_safety_coverage.py").read_text(encoding="utf-8")
+    assert "SAFETY_MODULES" in safety
+    assert "90" in safety
 
 
 def test_unenforced_branch_checks_are_recorded_as_release_blocker() -> None:

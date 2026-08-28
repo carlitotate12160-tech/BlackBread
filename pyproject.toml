@@ -53,6 +53,7 @@ max-complexity = 10
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "PLR2004"]
 "migrations/**" = ["E501"]
+"scripts/**" = ["S603", "S607"]
 
 [tool.mypy]
 python_version = "3.12"
@@ -67,6 +68,17 @@ source = ["blackbread"]
 fail_under = 80
 show_missing = true
 skip_covered = true
+
+[tool.coverage.safety_critical]
+fail_under = 90
+include = [
+  "blackbread.policy.*",
+  "blackbread.opsec.*",
+  "blackbread.scope.*",
+  "blackbread.identity.*",
+  "blackbread.ledger.*",
+  "blackbread.security.*",
+]
 
 [tool.bandit]
 exclude_dirs = ["tests"]
