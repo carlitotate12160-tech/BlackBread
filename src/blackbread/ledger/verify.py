@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from blackbread.ledger.errors import LedgerAccessError, LedgerValidationError
@@ -74,15 +74,6 @@ async def verify_chain(
     if engagement is None:
         raise LedgerAccessError("engagement is unavailable for the requested tenant")
 
-    count_result = await session.execute(
-        select(func.count())
-        .select_from(AgentEvent)
-        .where(
-            AgentEvent.engagement_id == engagement_id,
-            AgentEvent.tenant_id == tenant_id,
-        )
-    )
-    event_count = int(count_result.scalar_one())
     statement = (
         select(AgentEvent)
         .where(
@@ -95,8 +86,10 @@ async def verify_chain(
     stream = await session.stream_scalars(statement)
     expected_prev = GENESIS_PREV_HASH
     expected_sequence = 1
+    event_count = 0
     try:
         async for event in stream:
+            event_count += 1
             failure = _first_failure(
                 event,
                 expected_sequence,

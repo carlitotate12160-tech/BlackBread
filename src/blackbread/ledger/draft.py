@@ -73,7 +73,7 @@ class EventDraft:
         if not isinstance(self.occurred_at, datetime):
             raise LedgerValidationError("occurred_at must be a datetime")
         canonical_timestamp(self.occurred_at)
-        if self.sensitivity not in ALLOWED_SENSITIVITIES:
+        if not isinstance(self.sensitivity, str) or self.sensitivity not in ALLOWED_SENSITIVITIES:
             raise LedgerValidationError("unsupported sensitivity")
         _validate_optional_uuid(self.correlation_id, "correlation_id")
         _validate_optional_uuid(self.causation_id, "causation_id")
