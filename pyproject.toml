@@ -68,6 +68,17 @@ fail_under = 80
 show_missing = true
 skip_covered = true
 
+[tool.coverage.safety_critical]
+fail_under = 90
+include = [
+  "blackbread.policy.*",
+  "blackbread.opsec.*",
+  "blackbread.scope.*",
+  "blackbread.identity.*",
+  "blackbread.ledger.*",
+  "blackbread.security.*",
+]
+
 [tool.bandit]
 exclude_dirs = ["tests"]
 targets = ["src/blackbread"]
