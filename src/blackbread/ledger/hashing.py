@@ -159,9 +159,7 @@ def _normalize_list(
     for index, item in enumerate(value):
         if budget is not None and index:
             budget.consume(1)
-        normalized_items.append(
-            _normalize_json_value(item, f"{path}[{index}]", depth + 1, budget)
-        )
+        normalized_items.append(_normalize_json_value(item, f"{path}[{index}]", depth + 1, budget))
     return normalized_items
 
 

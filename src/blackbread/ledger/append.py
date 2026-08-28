@@ -70,8 +70,4 @@ async def append_event(session: AsyncSession, draft: EventDraft) -> AgentEvent:
     event.event_hash = compute_event_hash(event)
     session.add(event)
     await session.flush()
-
-    engagement.ledger_event_count += 1
-    engagement.ledger_head_hash = event.event_hash
-    await session.flush()
     return event
