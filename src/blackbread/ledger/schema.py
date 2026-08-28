@@ -166,13 +166,15 @@ def to_draft(
         raise LedgerValidationError(
             f"payload class is not registered for {schema_name} v{schema_version}"
         )
+    payload_data = EventPayload.to_ledger_payload(payload)
+    validated_payload = registry.parse(schema_name, schema_version, payload_data)
     return EventDraft(
         tenant_id=envelope.tenant_id,
         engagement_id=envelope.engagement_id,
         schema_name=schema_name,
         schema_version=schema_version,
         producer=envelope.producer,
-        payload=EventPayload.to_ledger_payload(payload),
+        payload=EventPayload.to_ledger_payload(validated_payload),
         occurred_at=envelope.occurred_at,
         sensitivity=envelope.sensitivity,
         correlation_id=envelope.correlation_id,

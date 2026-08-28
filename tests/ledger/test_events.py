@@ -389,6 +389,21 @@ def test_to_draft_rejects_missing_schema_declaration_as_validation_error() -> No
         to_draft(_UndeclaredThing(value="x"), envelope, registry=EventRegistry())
 
 
+def test_to_draft_revalidates_model_construct_payload() -> None:
+    registry = EventRegistry()
+    registry.register(_ThingV1)
+    envelope = EventEnvelope(
+        tenant_id="tenant-a",
+        engagement_id=uuid.uuid4(),
+        producer="test",
+        occurred_at=datetime.now(UTC),
+    )
+    unvalidated = _ThingV1.model_construct()
+
+    with pytest.raises(LedgerValidationError, match="does not conform"):
+        to_draft(unvalidated, envelope, registry=registry)
+
+
 def test_event_payload_serialization_rejects_nested_mutation() -> None:
     registry = EventRegistry()
     registry.register(_MutableThing)
