@@ -294,9 +294,7 @@ def test_ci_defines_required_non_optional_jobs() -> None:
     postgres = test_job["services"]["postgres"]
     assert "@sha256:" in postgres["image"]
     assert test_job["env"]["BLACKBREAD_TEST_DATABASE_URL"].endswith("/blackbread_test")
-    assert test_job["env"]["BLACKBREAD_TEST_MIGRATION_DATABASE_URL"].endswith(
-        "/blackbread_test"
-    )
+    assert test_job["env"]["BLACKBREAD_TEST_MIGRATION_DATABASE_URL"].endswith("/blackbread_test")
     assert (
         test_job["env"]["BLACKBREAD_TEST_DATABASE_URL"]
         != test_job["env"]["BLACKBREAD_TEST_MIGRATION_DATABASE_URL"]

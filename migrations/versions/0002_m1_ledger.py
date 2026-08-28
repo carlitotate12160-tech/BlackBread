@@ -13,6 +13,27 @@ HASH_PATTERN = "^[0-9a-f]{64}$"
 SENSITIVITY_VALUES = "'public', 'internal', 'confidential', 'restricted'"
 
 
+def _require_runtime_role() -> None:
+    role = (
+        op.get_bind()
+        .execute(
+            sa.text(
+                """
+                SELECT rolcanlogin, rolsuper, rolcreaterole, rolcreatedb
+                FROM pg_roles
+                WHERE rolname = 'blackbread_runtime'
+                """
+            )
+        )
+        .mappings()
+        .one_or_none()
+    )
+    if role is None:
+        raise RuntimeError("required NOLOGIN role blackbread_runtime does not exist")
+    if role["rolcanlogin"] or role["rolsuper"] or role["rolcreaterole"] or role["rolcreatedb"]:
+        raise RuntimeError("blackbread_runtime must be an unprivileged NOLOGIN role")
+
+
 def upgrade() -> None:
     op.create_table(
         "clients",
@@ -202,35 +223,7 @@ def upgrade() -> None:
             """
         )
     )
-    op.execute(
-        sa.text(
-            """
-            DO $
-            DECLARE
-                runtime_role RECORD;
-            BEGIN
-                SELECT rolcanlogin, rolsuper, rolcreaterole, rolcreatedb
-                INTO runtime_role
-                FROM pg_roles
-                WHERE rolname = 'blackbread_runtime';
-
-                IF NOT FOUND THEN
-                    RAISE EXCEPTION
-                        'required NOLOGIN role blackbread_runtime does not exist';
-                END IF;
-                IF runtime_role.rolcanlogin
-                    OR runtime_role.rolsuper
-                    OR runtime_role.rolcreaterole
-                    OR runtime_role.rolcreatedb
-                THEN
-                    RAISE EXCEPTION
-                        'blackbread_runtime must be an unprivileged NOLOGIN role';
-                END IF;
-            END;
-            $
-            """
-        )
-    )
+    _require_runtime_role()
     op.execute(
         sa.text(
             """
