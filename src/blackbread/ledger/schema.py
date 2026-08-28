@@ -1,11 +1,12 @@
+import json
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
-from typing import ClassVar, Self
+from typing import ClassVar, Self, cast
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict, PrivateAttr, ValidationError
 
 from blackbread.ledger.draft import MAX_EVENT_PAYLOAD_BYTES, EventDraft
 from blackbread.ledger.errors import LedgerValidationError
@@ -26,9 +27,28 @@ class EventPayload(BaseModel):
 
     SCHEMA_NAME: ClassVar[str]
     SCHEMA_VERSION: ClassVar[int]
+    _ledger_payload_json: str = PrivateAttr()
+
+    def model_post_init(self, context: object) -> None:
+        """Snapshot validated data so nested mutable values cannot alter ledger history."""
+
+        del context
+        object.__setattr__(self, "_ledger_payload_json", self._canonical_payload_json())
+
+    def _canonical_payload_json(self) -> str:
+        try:
+            payload = BaseModel.model_dump(self, mode="json", warnings="error")
+        except (TypeError, ValueError) as exc:
+            raise LedgerValidationError("typed event payload cannot be serialized") from exc
+        return canonical_json(payload, max_bytes=MAX_EVENT_PAYLOAD_BYTES)
 
     def to_ledger_payload(self) -> dict[str, object]:
-        return self.model_dump(mode="json")
+        if self._canonical_payload_json() != self._ledger_payload_json:
+            raise LedgerValidationError("typed event payload was mutated after validation")
+        payload: object = json.loads(self._ledger_payload_json)
+        if not isinstance(payload, dict):
+            raise LedgerValidationError("typed event payload must serialize to a JSON object")
+        return cast(dict[str, object], payload)
 
 
 def _schema_key(schema_name: object, schema_version: object) -> tuple[str, int]:
@@ -122,8 +142,10 @@ def to_draft(
 ) -> EventDraft:
     if not isinstance(payload, EventPayload):
         raise LedgerValidationError("typed event payload must inherit EventPayload")
-    schema_name = type(payload).SCHEMA_NAME
-    schema_version = type(payload).SCHEMA_VERSION
+    schema_name, schema_version = _schema_key(
+        getattr(type(payload), "SCHEMA_NAME", None),
+        getattr(type(payload), "SCHEMA_VERSION", None),
+    )
     registered_model = registry.resolve(schema_name, schema_version)
     if type(payload) is not registered_model:
         raise LedgerValidationError(
@@ -135,7 +157,7 @@ def to_draft(
         schema_name=schema_name,
         schema_version=schema_version,
         producer=envelope.producer,
-        payload=payload.to_ledger_payload(),
+        payload=EventPayload.to_ledger_payload(payload),
         occurred_at=envelope.occurred_at,
         sensitivity=envelope.sensitivity,
         correlation_id=envelope.correlation_id,

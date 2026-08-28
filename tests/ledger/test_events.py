@@ -53,6 +53,17 @@ class _BoolVersion(EventPayload):
     SCHEMA_VERSION: ClassVar[int] = True
 
 
+class _UndeclaredThing(EventPayload):
+    value: str
+
+
+class _MutableThing(EventPayload):
+    SCHEMA_NAME: ClassVar[str] = "test.mutable_thing"
+    SCHEMA_VERSION: ClassVar[int] = 1
+    values: list[str]
+    metadata: dict[str, str]
+
+
 def _scope() -> EngagementScope:
     return EngagementScope(
         root_domains=("example.com",),
@@ -263,6 +274,36 @@ def test_to_draft_requires_exact_registered_payload_class() -> None:
         to_draft(_RogueThingV1(value="x"), envelope, registry=registry)
     with pytest.raises(LedgerValidationError, match="must inherit"):
         to_draft(object(), envelope, registry=registry)
+
+
+def test_to_draft_rejects_missing_schema_declaration_as_validation_error() -> None:
+    envelope = EventEnvelope(
+        tenant_id="tenant-a",
+        engagement_id=uuid.uuid4(),
+        producer="test",
+        occurred_at=datetime.now(UTC),
+    )
+
+    with pytest.raises(LedgerValidationError, match="schema name"):
+        to_draft(_UndeclaredThing(value="x"), envelope, registry=EventRegistry())
+
+
+def test_event_payload_serialization_rejects_nested_mutation() -> None:
+    registry = EventRegistry()
+    registry.register(_MutableThing)
+    envelope = EventEnvelope(
+        tenant_id="tenant-a",
+        engagement_id=uuid.uuid4(),
+        producer="test",
+        occurred_at=datetime.now(UTC),
+    )
+    payload = _MutableThing(values=["original"], metadata={"state": "validated"})
+
+    payload.values.append("mutated")
+    payload.metadata["state"] = "mutated"
+
+    with pytest.raises(LedgerValidationError, match="mutated after validation"):
+        to_draft(payload, envelope, registry=registry)
 
 
 async def test_typed_attestation_appends_parses_and_verifies(
