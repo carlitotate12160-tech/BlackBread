@@ -202,6 +202,47 @@ def upgrade() -> None:
             """
         )
     )
+    op.execute(
+        sa.text(
+            """
+            DO $
+            DECLARE
+                runtime_role RECORD;
+            BEGIN
+                SELECT rolcanlogin, rolsuper, rolcreaterole, rolcreatedb
+                INTO runtime_role
+                FROM pg_roles
+                WHERE rolname = 'blackbread_runtime';
+
+                IF NOT FOUND THEN
+                    RAISE EXCEPTION
+                        'required NOLOGIN role blackbread_runtime does not exist';
+                END IF;
+                IF runtime_role.rolcanlogin
+                    OR runtime_role.rolsuper
+                    OR runtime_role.rolcreaterole
+                    OR runtime_role.rolcreatedb
+                THEN
+                    RAISE EXCEPTION
+                        'blackbread_runtime must be an unprivileged NOLOGIN role';
+                END IF;
+            END;
+            $
+            """
+        )
+    )
+    op.execute(
+        sa.text(
+            """
+            REVOKE ALL ON TABLE clients, engagements, agent_events FROM PUBLIC;
+            REVOKE ALL ON TABLE alembic_version FROM PUBLIC;
+            GRANT USAGE ON SCHEMA public TO blackbread_runtime;
+            GRANT SELECT ON TABLE alembic_version TO blackbread_runtime;
+            GRANT SELECT, INSERT ON TABLE clients, engagements TO blackbread_runtime;
+            GRANT SELECT, INSERT ON TABLE agent_events TO blackbread_runtime;
+            """
+        )
+    )
 
 
 def downgrade() -> None:

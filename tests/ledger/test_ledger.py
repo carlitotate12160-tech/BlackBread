@@ -152,6 +152,7 @@ async def test_verify_passes_for_untampered_chain(
 )
 async def test_verify_detects_tamper(
     session: AsyncSession,
+    admin_session: AsyncSession,
     engagement: Engagement,
     column: str,
     value: object,
@@ -163,7 +164,7 @@ async def test_verify_detects_tamper(
     await session.commit()
 
     await _corrupt(
-        session,
+        admin_session,
         AgentEvent.__table__.update().where(AgentEvent.id == target.id).values({column: value}),
     )
     result = await verify_chain(
@@ -307,6 +308,7 @@ async def test_concurrent_appends_serialize_without_gaps(
 
 async def test_verify_detects_deleted_middle_event(
     session: AsyncSession,
+    admin_session: AsyncSession,
     engagement: Engagement,
 ) -> None:
     await _append(session, engagement, "a")
@@ -314,10 +316,10 @@ async def test_verify_detects_deleted_middle_event(
     await _append(session, engagement, "c")
     await session.commit()
 
-    await session.execute(DISABLE_MUTATION_TRIGGER)
-    await session.execute(AgentEvent.__table__.delete().where(AgentEvent.id == middle.id))
-    await session.execute(ENABLE_MUTATION_TRIGGER)
-    await session.commit()
+    await admin_session.execute(DISABLE_MUTATION_TRIGGER)
+    await admin_session.execute(AgentEvent.__table__.delete().where(AgentEvent.id == middle.id))
+    await admin_session.execute(ENABLE_MUTATION_TRIGGER)
+    await admin_session.commit()
 
     result = await verify_chain(
         session,
@@ -346,27 +348,63 @@ async def test_database_rejects_event_mutation(
     else:
         statement = text("TRUNCATE agent_events")
 
-    with pytest.raises(DBAPIError, match="append-only"):
+    with pytest.raises(DBAPIError, match="permission denied"):
         await session.execute(statement)
     await session.rollback()
 
 
 async def test_composite_foreign_key_rejects_tenant_drift(
     session: AsyncSession,
+    admin_session: AsyncSession,
     engagement: Engagement,
 ) -> None:
     event = await _append(session, engagement, "a")
     await session.commit()
 
-    await session.execute(DISABLE_MUTATION_TRIGGER)
+    await admin_session.execute(DISABLE_MUTATION_TRIGGER)
     with pytest.raises(IntegrityError):
-        await session.execute(
+        await admin_session.execute(
             AgentEvent.__table__.update()
             .where(AgentEvent.id == event.id)
             .values(tenant_id="tenant-other")
         )
-        await session.flush()
+        await admin_session.flush()
+    await admin_session.rollback()
+
+
+async def test_runtime_role_cannot_disable_integrity_triggers(session: AsyncSession) -> None:
+    with pytest.raises(DBAPIError, match="must be owner|permission denied"):
+        await session.execute(DISABLE_MUTATION_TRIGGER)
     await session.rollback()
+
+
+async def test_runtime_role_has_only_required_table_privileges(session: AsyncSession) -> None:
+    row = (
+        await session.execute(
+            text(
+                """
+                SELECT
+                    current_user,
+                    pg_get_userbyid(c.relowner) AS table_owner,
+                    has_table_privilege(current_user, 'agent_events', 'SELECT') AS can_select,
+                    has_table_privilege(current_user, 'agent_events', 'INSERT') AS can_insert,
+                    has_table_privilege(current_user, 'agent_events', 'UPDATE') AS can_update,
+                    has_table_privilege(current_user, 'agent_events', 'DELETE') AS can_delete,
+                    has_table_privilege(current_user, 'agent_events', 'TRUNCATE') AS can_truncate
+                FROM pg_class AS c
+                WHERE c.oid = 'agent_events'::regclass
+                """
+            )
+        )
+    ).one()
+
+    assert row.current_user == "blackbread_test_runtime"
+    assert row.table_owner != row.current_user
+    assert row.can_select is True
+    assert row.can_insert is True
+    assert row.can_update is False
+    assert row.can_delete is False
+    assert row.can_truncate is False
 
 
 async def test_migration_installs_integrity_controls(session: AsyncSession) -> None:

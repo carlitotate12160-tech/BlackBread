@@ -294,6 +294,13 @@ def test_ci_defines_required_non_optional_jobs() -> None:
     postgres = test_job["services"]["postgres"]
     assert "@sha256:" in postgres["image"]
     assert test_job["env"]["BLACKBREAD_TEST_DATABASE_URL"].endswith("/blackbread_test")
+    assert test_job["env"]["BLACKBREAD_TEST_MIGRATION_DATABASE_URL"].endswith(
+        "/blackbread_test"
+    )
+    assert (
+        test_job["env"]["BLACKBREAD_TEST_DATABASE_URL"]
+        != test_job["env"]["BLACKBREAD_TEST_MIGRATION_DATABASE_URL"]
+    )
     for job_name, commands in REQUIRED_CI_COMMANDS.items():
         job = jobs[job_name]
         assert job["name"] == job_name
@@ -323,6 +330,14 @@ def test_container_and_downloaded_tools_are_immutable() -> None:
     assert "GITLEAKS_LINUX_X64_SHA256" in workflow
     assert "postgres:17.11-bookworm@sha256:" in workflow
     assert "postgres:17.11-bookworm@sha256:" in compose
+    assert "blackbread_migration" in compose
+    assert "blackbread_app" in compose
+    assert "blackbread_runtime" not in compose
+    assert "init-runtime.sh" in compose
+    assert (ROOT / "deploy/postgres/init-runtime.sh").exists()
+    migration = (ROOT / "migrations/versions/0002_m1_ledger.py").read_text(encoding="utf-8")
+    assert "GRANT SELECT, INSERT ON TABLE agent_events TO blackbread_runtime" in migration
+    assert "REVOKE ALL ON TABLE clients, engagements, agent_events FROM PUBLIC" in migration
     assert "sha256sum -c -" in gitleaks_action
 
 
