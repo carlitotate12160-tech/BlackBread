@@ -1,6 +1,7 @@
 # ADR-FINAL-002 — BlackBread: Agentless Autonomous External Red-Team / Adversary-Emulation Platform
 
-- **Status:** Proposed — supersedes ADR-FINAL-001
+- **Status:** Accepted — 2026-08-27; supersedes all prior BlackBread architecture drafts
+- **Implementation status:** M0 foundation only; acceptance of this decision does not claim that later milestones are implemented or production-eligible
 - **Decision class:** Foundational architecture
 - **Product type:** Authorized autonomous external red-team exploitation, operated with adversary-emulation (APT) tradecraft
 - **Primary vantage:** External, black-box, unauthenticated at engagement start
@@ -20,6 +21,53 @@
 
 ---
 
+## 0. Authority, Conformance, and No-Blocking-Debt Contract
+
+This ADR is the canonical architecture decision for BlackBread. It is **accepted as a decision**;
+implementation readiness is tracked separately and must be demonstrated by source, tests, and release
+evidence. A statement in a document never proves that a capability exists.
+
+When artifacts conflict, authority is resolved in this order:
+
+1. applicable law, the executed SOW, and the signed engagement manifest;
+2. accepted ADR decisions and hard safety invariants in this document;
+3. `PRD.md` requirements and release acceptance criteria;
+4. `.devin/rules/blackbread.md` engineering enforcement rules;
+5. machine-readable capability registry and schemas;
+6. `.devin/skills/build-blackbread-agent/SKILL.md` implementation guidance;
+7. `TEST-AUDIT.md`, README files, examples, and historical material.
+
+Lower-authority artifacts may make a higher-authority rule stricter, but may not weaken, silently
+reinterpret, or mark it complete. Agent-Alpha is historical input only and has no authority over
+BlackBread. Comparisons and lessons from it belong in historical/audit material, not active contracts.
+
+Every architecture requirement has four independent states:
+
+- `DECIDED`: this ADR defines the required behavior.
+- `IMPLEMENTED`: the live autonomous path contains the behavior.
+- `VERIFIED`: automated tests prove the behavior and its negative cases.
+- `RELEASED`: the relevant release gate records evidence and approves operational use.
+
+Only release evidence may claim `RELEASED`. Missing work must be recorded as an explicit gap with a
+stable ID, severity, owner, target milestone, blocking release, verification test, and closure evidence.
+`TODO`, `TBD`, `later`, `dormant`, skipped tests, `continue-on-error`, and undocumented manual waivers
+may not hide release-blocking work. A blocker can be deferred only by an accepted ADR amendment that
+states the compensating control and the release at which it becomes mandatory.
+
+Each milestone is a hard dependency gate. Work for the next milestone may be prototyped, but the
+release cannot advance while any current or inherited `P0`/`P1`, safety, authorization, scope,
+tenant-isolation, evidence-integrity, or cleanup blocker remains open. CI validates contract drift;
+branch protection makes the CI checks required. An agent may not waive these substantive gates.
+
+For this sole-owner repository, an authenticated owner instruction authorizes the named automation
+integration to create commits, push a feature branch, update a pull request, and perform the final
+merge without repeated confirmation. A configured integration bypass is transport authority only:
+it may be used to execute the merge after the same checks, review disposition, stable-head, and
+blocking-debt gates pass. It never authorizes direct push to `main`, force-push, history rewrite,
+suppression of AI review findings, or merge while a `changes requested` review remains.
+
+---
+
 ## 1. Decision Summary
 
 BlackBread is an **autonomous, threat-informed, external red-team / adversary-emulation platform**. It answers a client's question — *"can a real external attacker reach my approved objective, and would I detect them?"* — by operating like an APT operator (patient, stealthy, objective-driven, chain-composing) while remaining strictly authorized, non-destructive, and agentless.
@@ -34,7 +82,7 @@ The platform uses **five autonomous domain agents**:
 
 Each agent owns a local goal, a role-specific planner and critic, working memory, a capability portfolio, local stop conditions, and a typed output contract. There is **no central Mission Brain**.
 
-**Anchor is dissolved** (relative to ADR-FINAL-001). Its two mixed responsibilities are separated:
+**Anchor is dissolved.** Its two mixed responsibilities are separated:
 - the **Session/Secret Broker** becomes a deterministic trust-spine *service* (never an autonomous agent);
 - the **access-context reasoning** becomes a *module inside Scout*, activated when authenticated testing begins.
 
@@ -108,7 +156,7 @@ no alert = undetected              no finding = secure
 
 ## 5. Threat-Informed Doctrine (APT References)
 
-Four threat groups are used as **discipline references**, not as sources of malware, covert persistence, or evasion-for-harm playbooks. Under BlackBread's covert posture, controlled evasion and low-and-slow patience are now **adapted** (in ADR-FINAL-001 they were excluded).
+Four threat groups are used as **discipline references**, not as sources of malware, covert persistence, or evasion-for-harm playbooks. Under BlackBread's covert posture, controlled evasion and low-and-slow patience are adapted within the authorization and do-no-harm boundaries below.
 
 ### 5.1 APT41 — initial-access breadth
 - **Adapted:** never rely on one vulnerability class; keep multiple independent entry hypotheses; match capability to real target context; prioritize exposed, reusable primitives; rapid applicability assessment.
@@ -279,7 +327,23 @@ agent publishes event → ledger persists → graph projector updates
 → Conductor evaluates work readiness → target agent receives work order
 ```
 
-Events, action proposals, and work orders are typed (schemas as in ADR-FINAL-001 §8.4–8.6), extended with `opsec_noise`, `target_identity_tier`, and `based_on_graph_version` fields.
+BlackBread does not depend on a superseded ADR for these contracts. The minimum envelopes are:
+
+- `AgentEvent`: `event_id`, tenant/engagement, monotonic sequence, schema name/version, producer,
+  correlation/causation IDs, occurred/recorded timestamps, payload, payload hash, previous-event hash,
+  event hash, sensitivity label, and redaction references.
+- `ActionProposal`: proposal ID, agent/role instance, capability ID/version, target reference, typed
+  parameters, intended proof, preconditions, oracle, risk, cost, information gain, OPSEC noise,
+  requested budget, identity tier, graph version, idempotency key, and expiry.
+- `WorkOrder`: proposal reference, immutable policy decision reference, approval reference where needed,
+  lease/lock IDs, exact rendered-parameter hash, capability digest, budgets, deadline, cancellation token,
+  expected evidence, cleanup obligation, and target-egress policy reference.
+- `CapabilityOutcome`: work-order/invocation references, terminal status, typed result, raw-artifact
+  references, oracle result, target binding, OPSEC/health signals, resource/cost use, cleanup result, and
+  interpretation state. A capability outcome is evidence, never a confirmed finding by itself.
+
+Schemas are versioned and additive changes require compatibility tests. Unknown schema versions,
+missing security fields, expired proposals, and mismatched rendered-parameter hashes fail closed.
 
 ---
 
@@ -332,11 +396,11 @@ candidate → normalize → classify → dedup → provenance → target associa
 ```
 - **Offline** = credential *intelligence* (no target contact): breach-corpus applicability, hash cracking (John/Hashcat), provenance, dedup, ranking → a short high-probability list.
 - **Online** = strictly bounded by the **Authentication Risk Governor** (deterministic, enforced with the Policy Kernel):
-  - prefer **spray** (one password × many accounts) over **brute** (many × one account) to avoid per-account lockout;
-  - cap attempts = `min(operator_config ≤ 3, safe margin below detected/assumed lockout policy)` per account/app/window;
+  - where online validation is explicitly approved, prefer a low-and-slow spray shape over brute-force, but never assume either is safe;
+  - cap attempts = `min(operator_config, known safe margin below the verified lockout policy)` per account/app/window; if the lockout state or prior-failure count is unknown, default to zero online attempts unless an operator approves one exact attempt;
   - long inter-attempt delays; spread across accounts; hard-stop on any lockout/anomaly/heat signal;
   - **MFA present → stop** (finding: valid-but-MFA-protected; no MFA bombing).
-  - This makes lockout impossible from our side (do-no-harm) *and* the absence of lockout is itself a reportable finding.
+  - These controls reduce rather than eliminate lockout risk. The platform must never claim that a numerical cap makes lockout impossible, and absence of lockout is reportable only when the lockout policy was safely established.
 
 **Authorization / IDOR-BOLA workflow:** unauthenticated vs authenticated, principal A vs B, role A vs B, tenant A vs B, object ownership, bidirectional differential, independent object marker → finding or rejection (requires broker sessions).
 
@@ -413,7 +477,7 @@ Deterministic trust-spine service (not an agent). Provides opaque session handle
 **Heat state machine (EWMA with decay):** `COOL → WARM → HOT → BURNED`.
 - **WARM:** slow down, more jitter, lower concurrency, drop noisy techniques.
 - **HOT:** stop the current technique/path; switch approach (other technique / other asset / verified origin instead of CDN) or cool down.
-- **BURNED:** **auto passive-only + notify operator/White Cell**, then the agent re-plans onto a less-monitored surface after cooldown (APT patient flank). The hard stop on the current hot vector is deterministic. With a single static egress, `BURNED` is treated conservatively (pause > push); a genuine IP block is reported as a finding about the client's blocking efficacy.
+- **BURNED:** **freeze all target-active work for the affected engagement and notify the operator/White Cell**. Passive analysis may continue, but no autonomous active flanking or cooldown-based resume is allowed. Resume requires an operator-authorized recovery decision, a fresh target-identity check, a new lease, and an explicitly different approved path. A genuine block is reported as a client defensive win.
 
 **Jitter engine:** log-normal inter-request delays (human think-time), Poisson arrival for organic emulation, circadian shaping, burst-then-idle session model, per-host and global token buckets, AIMD backoff tied to signals, order shuffling, and parameter variation to avoid self-signature.
 
@@ -461,6 +525,61 @@ Do not build a browser engine. Two-tier execution behind a swappable adapter:
 
 Every tool — open-source, commercial, or proprietary — runs behind one typed contract declaring eligible agents, risk class, input/output schemas, limits, and evidence requirements (raw artifact + target binding). **Customization order:** adapter → official plugin/extension/template → maintained fork only when commercially justified. Prefer library/JSON output over CLI scraping; customize at extension points (Nuclei templates, mitmproxy addons, sqlmap tamper scripts); build-fresh the small high-value components (resilience layer, resolver/brute, CT consumer). Do not fork a tool merely to call it proprietary.
 
+### 20.1 Canonical capability and tool registry
+
+`config/capability-registry.json` is the machine-readable source of truth for capability ownership.
+Names in agent descriptions are architectural candidates, not permission to install or execute a tool.
+The runtime must default-deny anything absent from the registry and, from M2 onward, load the same
+registry used by CI. Each entry must declare a stable capability ID, owning agent, adapter, pinned tool
+or image identity, lifecycle state, risk class, Target Identity Guard tier, approval mode, network path,
+typed input/output schema references, budgets, evidence/oracle requirements, cleanup behavior, and
+prohibited effects.
+
+No agent receives shell access, a generic HTTP client, arbitrary command arguments, raw template
+selection, or a tool binary directly. The adapter builds the final invocation from validated typed
+fields. Redirects, callbacks, proxy destinations, file inputs, and body-embedded destinations are
+re-extracted and scope-checked after rendering. Tool updates and template changes are capability
+changes: they require a review, digest pin, fixture and negative-control tests, and lifecycle promotion.
+Discovery of a locally installed binary never grants eligibility.
+
+The initial ownership matrix is binding:
+
+| Capability family | Owner | Candidate engines | Maximum default posture | Required restriction |
+|---|---|---|---|---|
+| Passive asset intelligence | Scout | own CT/DNS consumer, Subfinder, Amass, Wayback/CDX, Common Crawl, OTX, URLScan | T0 passive | source provenance, deadlines, cache, no target contact |
+| DNS/TLS/HTTP observation | Scout | dnsx, tlsx, httpx, curl-impersonate | T1 active read-only | exact destinations, GET only for HTTP, redirect re-check |
+| Network-service observation | Scout | Naabu, Nmap safe profiles | T1 active read-only | approved ports/rates; no NSE, brute, UDP, or version script unless separately allowlisted |
+| Route and browser observation | Scout | gau, waybackurls, Katana, Playwright/Camoufox | T1 active read-only | no forms, downloads with side effects, state-changing links, or credential entry |
+| Public-artifact secret detection | Scout | Gitleaks, TruffleHog | offline artifact analysis | only already authorized/publicly retrieved artifacts; findings store redacted evidence |
+| Discovery signatures | Scout | Nuclei discovery templates | T1 active read-only | reviewed template-ID allowlist; no fuzzing, auth, headless, file, code, or destructive tags |
+| Credential intelligence | Strike | John, Hashcat, hash-identification libraries | offline only by default | approved corpus, isolated worker, secret handles only, no target contact |
+| Authentication validation | Strike | BlackBread typed auth adapter, brokered browser | T2 operator approval | exact account/app/window, verified lockout margin, MFA/lockout hard stop |
+| Authorization differential | Strike | brokered browser/API differential adapter | T2 operator approval | two approved principals, read-only object markers, no enumeration |
+| Service/vulnerability verification | Strike | testssl.sh, mitmproxy, reviewed Nuclei/ZAP checks | T1 or T2 per check | one declared oracle; active scanner and unrestricted spider disabled |
+| Controlled proof | Exploit | reviewed Nuclei/Metasploit/sqlmap modules and reviewed PoCs | T3 exact-target approval | lifecycle `ON_HOLD` until R3; isolated worker, attempt cap, effect model, cleanup |
+| Objective-bound post-access read | Post-Exploit | approved native APIs/clients and client-provided exports | T3 separate approval | client-seeded canaries, data minimization, no persistence or credential dumping |
+| Evidence and report build | Report | Jinja2, NetworkX, Markdown/HTML-PDF, Playwright render | offline/control plane | read-only evidence handles; independent verification; deterministic severity calculation |
+
+Shared services such as the Policy Kernel, OPSEC gateway, Session/Secret Broker, evidence store, and
+LLM provider are not agent capabilities and cannot be invoked as a way around the Conductor. The
+Report agent may request a re-verification work order, but may not directly operate a Scout, Strike, or
+Exploit tool.
+
+### 20.2 Capability admission gate
+
+A capability cannot move to `CLIENT_ELIGIBLE` until all of the following are present: pinned supply-chain
+identity, typed schemas, eligible-agent allowlist, risk/tier/approval classification, deterministic scope
+tests including nested destinations and redirects, timeout/cancellation/process-group cleanup, resource
+and cost budgets, output redaction, evidence oracle, fixture and negative-control tests, OPSEC signal
+mapping, ARM64 qualification, and an owner. A missing field or failing test keeps the capability denied.
+`ON_HOLD` and `PLANNED` entries are visible design inventory, never executable runtime states.
+
+The lifecycle vocabulary is closed: `PLANNED`, `ON_HOLD`, `RESEARCH_DRAFT`, `STATIC_REVIEWED`,
+`FIXTURE_VERIFIED`, `NEGATIVE_CONTROL_VERIFIED`, `LAB_PROVEN`, `SAFETY_REVIEWED`,
+`CLIENT_ELIGIBLE`, `EXACT_TARGET_APPROVED`, `FIELD_OBSERVED`, `FIELD_PROVEN`, `REPEATABLE`,
+`SUSPENDED`, and `RETIRED`. Unknown values fail CI and runtime admission. `ON_HOLD` is lifted only by
+the release gate that imposed it; `SUSPENDED` and `RETIRED` always deny execution.
+
 **Passive-source resilience layer:** a `PassiveSource` interface with multi-source redundancy, a per-engagement PostgreSQL cache, per-source retry/backoff/circuit-breaker, async per-source deadlines (never stall the run), and source-health metrics. Free-source floor: Wayback Machine + Wayback CDX, Common Crawl, AlienVault OTX, VirusTotal (off the critical path), URLScan, and crt.sh via its public PostgreSQL. Paid sources (Shodan/Censys/Dehashed) are BYOK with operator-default fallback.
 
 ---
@@ -471,7 +590,21 @@ Every tool — open-source, commercial, or proprietary — runs behind one typed
 hash-chained event ledger → PostgreSQL projection → immutable NetworkX snapshot → path analysis
 ```
 
-PostgreSQL is canonical and durable; **NetworkX is an ephemeral, rebuildable analysis view** (restart-safe by design — rebuild from the projection or by replaying the ledger; snapshot periodically for fast startup). Layers: Observed, Belief, Action, Access, Objective. Node and edge types as in ADR-FINAL-001 §18.3–18.4 (plus edge-appliance/service nodes). Every node/edge carries first/last observed, valid-from/until, evidence references, confidence, producer, graph version, freshness, and supersession. A graph DB (e.g., Neo4j) is deferred until path queries outgrow PostgreSQL.
+PostgreSQL is canonical and durable; **NetworkX is an ephemeral, rebuildable analysis view**
+(restart-safe by design — rebuild from the projection or by replaying the ledger; snapshot periodically
+for fast startup). Layers are Observed, Belief, Action, Access, and Objective.
+
+Canonical node families are `ScopeRoot`, `Host`, `Address`, `Service`, `Certificate`, `Application`,
+`Endpoint`, `CloudResource`, `Identity`, `Tenant`, `Artifact`, `SecretRef`, `VulnerabilityCandidate`,
+`Control`, `AccessContext`, `Finding`, and `Objective`. Canonical edge families are `RESOLVES_TO`,
+`PRESENTS`, `EXPOSES`, `BELONGS_TO`, `OBSERVED_AT`, `INDICATES`, `APPLICABLE_TO`, `VERIFIED_BY`,
+`GRANTS`, `TRUSTS`, `REACHES`, `BLOCKED_BY`, `SATISFIES`, `DERIVED_FROM`, and `SUPERSEDES`.
+
+Every node/edge carries tenant and engagement, target-identity binding, first/last observed,
+valid-from/until, evidence references, confidence, producer, graph version, freshness, verification
+state, and supersession. Belief edges cannot satisfy an objective or appear in a verified attack path;
+each promoted edge requires its declared oracle and evidence. Cross-tenant edges are prohibited. A
+graph database is deferred until measured PostgreSQL path-query limits justify it.
 
 ---
 
@@ -592,9 +725,9 @@ Hash-chained append-only ledger; SHA-256 artifact hashing with content-addressed
 
 - **Access:** designated client users only (RBAC, MFA); no open registration.
 - **Authorization:** a web setup wizard (scope inputs with ownership helpers, objective, budgets, pacing, window, stop conditions, deconfliction contacts) plus an in-app **attestation** (authorized-to-consent, scope confirmation, rules-of-engagement acknowledgment, click-sign) that generates a machine-readable, platform-signed engagement manifest. **No document upload** — the offline legal SOW is signed privately between operator and client and is not uploaded. The attestation (who, when, exact scope, mode) is recorded immutably in the hash-chained ledger, making the checklist non-repudiable proof of authorization. The Policy Kernel refuses to act without a valid, unexpired, attested manifest.
-- **Engagement modes (3 tiers):** Recon-only (passive + active-read-only; Scout + Report; == MVP and the first sellable tier), Recon+Validate (adds Strike validation), Full kill-chain (adds Exploit + Post-Exploit, approval-gated). Mode is a gating field that enables capability families and selects which agents/phases run.
+- **Engagement modes (3 tiers):** Recon-only (passive + active-read-only Scout, restricted offline/T1 Strike verification, and Report; MVP/first sellable tier), Recon+Validate (adds approved T2 Strike validation), Full kill-chain (adds Exploit + Post-Exploit, separately approval-gated). Mode is a gating field that enables exact registry capabilities and agent profiles, not merely agent names.
 - **BYOK API keys:** clients may supply their own Shodan/Censys/Dehashed/etc. keys (encrypted, per-engagement, opaque refs, never logged); precedence is client → operator-default → free-source fallback; default is operator-set. Dehashed (breach data) is handled under PII/legal rules.
-- **Ownership-proof challenge (G3):** DNS TXT / hosted-file control proof — infrastructure built but **dormant**; enforcement begins once the product is proven; interim mitigation is manual operator verification.
+- **Ownership proof:** DNS TXT / hosted-file automation may remain dormant for R1, but a documented manual ownership review with evidence, reviewer identity, timestamp, and expiry is mandatory before active target contact. Unknown, third-party, CDN/provider, and shared-SaaS infrastructure fails closed.
 - **White Cell / deconfliction:** sealed attested authorization, 24/7 contact, an "is this activity yours?" ledger query, a dual-mode kill switch (freeze/forensic-hold vs graceful-stop), immediate critical-finding disclosure, real pre-existing-breach handling, real-incident-collision pause, and a law-enforcement runbook.
 
 ---
@@ -630,29 +763,66 @@ Evidence-backed attack-path intelligence learned from conclusive real-world outc
 
 **Releases:** R0 Trust Spine → R1 First Payable Finding (Recon-only tier) → R2 Full Broker + authenticated recon → **R3 Controlled Exploit (only after pre-production safety range validation)** → R4 Post-Exploit → R5 Learning & Scale.
 
-**R1 exit oracle (first finding lane = phase exit):** on one authorized real target, the full Scout → Strike → Report chain yields a cross-verified finding (≥2 independent evidence families) with a ProofArtifact, severity, and coverage honesty, with no safety incident, no unrecovered BURNED, and client-accepted interpretation. Any failed gate downgrades the finding and the phase is not exited.
+The Recon-only product uses Scout plus a **restricted Strike verification profile** and Report. Restricted
+Strike may perform only offline or T1 read-only confirmation needed to reject false positives; online
+authentication, authorization differential testing, exploit, and mutation remain outside this tier.
+
+**R1 entry gate (before any real target):** R0 evidence is sealed; mandatory CI checks are required by
+branch protection; the capability registry is runtime-enforced for every target action; no inherited
+P0/P1 or safety blocker is open; legal counsel has approved the operating SOW/attestation, UU ITE/UU
+PDP handling, cross-border processor use, breach-data policy, retention/deletion schedule, and incident
+procedure; manual ownership verification is recorded in the ledger while automated proof remains
+dormant; shared-SaaS, third-party, and unknown ownership are fail-closed; White Cell/deconfliction and
+kill/dead-man drills have passed; backup restore and evidence deletion have been tested.
+
+**R1 exit oracle (first finding lane = phase exit):** on one authorized real target, the full Scout →
+restricted Strike → Report chain yields a cross-verified finding (≥2 independent evidence families)
+with a ProofArtifact, severity, and coverage honesty, with zero scope/availability/lockout/data-handling
+incident, no unresolved BURNED state, and client-accepted interpretation. Any failed gate downgrades the
+finding and the phase is not exited.
+
+Every milestone exit must publish a versioned conformance record containing requirement IDs, commit
+SHA, passing CI run, negative-test evidence, open-gap list, operator approver, and timestamp. An empty
+or missing record means the milestone is not exited.
 
 ---
 
-## 36. Acceptance Criteria
+## 36. Decision Acceptance and Implementation Conformance
 
-The ADR can move to ACCEPTED when: five agents have non-overlapping local goals; the Conductor has no strategic LLM planner; each agent has typed I/O contracts; proposals cannot execute directly; the Policy Kernel controls exact capability invocation with deep parameter/destination validation; raw secrets cannot enter events, graph, or prompts; target identity is verified (tiered) before active action; tool output cannot directly create confirmed findings; Report can downgrade other agents' claims; Exploit success does not auto-start Post-Exploit; Post-Exploit requires separate approval; cleanup is a required lifecycle state; the target-agentless invariant is testable; the first finding lane and real-target exit oracle are defined; the prompt-injection test suite passes; the OPSEC hard-stop cannot be overridden by the LLM; the pre-production safety range validates do-no-harm and scope adherence; evidence retention/deletion is approved; and provider free-tier limits are verified.
+This ADR is accepted because the architectural choices and safety boundaries are resolved. Acceptance
+does not certify implementation. A build is conformant only when automated evidence proves: five agents
+have non-overlapping local goals; the Conductor has no strategic LLM planner; each agent has typed I/O;
+proposals cannot execute directly; the Policy Kernel controls the exact rendered invocation and every
+destination; raw secrets cannot enter events, graph, logs, prompts, or ordinary artifacts; target
+identity is verified at the required tier; registry-denied tools cannot execute; tool output cannot
+directly create confirmed findings; Report can downgrade claims; Exploit cannot auto-start Post-Exploit;
+Post-Exploit requires a separate approval and lease; cleanup is a mandatory lifecycle state; agentless
+execution is tested; prompt injection cannot alter authority; the OPSEC hard stop cannot be overridden;
+and milestone-specific release evidence exists.
+
+R3 additionally requires the pre-production safety range to validate do-no-harm, scope adherence,
+blast-radius assumptions, cancellation, cleanup, and negative controls. No provider free tier, optional
+bot, or third-party service may be a release dependency without a tested degraded/fail-closed path.
 
 ---
 
 ## 37. Decisions Resolved
 
-Five agents, no central brain. Anchor dissolved → Session/Secret Broker service + Scout access-context module. Conductor = deterministic orchestration; Policy Kernel = deterministic, fail-closed, deep-validating; OPSEC = deterministic stealth. No direct agent-to-agent commands. Covert posture with White Cell and web attestation (no document upload). Controlled evasion is first-class (loose-on-form/strict-on-effect). Single controlled Oracle egress (behavioral flanking, no IP rotation yet). Multi-provider LLM via OpenRouter first, mixed router, cloud reasoning for MVP. Attack graph canonical in PostgreSQL; NetworkX rebuildable. Full-surface discovery (incl. edge/service) is in scope; edge RCE exploitation is gated to R3+. Exploit phase on hold until the safety range validates stability. BYOK API keys with operator default and free fallback. Ownership-proof and OOB/canary infrastructure built but dormant. C2/Sliver excluded. Go/Rust and graph DB deferred.
+Five agents, no central brain. Anchor dissolved → Session/Secret Broker service + Scout access-context module. Conductor = deterministic orchestration; Policy Kernel = deterministic, fail-closed, deep-validating; OPSEC = deterministic stealth. No direct agent-to-agent commands. Covert posture with White Cell and web attestation (no document upload). Controlled evasion is first-class (loose-on-form/strict-on-effect). `BURNED` freezes target-active work until an operator-authorized recovery. Single controlled Oracle egress (no IP rotation yet). Multi-provider LLM via OpenRouter first, mixed router, cloud reasoning for MVP. Attack graph canonical in PostgreSQL; NetworkX rebuildable. Full-surface discovery (incl. edge/service) is in scope; edge RCE exploitation is gated to R3+. Exploit phase on hold until the safety range validates stability. BYOK API keys with operator default and free fallback. Automated ownership proof and OOB/canary infrastructure may be dormant, but manual evidence-backed ownership verification and fail-closed third-party handling are required for R1. C2/Sliver excluded. Go/Rust and graph DB deferred.
 
 ---
 
 ## 38. Open Questions / Future
 
-- **Legal/compliance (Indonesia, deferred):** UU ITE (unauthorized-access liability — sealed authorization matters), UU PDP No. 27/2022 (PII handling), cross-border data transfer to cloud LLMs (redact/minimize before sending), breach-data (Dehashed) handling.
+Legal/compliance for Indonesia is not deferred architecture work: the R1 entry gate requires approved
+controls for UU ITE authorization evidence, UU PDP No. 27/2022 data handling, cross-border processors,
+breach data, retention/deletion, and incident response. Counsel decides the operational policy; agents
+cannot waive it.
+
 - Continuous/periodic re-assessment mode (find exposure before an attacker appears, continuously).
 - Compliance-aligned reporting (ISO 27001 / SOC 2 / PCI) and localized (Bahasa Indonesia) reports.
-- Responsible-disclosure path for third-party/vendor vulnerabilities found in scope.
-- Shared-SaaS / provider boundary rule (never test the provider; only the client's data/config within it, if authorized).
+- Responsible-disclosure automation for third-party/vendor vulnerabilities; the manual reviewed procedure is required for R1.
+- Richer shared-SaaS handling; until then, provider infrastructure is deny-by-default and only the client's exact tenant/configuration may be observed when explicitly authorized.
 - Dynamic scope evaluation for wildcards and rotating cloud IPs (scope-by-ownership vs scope-by-IP); immediate propagation when a client removes an asset mid-engagement.
 - Egress source rotation (deferred with single-egress MVP).
 - Local model self-hosting on a dedicated box for sensitive engagements.

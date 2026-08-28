@@ -121,9 +121,9 @@ tests/
 
 | Test | What it verifies | Coverage target |
 |------|-----------------|----------------|
-| `test_temperature_fsm.py` | COOL→WARM→HOT→BURNED transitions correct; BURNED auto-passive | 95% |
+| `test_temperature_fsm.py` | COOL→WARM→HOT→BURNED transitions correct; BURNED freezes all target-active work | 95% |
 | `test_suspicion_signals.py` | WAF block, 429, Retry-After, reset, tarpit, soft-block, honeytoken detected | 90% |
-| `test_hard_stop.py` | LLM cannot override BURNED hard stop; fail-closed | 100% |
+| `test_hard_stop.py` | LLM cannot override BURNED; active recovery requires operator approval, fresh identity, and a new lease | 100% |
 | `test_jitter_nonuniform.py` | Delays are log-normal, non-round, non-uniform | 90% |
 | `test_token_bucket.py` | Per-host and global token buckets enforce rate | 90% |
 | `test_aimd_backoff.py` | AIMD backoff respects Retry-After and health signals | 90% |
@@ -278,7 +278,7 @@ Alpha has zero deception tests. BlackBread must detect honeypots.
 | `test_byok_key_encryption.py` | Client API keys encrypted in vault, scoped per engagement |
 | `test_byok_no_leak.py` | BYOK keys never in logs, prompts, graph, or artifacts |
 | `test_byok_resolution.py` | Client key → operator key → free-source fallback |
-| `test_engagement_mode_enforcement.py` | Recon-only mode blocks Strike; Recon+Validate blocks Exploit |
+| `test_engagement_mode_enforcement.py` | Recon-only permits only restricted offline/T1 Strike capabilities; Recon+Validate blocks Exploit |
 
 ### 4.13 Governance tests (`tests/governance/`)
 
@@ -296,7 +296,7 @@ Alpha has zero deception tests. BlackBread must detect honeypots.
 
 | Test | What it verifies |
 |------|-----------------|
-| `test_full_engagement_recon_only.py` | E2E: attestation → Scout → Report, no Strike |
+| `test_full_engagement_recon_only.py` | E2E: attestation → Scout → restricted offline/T1 Strike → Report; full Strike capabilities denied |
 | `test_full_engagement_validate.py` | E2E: attestation → Scout → Strike → Report |
 | `test_rls_isolation.py` | Multi-tenant RLS enforced; tenant A cannot see tenant B |
 | `test_postgres_durability.py` | State survives restart; graph rebuilt from ledger |
