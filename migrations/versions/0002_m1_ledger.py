@@ -224,18 +224,16 @@ def upgrade() -> None:
         )
     )
     _require_runtime_role()
-    op.execute(
-        sa.text(
-            """
-            REVOKE ALL ON TABLE clients, engagements, agent_events FROM PUBLIC;
-            REVOKE ALL ON TABLE alembic_version FROM PUBLIC;
-            GRANT USAGE ON SCHEMA public TO blackbread_runtime;
-            GRANT SELECT ON TABLE alembic_version TO blackbread_runtime;
-            GRANT SELECT, INSERT ON TABLE clients, engagements TO blackbread_runtime;
-            GRANT SELECT, INSERT ON TABLE agent_events TO blackbread_runtime;
-            """
-        )
+    privilege_statements = (
+        "REVOKE ALL ON TABLE clients, engagements, agent_events FROM PUBLIC",
+        "REVOKE ALL ON TABLE alembic_version FROM PUBLIC",
+        "GRANT USAGE ON SCHEMA public TO blackbread_runtime",
+        "GRANT SELECT ON TABLE alembic_version TO blackbread_runtime",
+        "GRANT SELECT, INSERT ON TABLE clients, engagements TO blackbread_runtime",
+        "GRANT SELECT, INSERT ON TABLE agent_events TO blackbread_runtime",
     )
+    for statement in privilege_statements:
+        op.execute(sa.text(statement))
 
 
 def downgrade() -> None:
