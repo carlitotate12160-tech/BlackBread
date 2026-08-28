@@ -10,13 +10,14 @@ branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 HASH_PATTERN = "^[0-9a-f]{64}$"
+GENESIS_HASH = "0" * 64
 SENSITIVITY_VALUES = "'public', 'internal', 'confidential', 'restricted'"
 
 
 def _require_runtime_role() -> None:
+    connection = op.get_bind()
     role = (
-        op.get_bind()
-        .execute(
+        connection.execute(
             sa.text(
                 """
                 SELECT rolcanlogin, rolsuper, rolcreaterole, rolcreatedb
@@ -32,6 +33,21 @@ def _require_runtime_role() -> None:
         raise RuntimeError("required NOLOGIN role blackbread_runtime does not exist")
     if role["rolcanlogin"] or role["rolsuper"] or role["rolcreaterole"] or role["rolcreatedb"]:
         raise RuntimeError("blackbread_runtime must be an unprivileged NOLOGIN role")
+
+    parent_role = connection.scalar(
+        sa.text(
+            """
+            SELECT parent.rolname
+            FROM pg_auth_members AS membership
+            JOIN pg_roles AS runtime ON runtime.oid = membership.member
+            JOIN pg_roles AS parent ON parent.oid = membership.roleid
+            WHERE runtime.rolname = 'blackbread_runtime'
+            LIMIT 1
+            """
+        )
+    )
+    if parent_role is not None:
+        raise RuntimeError("blackbread_runtime must not inherit or assume another role")
 
 
 def upgrade() -> None:
@@ -71,6 +87,18 @@ def upgrade() -> None:
             comment="Immutable sentinel used only to authorize engagement row locks.",
         ),
         sa.Column(
+            "ledger_event_count",
+            sa.BigInteger(),
+            server_default=sa.text("0"),
+            nullable=False,
+        ),
+        sa.Column(
+            "ledger_head_hash",
+            sa.String(length=64),
+            server_default=sa.text(f"'{GENESIS_HASH}'"),
+            nullable=False,
+        ),
+        sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
             server_default=sa.text("CURRENT_TIMESTAMP"),
@@ -88,6 +116,14 @@ def upgrade() -> None:
         sa.CheckConstraint(
             "ledger_lock_token = 0",
             name="ck_engagements_ledger_lock_token",
+        ),
+        sa.CheckConstraint(
+            "ledger_event_count >= 0",
+            name="ck_engagements_ledger_event_count",
+        ),
+        sa.CheckConstraint(
+            f"ledger_head_hash ~ '{HASH_PATTERN}'",
+            name="ck_engagements_ledger_head_hash",
         ),
     )
     op.create_index("ix_engagements_client_id", "engagements", ["client_id"])
@@ -201,6 +237,57 @@ def upgrade() -> None:
     op.execute(
         sa.text(
             """
+            CREATE FUNCTION blackbread_advance_ledger_head()
+            RETURNS trigger
+            LANGUAGE plpgsql
+            SECURITY DEFINER
+            SET search_path = pg_catalog, public
+            AS $$
+            DECLARE
+                current_count bigint;
+                current_hash text;
+            BEGIN
+                SELECT ledger_event_count, ledger_head_hash
+                INTO current_count, current_hash
+                FROM public.engagements
+                WHERE id = NEW.engagement_id
+                  AND tenant_id = NEW.tenant_id
+                FOR UPDATE;
+
+                IF NOT FOUND THEN
+                    RAISE EXCEPTION 'ledger engagement anchor is missing'
+                        USING ERRCODE = '23503';
+                END IF;
+                IF NEW.sequence <> current_count + 1
+                   OR NEW.prev_event_hash <> current_hash THEN
+                    RAISE EXCEPTION 'event does not advance the anchored ledger head'
+                        USING ERRCODE = '23514';
+                END IF;
+
+                UPDATE public.engagements
+                SET ledger_event_count = NEW.sequence,
+                    ledger_head_hash = NEW.event_hash
+                WHERE id = NEW.engagement_id
+                  AND tenant_id = NEW.tenant_id;
+                RETURN NEW;
+            END;
+            $$
+            """
+        )
+    )
+    op.execute(
+        sa.text(
+            """
+            CREATE TRIGGER agent_events_advance_head
+            AFTER INSERT ON agent_events
+            FOR EACH ROW
+            EXECUTE FUNCTION blackbread_advance_ledger_head()
+            """
+        )
+    )
+    op.execute(
+        sa.text(
+            """
             CREATE FUNCTION blackbread_reject_agent_event_mutation()
             RETURNS trigger
             LANGUAGE plpgsql
@@ -238,6 +325,7 @@ def upgrade() -> None:
     privilege_statements = (
         "REVOKE ALL ON TABLE clients, engagements, agent_events FROM PUBLIC",
         "REVOKE ALL ON TABLE alembic_version FROM PUBLIC",
+        "REVOKE ALL ON FUNCTION blackbread_advance_ledger_head() FROM PUBLIC",
         "GRANT USAGE ON SCHEMA public TO blackbread_runtime",
         "GRANT SELECT ON TABLE alembic_version TO blackbread_runtime",
         "GRANT SELECT, INSERT ON TABLE clients, engagements TO blackbread_runtime",
@@ -249,9 +337,11 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    op.execute(sa.text("DROP TRIGGER agent_events_advance_head ON agent_events"))
     op.execute(sa.text("DROP TRIGGER agent_events_reject_truncate ON agent_events"))
     op.execute(sa.text("DROP TRIGGER agent_events_reject_mutation ON agent_events"))
     op.drop_table("agent_events")
+    op.execute(sa.text("DROP FUNCTION blackbread_advance_ledger_head()"))
     op.execute(sa.text("DROP FUNCTION blackbread_reject_agent_event_mutation()"))
     op.drop_table("engagements")
     op.drop_table("clients")

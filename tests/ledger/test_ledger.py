@@ -64,6 +64,9 @@ async def test_append_builds_genesis_linked_chain(
     assert third.prev_event_hash == second.event_hash
     assert first.tenant_id == engagement.tenant_id
     assert len({first.event_hash, second.event_hash, third.event_hash}) == 3
+    await session.refresh(engagement)
+    assert engagement.ledger_event_count == 3
+    assert engagement.ledger_head_hash == third.event_hash
 
 
 async def test_mutated_source_payload_cannot_bypass_validated_snapshot(
@@ -330,6 +333,32 @@ async def test_verify_detects_deleted_middle_event(
     assert result.reason == "non-contiguous sequence"
 
 
+async def test_verify_detects_deleted_tail_event(
+    session: AsyncSession,
+    admin_session: AsyncSession,
+    engagement: Engagement,
+) -> None:
+    await _append(session, engagement, "a")
+    await _append(session, engagement, "b")
+    last = await _append(session, engagement, "c")
+    await session.commit()
+
+    await _corrupt(
+        admin_session,
+        AgentEvent.__table__.delete().where(AgentEvent.id == last.id),
+    )
+    result = await verify_chain(
+        session,
+        tenant_id=engagement.tenant_id,
+        engagement_id=engagement.id,
+    )
+
+    assert result.ok is False
+    assert result.event_count == 2
+    assert result.broken_at_sequence == 3
+    assert result.reason == "anchored event count mismatch"
+
+
 @pytest.mark.parametrize("operation", ["update", "delete", "truncate"])
 async def test_database_rejects_event_mutation(
     session: AsyncSession,
@@ -367,7 +396,6 @@ async def test_composite_foreign_key_rejects_tenant_drift(
             .where(AgentEvent.id == event.id)
             .values(tenant_id="tenant-other")
         )
-        await admin_session.flush()
     await admin_session.rollback()
 
 
@@ -387,7 +415,6 @@ async def test_runtime_role_cannot_change_engagement_lock_sentinel(
             .where(Engagement.id == engagement.id)
             .values(ledger_lock_token=1)
         )
-        await session.flush()
     await session.rollback()
 
 
@@ -412,7 +439,13 @@ async def test_runtime_role_has_only_required_table_privileges(session: AsyncSes
                     ) AS can_lock_engagement,
                     has_column_privilege(
                         current_user, 'engagements', 'tenant_id', 'UPDATE'
-                    ) AS can_update_engagement_tenant
+                    ) AS can_update_engagement_tenant,
+                    has_column_privilege(
+                        current_user, 'engagements', 'ledger_event_count', 'UPDATE'
+                    ) AS can_update_ledger_count,
+                    has_column_privilege(
+                        current_user, 'engagements', 'ledger_head_hash', 'UPDATE'
+                    ) AS can_update_ledger_head
                 FROM pg_class AS c
                 WHERE c.oid = 'agent_events'::regclass
                 """
@@ -430,6 +463,30 @@ async def test_runtime_role_has_only_required_table_privileges(session: AsyncSes
     assert row.can_update_engagement is False
     assert row.can_lock_engagement is True
     assert row.can_update_engagement_tenant is False
+    assert row.can_update_ledger_count is False
+    assert row.can_update_ledger_head is False
+
+
+async def test_runtime_group_has_no_parent_memberships(session: AsyncSession) -> None:
+    parent_roles = (
+        (
+            await session.execute(
+                text(
+                    """
+                    SELECT parent.rolname
+                    FROM pg_auth_members AS membership
+                    JOIN pg_roles AS runtime ON runtime.oid = membership.member
+                    JOIN pg_roles AS parent ON parent.oid = membership.roleid
+                    WHERE runtime.rolname = 'blackbread_runtime'
+                    """
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    assert parent_roles == []
 
 
 async def test_migration_installs_integrity_controls(session: AsyncSession) -> None:
@@ -465,6 +522,10 @@ async def test_migration_installs_integrity_controls(session: AsyncSession) -> N
         .all()
     )
 
-    assert triggers == {"agent_events_reject_mutation", "agent_events_reject_truncate"}
+    assert triggers == {
+        "agent_events_advance_head",
+        "agent_events_reject_mutation",
+        "agent_events_reject_truncate",
+    }
     assert "fk_agent_events_engagement_tenant" in constraints
     assert "ck_agent_events_event_hash_hex" in constraints

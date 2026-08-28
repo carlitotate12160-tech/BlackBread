@@ -65,10 +65,12 @@ async def verify_chain(
 ) -> ChainVerification:
     engagement = (
         await session.execute(
-            select(Engagement).where(
+            select(Engagement)
+            .where(
                 Engagement.id == engagement_id,
                 Engagement.tenant_id == tenant_id,
             )
+            .with_for_update(read=True)
         )
     ).scalar_one_or_none()
     if engagement is None:
@@ -108,4 +110,18 @@ async def verify_chain(
     finally:
         await stream.close()
 
+    if event_count != engagement.ledger_event_count:
+        return ChainVerification(
+            ok=False,
+            event_count=event_count,
+            broken_at_sequence=min(event_count, engagement.ledger_event_count) + 1,
+            reason="anchored event count mismatch",
+        )
+    if expected_prev != engagement.ledger_head_hash:
+        return ChainVerification(
+            ok=False,
+            event_count=event_count,
+            broken_at_sequence=event_count or None,
+            reason="anchored head hash mismatch",
+        )
     return ChainVerification(ok=True, event_count=event_count)
