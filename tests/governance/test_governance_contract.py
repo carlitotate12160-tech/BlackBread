@@ -298,7 +298,8 @@ def test_ci_defines_required_non_optional_jobs() -> None:
 def test_container_and_downloaded_tools_are_immutable() -> None:
     dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
     workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
-    gitleaks_action = (ROOT / ".github/actions/install-gitleaks/action.yml").read_text(encoding="utf-8")
+    gitleaks_path = ROOT / ".github/actions/install-gitleaks/action.yml"
+    gitleaks_action = gitleaks_path.read_text(encoding="utf-8")
 
     assert dockerfile.count("@sha256:") == 3
     assert "GITLEAKS_LINUX_X64_SHA256" in workflow
