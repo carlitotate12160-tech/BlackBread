@@ -15,6 +15,17 @@ GENESIS_PREV_HASH = "0" * HASH_HEX_LENGTH
 MAX_JSON_DEPTH = 100
 
 
+class _JsonBudget:
+    def __init__(self, maximum: int) -> None:
+        self.maximum = maximum
+        self.consumed = 0
+
+    def consume(self, size: int) -> None:
+        self.consumed += size
+        if self.consumed > self.maximum:
+            raise LedgerValidationError("value exceeds the canonical JSON size limit")
+
+
 class SealedEvent(Protocol):
     id: UUID
     engagement_id: UUID
@@ -41,17 +52,41 @@ def canonical_timestamp(value: datetime) -> str:
     return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
-def _validate_json_string(value: str, path: str) -> str:
-    if "\x00" in value:
-        raise LedgerValidationError(f"{path} contains a NUL character unsupported by JSONB")
-    try:
-        value.encode("utf-8")
-    except UnicodeEncodeError as exc:
-        raise LedgerValidationError(f"{path} contains invalid Unicode") from exc
+def _validate_json_string(
+    value: str,
+    path: str,
+    budget: _JsonBudget | None = None,
+) -> str:
+    if budget is not None:
+        budget.consume(2)
+    for character in value:
+        codepoint = ord(character)
+        if codepoint == 0:
+            raise LedgerValidationError(f"{path} contains a NUL character unsupported by JSONB")
+        if 0xD800 <= codepoint <= 0xDFFF:
+            raise LedgerValidationError(f"{path} contains invalid Unicode")
+        if budget is None:
+            continue
+        if character in {'"', "\\"} or character in {"\b", "\f", "\n", "\r", "\t"}:
+            budget.consume(2)
+        elif codepoint < 0x20:
+            budget.consume(6)
+        elif codepoint <= 0x7F:
+            budget.consume(1)
+        elif codepoint <= 0x7FF:
+            budget.consume(2)
+        elif codepoint <= 0xFFFF:
+            budget.consume(3)
+        else:
+            budget.consume(4)
     return value
 
 
-def _normalize_json_float(value: float, path: str) -> float:
+def _normalize_json_float(
+    value: float,
+    path: str,
+    budget: _JsonBudget | None,
+) -> float:
     if not math.isfinite(value):
         raise LedgerValidationError(f"{path} contains a non-finite number")
     encoded_float = json.dumps(value, allow_nan=False)
@@ -60,50 +95,88 @@ def _normalize_json_float(value: float, path: str) -> float:
         raise LedgerValidationError(
             f"{path} contains a float that cannot round-trip through PostgreSQL JSONB"
         )
+    if budget is not None:
+        budget.consume(len(encoded_float))
     return value
 
 
-def _normalize_json_value(value: object, path: str = "$", depth: int = 0) -> object:
+def _normalize_json_value(
+    value: object,
+    path: str = "$",
+    depth: int = 0,
+    budget: _JsonBudget | None = None,
+) -> object:
     if depth > MAX_JSON_DEPTH:
         raise LedgerValidationError(f"{path} exceeds the maximum JSON nesting depth")
-    if value is None or isinstance(value, bool):
+    if value is None:
+        if budget is not None:
+            budget.consume(4)
+        return value
+    if isinstance(value, bool):
+        if budget is not None:
+            budget.consume(4 if value else 5)
         return value
     if isinstance(value, str):
-        return _validate_json_string(value, path)
+        return _validate_json_string(value, path, budget)
     if isinstance(value, int):
+        encoded_integer = str(value)
+        if budget is not None:
+            budget.consume(len(encoded_integer))
         return value
     if isinstance(value, float):
-        return _normalize_json_float(value, path)
+        return _normalize_json_float(value, path, budget)
     if isinstance(value, list):
-        return [
-            _normalize_json_value(item, f"{path}[{index}]", depth + 1)
-            for index, item in enumerate(value)
-        ]
+        if budget is not None:
+            budget.consume(2)
+        normalized_items: list[object] = []
+        for index, item in enumerate(value):
+            if budget is not None and index:
+                budget.consume(1)
+            normalized_items.append(
+                _normalize_json_value(
+                    item,
+                    f"{path}[{index}]",
+                    depth + 1,
+                    budget,
+                )
+            )
+        return normalized_items
     if isinstance(value, Mapping):
+        if budget is not None:
+            budget.consume(2)
         normalized: dict[str, object] = {}
-        for key, item in value.items():
+        for index, (key, item) in enumerate(value.items()):
             if not isinstance(key, str):
                 raise LedgerValidationError(f"{path} contains a non-string object key")
-            normalized_key = _validate_json_string(key, path)
+            if budget is not None and index:
+                budget.consume(1)
+            normalized_key = _validate_json_string(key, path, budget)
+            if budget is not None:
+                budget.consume(1)
             normalized[normalized_key] = _normalize_json_value(
                 item,
-                f"{path}.{key}",
+                f"{path}.<value>",
                 depth + 1,
+                budget,
             )
         return normalized
     raise LedgerValidationError(f"{path} contains a non-JSON value")
 
 
-def canonical_json(value: object) -> str:
+def canonical_json(value: object, *, max_bytes: int | None = None) -> str:
     try:
-        normalized = _normalize_json_value(value)
-        return json.dumps(
+        budget = _JsonBudget(max_bytes) if max_bytes is not None else None
+        normalized = _normalize_json_value(value, budget=budget)
+        encoded = json.dumps(
             normalized,
             sort_keys=True,
             separators=(",", ":"),
             ensure_ascii=False,
             allow_nan=False,
         )
+        if max_bytes is not None and len(encoded.encode("utf-8")) > max_bytes:
+            raise LedgerValidationError("value exceeds the canonical JSON size limit")
+        return encoded
     except LedgerValidationError:
         raise
     except (RecursionError, TypeError, UnicodeEncodeError, ValueError) as exc:

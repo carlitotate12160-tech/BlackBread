@@ -42,9 +42,7 @@ def _validate_schema_version(value: object) -> None:
 def _snapshot_payload(payload: object) -> tuple[Mapping[str, object], str]:
     if not isinstance(payload, Mapping):
         raise LedgerValidationError("payload must be a mapping")
-    payload_json = canonical_json(payload)
-    if len(payload_json.encode("utf-8")) > MAX_EVENT_PAYLOAD_BYTES:
-        raise LedgerValidationError("payload exceeds the event size limit")
+    payload_json = canonical_json(payload, max_bytes=MAX_EVENT_PAYLOAD_BYTES)
     decoded: object = json.loads(payload_json)
     if not isinstance(decoded, dict):
         raise LedgerValidationError("payload must be a JSON object")

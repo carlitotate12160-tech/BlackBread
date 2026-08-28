@@ -62,6 +62,20 @@ def test_event_draft_rejects_oversized_payload() -> None:
         EventDraft(**values)
 
 
+def test_event_draft_rejects_oversized_payload_before_serialization(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_serialization(*args: object, **kwargs: object) -> None:
+        raise AssertionError("oversized input reached json.dumps")
+
+    monkeypatch.setattr("blackbread.ledger.hashing.json.dumps", fail_serialization)
+    values = _values()
+    values["payload"] = {"value": "x" * (MAX_EVENT_PAYLOAD_BYTES + 1)}
+
+    with pytest.raises(LedgerValidationError, match="size limit"):
+        EventDraft(**values)
+
+
 def test_event_draft_freezes_redaction_reference_order() -> None:
     values = _values()
     values["redaction_refs"] = ["artifact://one", "artifact://two"]
