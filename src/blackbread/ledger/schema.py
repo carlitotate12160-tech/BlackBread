@@ -9,7 +9,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, PrivateAttr, ValidationError
 
-from blackbread.ledger.draft import MAX_EVENT_PAYLOAD_BYTES, EventDraft
+from blackbread.ledger.draft import MAX_EVENT_PAYLOAD_BYTES, MAX_SCHEMA_VERSION, EventDraft
 from blackbread.ledger.errors import LedgerValidationError
 from blackbread.ledger.hashing import canonical_json
 
@@ -22,7 +22,7 @@ class UnknownEventSchemaError(LedgerValidationError):
 
 
 class EventPayload(BaseModel):
-    """Strict, immutable payload base for a versioned ledger event schema."""
+    """Strict, snapshot-protected payload base for a versioned ledger event schema."""
 
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
 
@@ -70,8 +70,9 @@ def _schema_key(schema_name: object, schema_version: object) -> tuple[str, int]:
         not isinstance(schema_version, int)
         or isinstance(schema_version, bool)
         or schema_version < 1
+        or schema_version > MAX_SCHEMA_VERSION
     ):
-        raise LedgerValidationError("event schema version must be a positive integer")
+        raise LedgerValidationError("event schema version must fit a positive PostgreSQL INTEGER")
     return schema_name, schema_version
 
 

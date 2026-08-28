@@ -32,6 +32,12 @@ def _canonical_text(value: str, field: str, maximum: int) -> str:
 
 def _canonical_domain(value: str) -> str:
     _canonical_text(value, "domain", 253)
+    try:
+        ip_address(value)
+    except ValueError:
+        pass
+    else:
+        raise ValueError("domain fields cannot contain IP address literals")
     labels = value.split(".")
     if len(labels) < _MIN_DOMAIN_LABELS or value != value.lower():
         raise ValueError("domain must be a lowercase fully-qualified name")

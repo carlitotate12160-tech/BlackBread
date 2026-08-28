@@ -4,7 +4,11 @@ from datetime import UTC, datetime
 import pytest
 
 from blackbread.ledger import EventDraft
-from blackbread.ledger.draft import MAX_EVENT_PAYLOAD_BYTES, MAX_REDACTION_REFS
+from blackbread.ledger.draft import (
+    MAX_EVENT_PAYLOAD_BYTES,
+    MAX_REDACTION_REFS,
+    MAX_SCHEMA_VERSION,
+)
 from blackbread.ledger.errors import LedgerValidationError
 
 
@@ -30,6 +34,7 @@ def _values() -> dict[str, object]:
         ("engagement_id", "not-a-uuid", "engagement_id"),
         ("schema_version", 0, "positive"),
         ("schema_version", True, "integer"),
+        ("schema_version", MAX_SCHEMA_VERSION + 1, "INTEGER range"),
         ("occurred_at", datetime(2026, 8, 28), "timezone-aware"),
         ("sensitivity", "secret", "sensitivity"),
         ("sensitivity", [], "sensitivity"),
