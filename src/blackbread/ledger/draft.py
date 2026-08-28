@@ -1,7 +1,10 @@
+import json
 import uuid
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
+from types import MappingProxyType
+from typing import cast
 
 from blackbread.ledger.errors import LedgerValidationError
 from blackbread.ledger.hashing import canonical_json, canonical_timestamp
@@ -36,12 +39,17 @@ def _validate_schema_version(value: object) -> None:
         raise LedgerValidationError("schema_version must be positive")
 
 
-def _validate_payload(payload: object) -> None:
+def _snapshot_payload(payload: object) -> tuple[Mapping[str, object], str]:
     if not isinstance(payload, Mapping):
         raise LedgerValidationError("payload must be a mapping")
     payload_json = canonical_json(payload)
     if len(payload_json.encode("utf-8")) > MAX_EVENT_PAYLOAD_BYTES:
         raise LedgerValidationError("payload exceeds the event size limit")
+    decoded: object = json.loads(payload_json)
+    if not isinstance(decoded, dict):
+        raise LedgerValidationError("payload must be a JSON object")
+    normalized = cast(dict[str, object], decoded)
+    return MappingProxyType(normalized), payload_json
 
 
 def _validate_redaction_refs(redaction_refs: object) -> tuple[str, ...]:
@@ -68,6 +76,7 @@ class EventDraft:
     correlation_id: uuid.UUID | None = None
     causation_id: uuid.UUID | None = None
     redaction_refs: Sequence[str] = ()
+    _canonical_payload: str = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         _validate_text(self.tenant_id, "tenant_id", 100)
@@ -83,6 +92,11 @@ class EventDraft:
             raise LedgerValidationError("unsupported sensitivity")
         _validate_optional_uuid(self.correlation_id, "correlation_id")
         _validate_optional_uuid(self.causation_id, "causation_id")
-        _validate_payload(self.payload)
+        payload, payload_json = _snapshot_payload(self.payload)
         refs = _validate_redaction_refs(self.redaction_refs)
+        object.__setattr__(self, "payload", payload)
+        object.__setattr__(self, "_canonical_payload", payload_json)
         object.__setattr__(self, "redaction_refs", refs)
+
+    def materialize_payload(self) -> dict[str, object]:
+        return cast(dict[str, object], json.loads(self._canonical_payload))

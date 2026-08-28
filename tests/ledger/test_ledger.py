@@ -66,6 +66,29 @@ async def test_append_builds_genesis_linked_chain(
     assert len({first.event_hash, second.event_hash, third.event_hash}) == 3
 
 
+async def test_mutated_source_payload_cannot_bypass_validated_snapshot(
+    session: AsyncSession,
+    engagement: Engagement,
+) -> None:
+    source: dict[str, object] = {"marker": "validated"}
+    draft = EventDraft(
+        tenant_id=engagement.tenant_id,
+        engagement_id=engagement.id,
+        schema_name="test.snapshot",
+        schema_version=1,
+        producer="test-producer",
+        payload=source,
+        occurred_at=datetime.now(UTC),
+    )
+    source["oversized"] = "x" * 1_048_577
+
+    event = await append_event(session, draft)
+    await session.commit()
+
+    assert event.payload == {"marker": "validated"}
+    assert "oversized" not in event.payload
+
+
 async def test_mapping_and_stable_float_round_trip_through_jsonb(
     session: AsyncSession,
     engagement: Engagement,

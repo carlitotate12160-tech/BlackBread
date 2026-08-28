@@ -13,7 +13,6 @@ from blackbread.ledger.hashing import (
     HASH_VERSION,
     compute_event_hash,
     compute_payload_hash,
-    normalize_json_object,
 )
 from blackbread.models.core import Engagement
 
@@ -44,7 +43,7 @@ async def append_event(session: AsyncSession, draft: EventDraft) -> AgentEvent:
         )
     ).scalar_one_or_none()
 
-    payload = normalize_json_object(draft.payload)
+    payload = draft.materialize_payload()
     sequence = 1 if last is None else last.sequence + 1
     prev_event_hash = GENESIS_PREV_HASH if last is None else last.event_hash
     event = AgentEvent(
