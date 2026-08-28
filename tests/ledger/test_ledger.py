@@ -377,6 +377,20 @@ async def test_runtime_role_cannot_disable_integrity_triggers(session: AsyncSess
     await session.rollback()
 
 
+async def test_runtime_role_cannot_change_engagement_lock_sentinel(
+    session: AsyncSession,
+    engagement: Engagement,
+) -> None:
+    with pytest.raises(IntegrityError, match="ck_engagements_ledger_lock_token"):
+        await session.execute(
+            Engagement.__table__.update()
+            .where(Engagement.id == engagement.id)
+            .values(ledger_lock_token=1)
+        )
+        await session.flush()
+    await session.rollback()
+
+
 async def test_runtime_role_has_only_required_table_privileges(session: AsyncSession) -> None:
     row = (
         await session.execute(
@@ -389,7 +403,16 @@ async def test_runtime_role_has_only_required_table_privileges(session: AsyncSes
                     has_table_privilege(current_user, 'agent_events', 'INSERT') AS can_insert,
                     has_table_privilege(current_user, 'agent_events', 'UPDATE') AS can_update,
                     has_table_privilege(current_user, 'agent_events', 'DELETE') AS can_delete,
-                    has_table_privilege(current_user, 'agent_events', 'TRUNCATE') AS can_truncate
+                    has_table_privilege(current_user, 'agent_events', 'TRUNCATE') AS can_truncate,
+                    has_table_privilege(
+                        current_user, 'engagements', 'UPDATE'
+                    ) AS can_update_engagement,
+                    has_column_privilege(
+                        current_user, 'engagements', 'ledger_lock_token', 'UPDATE'
+                    ) AS can_lock_engagement,
+                    has_column_privilege(
+                        current_user, 'engagements', 'tenant_id', 'UPDATE'
+                    ) AS can_update_engagement_tenant
                 FROM pg_class AS c
                 WHERE c.oid = 'agent_events'::regclass
                 """
@@ -404,6 +427,9 @@ async def test_runtime_role_has_only_required_table_privileges(session: AsyncSes
     assert row.can_update is False
     assert row.can_delete is False
     assert row.can_truncate is False
+    assert row.can_update_engagement is False
+    assert row.can_lock_engagement is True
+    assert row.can_update_engagement_tenant is False
 
 
 async def test_migration_installs_integrity_controls(session: AsyncSession) -> None:

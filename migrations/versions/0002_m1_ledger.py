@@ -64,6 +64,13 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column(
+            "ledger_lock_token",
+            sa.Integer(),
+            server_default=sa.text("0"),
+            nullable=False,
+            comment="Immutable sentinel used only to authorize engagement row locks.",
+        ),
+        sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
             server_default=sa.text("CURRENT_TIMESTAMP"),
@@ -77,6 +84,10 @@ def upgrade() -> None:
         sa.CheckConstraint(
             "char_length(btrim(status)) > 0",
             name="ck_engagements_status_not_blank",
+        ),
+        sa.CheckConstraint(
+            "ledger_lock_token = 0",
+            name="ck_engagements_ledger_lock_token",
         ),
     )
     op.create_index("ix_engagements_client_id", "engagements", ["client_id"])
@@ -230,6 +241,7 @@ def upgrade() -> None:
         "GRANT USAGE ON SCHEMA public TO blackbread_runtime",
         "GRANT SELECT ON TABLE alembic_version TO blackbread_runtime",
         "GRANT SELECT, INSERT ON TABLE clients, engagements TO blackbread_runtime",
+        "GRANT UPDATE (ledger_lock_token) ON TABLE engagements TO blackbread_runtime",
         "GRANT SELECT, INSERT ON TABLE agent_events TO blackbread_runtime",
     )
     for statement in privilege_statements:
