@@ -4,6 +4,12 @@ import tomllib
 from pathlib import Path
 
 import yaml
+from alembic.config import Config
+from alembic.script import ScriptDirectory
+
+from blackbread.health import EXPECTED_SCHEMA_REVISION
+from blackbread.models.base import Base
+from blackbread.models.core import PlatformMetadata
 
 ROOT = Path(__file__).parents[2]
 ACTIVE_CONTRACTS = (
@@ -172,7 +178,7 @@ def test_adr_is_accepted_without_claiming_implementation_complete() -> None:
     adr = (ROOT / "ADR-FINAL-002.md").read_text(encoding="utf-8")
 
     assert "**Status:** Accepted" in adr
-    assert "**Implementation status:** M0 foundation only" in adr
+    assert "**Implementation status:** M1 trust-spine work in progress" in adr
 
 
 def test_active_contracts_do_not_inherit_agent_alpha_authority() -> None:
@@ -244,10 +250,19 @@ def test_prd_requirements_use_canonical_explicit_states() -> None:
 
 def test_pyproject_enforces_documented_quality_gates() -> None:
     config = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-    ruff_rules = set(config["tool"]["ruff"]["lint"]["select"])
+    ruff_lint = config["tool"]["ruff"]["lint"]
+    ruff_rules = set(ruff_lint["select"])
     dev_dependencies = " ".join(config["dependency-groups"]["dev"])
 
     assert ruff_rules == EXPECTED_RUFF_RULES
+    assert "ignore" not in ruff_lint
+    assert "extend-ignore" not in ruff_lint
+    assert "extend-per-file-ignores" not in ruff_lint
+    assert ruff_lint["per-file-ignores"] == {
+        "tests/**": ["S101", "PLR2004"],
+        "migrations/**": ["E501"],
+        "scripts/**": ["S603", "S607"],
+    }
     assert config["tool"]["ruff"]["lint"]["mccabe"]["max-complexity"] == 10
     assert config["tool"]["coverage"]["report"]["fail_under"] == 80
     assert config["tool"]["coverage"]["safety_critical"]["fail_under"] == 90
@@ -277,6 +292,15 @@ def test_ci_defines_required_non_optional_jobs() -> None:
     assert {"pull_request", "push"} <= triggers.keys()
     assert triggers["push"]["branches"] == ["main"]
     assert jobs.keys() >= REQUIRED_CI_COMMANDS.keys()
+    test_job = jobs["tests"]
+    postgres = test_job["services"]["postgres"]
+    assert "@sha256:" in postgres["image"]
+    assert test_job["env"]["BLACKBREAD_TEST_DATABASE_URL"].endswith("/blackbread_test")
+    assert test_job["env"]["BLACKBREAD_TEST_MIGRATION_DATABASE_URL"].endswith("/blackbread_test")
+    assert (
+        test_job["env"]["BLACKBREAD_TEST_DATABASE_URL"]
+        != test_job["env"]["BLACKBREAD_TEST_MIGRATION_DATABASE_URL"]
+    )
     for job_name, commands in REQUIRED_CI_COMMANDS.items():
         job = jobs[job_name]
         assert job["name"] == job_name
@@ -298,11 +322,24 @@ def test_ci_defines_required_non_optional_jobs() -> None:
 def test_container_and_downloaded_tools_are_immutable() -> None:
     dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
     workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    compose = (ROOT / "compose.yaml").read_text(encoding="utf-8")
     gitleaks_path = ROOT / ".github/actions/install-gitleaks/action.yml"
     gitleaks_action = gitleaks_path.read_text(encoding="utf-8")
 
     assert dockerfile.count("@sha256:") == 3
     assert "GITLEAKS_LINUX_X64_SHA256" in workflow
+    assert "postgres:17.11-bookworm@sha256:" in workflow
+    assert "postgres:17.11-bookworm@sha256:" in compose
+    assert "blackbread_migration" in compose
+    assert "blackbread_app" in compose
+    assert "blackbread_runtime" not in compose
+    assert "init-runtime.sh" in compose
+    assert (ROOT / "deploy/postgres/init-runtime.sh").exists()
+    migration = (ROOT / "migrations/versions/0002_m1_ledger.py").read_text(encoding="utf-8")
+    assert "GRANT SELECT, INSERT ON TABLE agent_events TO blackbread_runtime" in migration
+    assert "GRANT UPDATE (ledger_lock_token) ON TABLE engagements" in migration
+    assert "SECURITY DEFINER" in migration
+    assert "REVOKE ALL ON TABLE clients, engagements, agent_events FROM PUBLIC" in migration
     assert "sha256sum -c -" in gitleaks_action
 
 
@@ -320,8 +357,8 @@ def test_ci_uses_composite_actions_and_safety_script() -> None:
     assert "sha256sum -c -" in gitleaks
 
     safety = (ROOT / "scripts/check_safety_coverage.py").read_text(encoding="utf-8")
-    assert "SAFETY_MODULES" in safety
-    assert "90" in safety
+    assert "load_safety_includes" in safety
+    assert "SAFETY_MODULES" not in safety
 
 
 def test_unenforced_branch_checks_are_recorded_as_release_blocker() -> None:
@@ -381,6 +418,27 @@ def test_agent_delivery_authority_is_explicit_and_fail_closed() -> None:
     assert "21644438" in gaps
     assert "21698082" in gaps
     assert "**Status:** CLOSED" in gaps
+
+
+def test_bootstrap_table_is_registered_in_model_metadata() -> None:
+    assert PlatformMetadata.__table__ is Base.metadata.tables["platform_metadata"]
+
+
+def test_runtime_expected_schema_revision_matches_alembic_head() -> None:
+    config = Config(str(ROOT / "alembic.ini"))
+    scripts = ScriptDirectory.from_config(config)
+
+    assert scripts.get_heads() == [EXPECTED_SCHEMA_REVISION]
+
+
+def test_m1_ledger_work_is_honest_about_remaining_r0_blockers() -> None:
+    gaps = (ROOT / "GAP-REGISTER.md").read_text(encoding="utf-8")
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+
+    assert "LEDGER-GAP-001" in gaps
+    assert "**Status:** OPEN" in gaps
+    assert "**Blocks:** R0 and every target-facing release" in gaps
+    assert "R0/M1 is not complete or production-eligible" in readme
 
 
 def test_gitleaks_baseline_contains_only_exact_historical_fingerprints() -> None:
