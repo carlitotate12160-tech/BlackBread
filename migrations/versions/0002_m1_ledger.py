@@ -329,7 +329,7 @@ def upgrade() -> None:
         "GRANT USAGE ON SCHEMA public TO blackbread_runtime",
         "GRANT SELECT ON TABLE alembic_version TO blackbread_runtime",
         "GRANT SELECT, INSERT ON TABLE clients, engagements TO blackbread_runtime",
-        "GRANT UPDATE (ledger_lock_token) ON TABLE engagements TO blackbread_runtime",
+        "GRANT UPDATE (ledger_lock_token, ledger_event_count, ledger_head_hash) ON TABLE engagements TO blackbread_runtime",
         "GRANT SELECT, INSERT ON TABLE agent_events TO blackbread_runtime",
     )
     for statement in privilege_statements:

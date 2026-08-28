@@ -120,14 +120,11 @@ def _normalize_json_float(
     return value
 
 
-def _normalize_json_value(
+def _normalize_scalar(
     value: object,
-    path: str = "$",
-    depth: int = 0,
-    budget: _JsonBudget | None = None,
-) -> object:
-    if depth > MAX_JSON_DEPTH:
-        raise LedgerValidationError(f"{path} exceeds the maximum JSON nesting depth")
+    path: str,
+    budget: _JsonBudget | None,
+) -> object | None:
     if value is None:
         if budget is not None:
             budget.consume(4)
@@ -139,47 +136,73 @@ def _normalize_json_value(
     if isinstance(value, str):
         return _validate_json_string(value, path, budget)
     if isinstance(value, int):
-        encoded_integer = str(value)
         if budget is not None:
-            budget.consume(len(encoded_integer))
+            budget.consume(len(str(value)))
         return value
     if isinstance(value, float):
         return _normalize_json_float(value, path, budget)
+    return _SENTINEL
+
+
+_SENTINEL = object()
+
+
+def _normalize_list(
+    value: list[object],
+    path: str,
+    depth: int,
+    budget: _JsonBudget | None,
+) -> list[object]:
+    if budget is not None:
+        budget.consume(2)
+    normalized_items: list[object] = []
+    for index, item in enumerate(value):
+        if budget is not None and index:
+            budget.consume(1)
+        normalized_items.append(
+            _normalize_json_value(item, f"{path}[{index}]", depth + 1, budget)
+        )
+    return normalized_items
+
+
+def _normalize_mapping(
+    value: Mapping[str, object],
+    path: str,
+    depth: int,
+    budget: _JsonBudget | None,
+) -> dict[str, object]:
+    if budget is not None:
+        budget.consume(2)
+    normalized: dict[str, object] = {}
+    for index, (key, item) in enumerate(value.items()):
+        if not isinstance(key, str):
+            raise LedgerValidationError(f"{path} contains a non-string object key")
+        if budget is not None and index:
+            budget.consume(1)
+        normalized_key = _validate_json_string(key, path, budget)
+        if budget is not None:
+            budget.consume(1)
+        normalized[normalized_key] = _normalize_json_value(
+            item, f"{path}.<value>", depth + 1, budget
+        )
+    return normalized
+
+
+def _normalize_json_value(
+    value: object,
+    path: str = "$",
+    depth: int = 0,
+    budget: _JsonBudget | None = None,
+) -> object:
+    if depth > MAX_JSON_DEPTH:
+        raise LedgerValidationError(f"{path} exceeds the maximum JSON nesting depth")
+    scalar = _normalize_scalar(value, path, budget)
+    if scalar is not _SENTINEL:
+        return scalar
     if isinstance(value, list):
-        if budget is not None:
-            budget.consume(2)
-        normalized_items: list[object] = []
-        for index, item in enumerate(value):
-            if budget is not None and index:
-                budget.consume(1)
-            normalized_items.append(
-                _normalize_json_value(
-                    item,
-                    f"{path}[{index}]",
-                    depth + 1,
-                    budget,
-                )
-            )
-        return normalized_items
+        return _normalize_list(value, path, depth, budget)
     if isinstance(value, Mapping):
-        if budget is not None:
-            budget.consume(2)
-        normalized: dict[str, object] = {}
-        for index, (key, item) in enumerate(value.items()):
-            if not isinstance(key, str):
-                raise LedgerValidationError(f"{path} contains a non-string object key")
-            if budget is not None and index:
-                budget.consume(1)
-            normalized_key = _validate_json_string(key, path, budget)
-            if budget is not None:
-                budget.consume(1)
-            normalized[normalized_key] = _normalize_json_value(
-                item,
-                f"{path}.<value>",
-                depth + 1,
-                budget,
-            )
-        return normalized
+        return _normalize_mapping(value, path, depth, budget)
     raise LedgerValidationError(f"{path} contains a non-JSON value")
 
 
