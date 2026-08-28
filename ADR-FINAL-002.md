@@ -1,7 +1,7 @@
 # ADR-FINAL-002 — BlackBread: Agentless Autonomous External Red-Team / Adversary-Emulation Platform
 
 - **Status:** Accepted — 2026-08-27; supersedes all prior BlackBread architecture drafts
-- **Implementation status:** M0 foundation only; acceptance of this decision does not claim that later milestones are implemented or production-eligible
+- **Implementation status:** M1 trust-spine work in progress; the hardened ledger slice is implemented, but R0/M1 is not complete or production-eligible
 - **Decision class:** Foundational architecture
 - **Product type:** Authorized autonomous external red-team exploitation, operated with adversary-emulation (APT) tradecraft
 - **Primary vantage:** External, black-box, unauthenticated at engagement start

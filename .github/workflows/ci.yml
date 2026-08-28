@@ -29,6 +29,22 @@ jobs:
     name: tests
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    env:
+      BLACKBREAD_TEST_DATABASE_URL: postgresql+asyncpg://blackbread_test:blackbread_test@127.0.0.1:5432/blackbread_test
+    services:
+      postgres:
+        image: postgres:17.11-bookworm@sha256:051f7b7b3abdd564d5d1bd1e8c4b9c1b6e77087d1dd22020ede611c096a272e0
+        env:
+          POSTGRES_DB: blackbread_test
+          POSTGRES_PASSWORD: blackbread_test
+          POSTGRES_USER: blackbread_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U blackbread_test -d blackbread_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
       - uses: ./.github/actions/setup-uv

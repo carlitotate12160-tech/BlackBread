@@ -1,10 +1,4 @@
-"""Check safety-critical module coverage against the 90% threshold.
-
-Reads the safety-critical module patterns from pyproject.toml
-([tool.coverage.safety_critical]) and runs `coverage report` with
---include and --fail-under. Exits 0 if no safety-critical modules
-exist yet, or if coverage meets the threshold.
-"""
+"""Check safety-critical module coverage against the 90% threshold."""
 
 from __future__ import annotations
 
@@ -21,7 +15,7 @@ def safety_files_exist() -> bool:
     src = ROOT / "src" / "blackbread"
     if not src.exists():
         return False
-    return any((src / mod).is_dir() for mod in SAFETY_MODULES)
+    return any((src / module).is_dir() for module in SAFETY_MODULES)
 
 
 def load_threshold() -> int:
@@ -35,8 +29,7 @@ def main() -> int:
         return 0
 
     threshold = load_threshold()
-    include_patterns = ",".join(f"blackbread.{mod}.*" for mod in SAFETY_MODULES)
-
+    include_patterns = ",".join(f"*/blackbread/{module}/*" for module in SAFETY_MODULES)
     result = subprocess.run(
         [
             "uv",

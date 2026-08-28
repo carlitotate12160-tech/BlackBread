@@ -422,3 +422,15 @@ These are the non-negotiable additions. Alpha's 240 files missed all of these:
     unread.
 15. **Third-party/vendor disclosure workflow** — without this, upstream vendors
     are not notified.
+
+## M1 ledger slice verification matrix
+
+| Contract | Positive evidence | Negative evidence | Status |
+|---|---|---|---|
+| Tenant-bound append/replay | independent tenant chains and scoped verification | wrong-tenant append/verify denied; composite FK rejects tenant drift | VERIFIED |
+| Serialized monotonic sequence | ten concurrent appenders produce contiguous sequence | missing middle event fails replay | VERIFIED |
+| Immutable event envelope | payload, metadata, sensitivity, and redaction references are hash-bound | payload/link/hash/label/reference tampering detected | VERIFIED |
+| Database append-only enforcement | migration installs mutation and truncate triggers | UPDATE, DELETE, and TRUNCATE rejected | VERIFIED |
+| Canonical and versioned hashing | stable UTC/JSON hashing with SHA-256 version 1 | naive time, non-finite numbers, non-JSON values, unknown hash scheme rejected | VERIFIED |
+| R0 trust spine | ledger primitive only | `LEDGER-GAP-001` blocks graph, Conductor, Policy Kernel, leases, kill-switch, and RLS claims | OPEN |
+
