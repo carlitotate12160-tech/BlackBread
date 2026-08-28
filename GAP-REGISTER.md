@@ -6,21 +6,22 @@ admission blockers are recorded with their owner, milestone, and release in
 
 ## GOV-GAP-001 — Main ruleset lacks required checks and branch currency
 
-- **Status:** OPEN
+- **Status:** CLOSED
 - **Severity:** P0 governance
 - **Owner:** repository administrator
 - **Target milestone:** M0 governance hardening
 - **Blocks:** R0 and every real-target release
-- **Current evidence:** ruleset `main-branch-protection` (`21644438`) is active with the specific
-  ChatGPT/Codex integration (`actor_id: 1144995`) as its only always-bypass actor, one required
-  approval, stale-review dismissal, review-thread resolution, linear history, deletion protection,
-  and non-fast-forward protection. It does not require an up-to-date branch or any status check.
-- **Required closure:** require the `quality`, `tests`, `security`, and `governance` checks from
-  `.github/workflows/ci.yml` and require the pull-request branch to be current. Retain only the named
-  integration bypass and apply `.github/agent-delivery.json` so the bypass cannot waive substantive
-  delivery gates.
-- **Verification:** re-read the active ruleset through the GitHub API and attach the response, including
-  required checks, branch-currency policy, and the exact bypass actor, to the milestone conformance
-  record.
-- **Compensating control:** none for a release. Do not claim R0 or merge release-bearing work until the
-  server-side configuration is verified. Governance-only work may merge to close this gap.
+- **Current evidence:** two rulesets now enforce main-branch protection:
+  - Ruleset `main-branch-protection` (`21644438`): deletion, non-fast-forward, required linear
+    history, pull_request (0 approving reviews, stale-review dismissal, review-thread resolution
+    required), required_status_checks (`quality`, `tests`, `security`, `governance`) with strict
+    branch-currency policy. No bypass actors.
+  - Ruleset `main-approval-required` (`21698082`): pull_request (1 approving review). Bypass actor:
+    ChatGPT/Codex integration (`actor_id: 1144995`, `bypass_mode: pull_request`).
+  - The split ensures Codex can bypass the human-approval requirement but CANNOT bypass status
+    checks, thread resolution, deletion, non-fast-forward, or linear history.
+- **Required closure:** satisfied — required checks and branch currency are enforced.
+- **Verification:** re-read both rulesets through the GitHub API on 2026-08-28; confirmed
+  `required_status_checks` and `strict_required_status_checks_policy: true` in ruleset 21644438
+  with no bypass actors, and Codex bypass limited to ruleset 21698082 (approval only).
+- **Compensating control:** none needed — server-side configuration verified.

@@ -296,7 +296,7 @@ def test_unenforced_branch_checks_are_recorded_as_release_blocker() -> None:
     gaps = (ROOT / "GAP-REGISTER.md").read_text(encoding="utf-8")
 
     assert "GOV-GAP-001" in gaps
-    assert "**Status:** OPEN" in gaps
+    assert "**Status:** CLOSED" in gaps
     assert "**Severity:** P0 governance" in gaps
     assert "**Blocks:** R0 and every real-target release" in gaps
 
@@ -323,6 +323,9 @@ def test_agent_delivery_authority_is_explicit_and_fail_closed() -> None:
         "ruleset_bypass_actor_type": "Integration",
         "ruleset_bypass_actor_id": 1144995,
         "ruleset_bypass_may_waive_gates": False,
+        "ruleset_bypass_scope": "approval_only",
+        "ruleset_no_bypass_id": 21644438,
+        "ruleset_bypass_id": 21698082,
     }
 
     assert contract["schema_version"] == 1
@@ -343,8 +346,9 @@ def test_agent_delivery_authority_is_explicit_and_fail_closed() -> None:
 
     gaps = (ROOT / "GAP-REGISTER.md").read_text(encoding="utf-8")
     assert "actor_id: 1144995" in gaps
-    assert "does not require an up-to-date branch or any status check" in gaps
-    assert "**Status:** OPEN" in gaps
+    assert "21644438" in gaps
+    assert "21698082" in gaps
+    assert "**Status:** CLOSED" in gaps
 
 
 def test_gitleaks_baseline_contains_only_exact_historical_fingerprints() -> None:
