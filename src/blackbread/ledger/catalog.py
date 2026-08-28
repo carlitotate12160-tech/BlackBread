@@ -3,7 +3,7 @@
 import re
 from datetime import datetime
 from functools import lru_cache
-from ipaddress import ip_address
+from ipaddress import IPv6Address, ip_address
 from typing import ClassVar, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -46,6 +46,34 @@ def _sorted_unique(values: tuple[str, ...], field: str) -> tuple[str, ...]:
     return values
 
 
+def _canonical_address(value: str) -> str:
+    parsed = ip_address(value)
+    if isinstance(parsed, IPv6Address) and parsed.scope_id is not None:
+        raise ValueError("scoped IPv6 addresses are not valid engagement targets")
+    if value != parsed.compressed:
+        raise ValueError("IP address must use its canonical compressed spelling")
+    return value
+
+
+class ScopeExclusion(BaseModel):
+    """A canonical exclusion with an explicit target interpretation."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+
+    target_type: Literal["root_domain", "exact_host", "exact_address", "cloud_tenant"]
+    value: str
+
+    @model_validator(mode="after")
+    def validate_target(self) -> Self:
+        if self.target_type in {"root_domain", "exact_host"}:
+            _canonical_domain(self.value)
+        elif self.target_type == "exact_address":
+            _canonical_address(self.value)
+        else:
+            _canonical_text(self.value, "cloud tenant exclusion", 500)
+        return self
+
+
 class EngagementScope(BaseModel):
     """Canonical snapshot of all positive scope and boundary dimensions."""
 
@@ -55,7 +83,7 @@ class EngagementScope(BaseModel):
     exact_hosts: tuple[str, ...] = ()
     exact_addresses: tuple[str, ...] = ()
     cloud_tenants: tuple[str, ...] = ()
-    exclusions: tuple[str, ...] = ()
+    exclusions: tuple[ScopeExclusion, ...] = ()
     third_party_boundaries: tuple[str, ...] = ()
 
     @field_validator("root_domains", "exact_hosts")
@@ -73,13 +101,10 @@ class EngagementScope(BaseModel):
             raise ValueError("exact_addresses has too many entries")
         canonical: list[str] = []
         for value in values:
-            parsed = ip_address(value)
-            if value != parsed.compressed:
-                raise ValueError("IP address must use its canonical compressed spelling")
-            canonical.append(value)
+            canonical.append(_canonical_address(value))
         return _sorted_unique(tuple(canonical), "exact_addresses")
 
-    @field_validator("cloud_tenants", "exclusions", "third_party_boundaries")
+    @field_validator("cloud_tenants", "third_party_boundaries")
     @classmethod
     def validate_opaque_scope_values(
         cls,
@@ -90,6 +115,19 @@ class EngagementScope(BaseModel):
         canonical = tuple(_canonical_text(value, "scope value", 500) for value in values)
         return _sorted_unique(canonical, "scope values")
 
+    @field_validator("exclusions")
+    @classmethod
+    def validate_exclusions(
+        cls,
+        values: tuple[ScopeExclusion, ...],
+    ) -> tuple[ScopeExclusion, ...]:
+        if len(values) > _MAX_SCOPE_ENTRIES:
+            raise ValueError("exclusions has too many entries")
+        keys = tuple((value.target_type, value.value) for value in values)
+        if keys != tuple(sorted(set(keys))):
+            raise ValueError("exclusions must be sorted and unique")
+        return values
+
     @model_validator(mode="after")
     def require_positive_scope(self) -> Self:
         if not (
@@ -99,6 +137,17 @@ class EngagementScope(BaseModel):
         return self
 
 
+class EngagementMode(BaseModel):
+    """Complete immutable mode dimensions from the accepted engagement contract."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+
+    knowledge: Literal["blind"]
+    execution: Literal["covert"]
+    tier: Literal["recon_only", "recon_validate", "full_kill_chain"]
+    pacing: Literal["short", "long_low_and_slow"]
+
+
 class EngagementAttested(EventPayload):
     SCHEMA_NAME: ClassVar[str] = "engagement.attested"
     SCHEMA_VERSION: ClassVar[int] = 1
@@ -106,7 +155,7 @@ class EngagementAttested(EventPayload):
     manifest_hash: str = Field(pattern=_HEX_DIGEST_PATTERN)
     manifest_signature_ref: str
     attested_by: str
-    mode: Literal["recon_only", "recon_validate", "full_kill_chain"]
+    mode: EngagementMode
     scope: EngagementScope
     valid_from: datetime
     expires_at: datetime
@@ -137,7 +186,12 @@ class EngagementStopped(EventPayload):
     reason: Literal[
         "operator_stop",
         "white_cell_stop",
-        "incident_collision",
+        "service_instability",
+        "target_identity_uncertain",
+        "third_party_boundary",
+        "real_incident_collision",
+        "unexpected_sensitive_data",
+        "operator_heartbeat_lost",
         "authorization_revoked",
         "scope_violation",
         "budget_exhausted",
@@ -147,11 +201,25 @@ class EngagementStopped(EventPayload):
     ]
     stopped_by: str
     disposition: Literal["freeze_forensic_hold", "graceful_stop"]
+    detail: str | None = None
 
     @field_validator("stopped_by")
     @classmethod
     def validate_stopped_by(cls, value: str) -> str:
         return _canonical_text(value, "stopped_by", 200)
+
+    @field_validator("detail")
+    @classmethod
+    def validate_detail(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return _canonical_text(value, "stop detail", 500)
+
+    @model_validator(mode="after")
+    def require_other_detail(self) -> Self:
+        if self.reason == "other" and self.detail is None:
+            raise ValueError("other stop reasons require canonical detail")
+        return self
 
 
 @lru_cache(maxsize=1)

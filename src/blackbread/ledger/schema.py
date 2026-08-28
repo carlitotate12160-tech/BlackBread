@@ -3,6 +3,7 @@ import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
+from inspect import unwrap
 from typing import ClassVar, Self, cast
 from uuid import UUID
 
@@ -33,7 +34,11 @@ class EventPayload(BaseModel):
         """Snapshot validated data so nested mutable values cannot alter ledger history."""
 
         del context
-        object.__setattr__(self, "_ledger_payload_json", self._canonical_payload_json())
+        object.__setattr__(
+            self,
+            "_ledger_payload_json",
+            EventPayload._canonical_payload_json(self),
+        )
 
     def _canonical_payload_json(self) -> str:
         try:
@@ -43,9 +48,12 @@ class EventPayload(BaseModel):
         return canonical_json(payload, max_bytes=MAX_EVENT_PAYLOAD_BYTES)
 
     def to_ledger_payload(self) -> dict[str, object]:
-        if self._canonical_payload_json() != self._ledger_payload_json:
+        payload_snapshot = getattr(self, "_ledger_payload_json", None)
+        if not isinstance(payload_snapshot, str):
+            raise LedgerValidationError("typed event payload has no validated snapshot")
+        if EventPayload._canonical_payload_json(self) != payload_snapshot:
             raise LedgerValidationError("typed event payload was mutated after validation")
-        payload: object = json.loads(self._ledger_payload_json)
+        payload: object = json.loads(payload_snapshot)
         if not isinstance(payload, dict):
             raise LedgerValidationError("typed event payload must serialize to a JSON object")
         return cast(dict[str, object], payload)
@@ -83,6 +91,13 @@ class EventRegistry:
             raise LedgerValidationError("event registry is frozen")
         if not isinstance(model, type) or not issubclass(model, EventPayload):
             raise LedgerValidationError("registered event schema must inherit EventPayload")
+        required_config = {"extra": "forbid", "frozen": True, "strict": True}
+        if any(model.model_config.get(key) != value for key, value in required_config.items()):
+            raise LedgerValidationError(
+                "registered event schema must preserve strict frozen config"
+            )
+        if unwrap(model.model_post_init) is not unwrap(EventPayload.model_post_init):
+            raise LedgerValidationError("registered event schema must preserve the snapshot hook")
         key = _schema_key(
             getattr(model, "SCHEMA_NAME", None),
             getattr(model, "SCHEMA_VERSION", None),

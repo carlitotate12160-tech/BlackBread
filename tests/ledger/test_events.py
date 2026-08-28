@@ -3,14 +3,16 @@ from datetime import UTC, datetime, timedelta
 from typing import ClassVar
 
 import pytest
-from pydantic import ValidationError
+from pydantic import ConfigDict, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from blackbread.ledger import append_event, verify_chain
 from blackbread.ledger.catalog import (
     EngagementAttested,
+    EngagementMode,
     EngagementScope,
     EngagementStopped,
+    ScopeExclusion,
     default_registry,
 )
 from blackbread.ledger.errors import LedgerValidationError
@@ -64,13 +66,40 @@ class _MutableThing(EventPayload):
     metadata: dict[str, str]
 
 
+class _LooseThing(EventPayload):
+    model_config = ConfigDict(extra="allow", frozen=True, strict=True)
+    SCHEMA_NAME: ClassVar[str] = "test.loose_thing"
+    SCHEMA_VERSION: ClassVar[int] = 1
+
+
+class _UnfrozenThing(EventPayload):
+    model_config = ConfigDict(extra="forbid", frozen=False, strict=True)
+    SCHEMA_NAME: ClassVar[str] = "test.unfrozen_thing"
+    SCHEMA_VERSION: ClassVar[int] = 1
+
+
+class _CoercingThing(EventPayload):
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=False)
+    SCHEMA_NAME: ClassVar[str] = "test.coercing_thing"
+    SCHEMA_VERSION: ClassVar[int] = 1
+
+
+class _HookSkippingThing(EventPayload):
+    SCHEMA_NAME: ClassVar[str] = "test.hook_skipping_thing"
+    SCHEMA_VERSION: ClassVar[int] = 1
+    value: str
+
+    def model_post_init(self, context: object) -> None:
+        del context
+
+
 def _scope() -> EngagementScope:
     return EngagementScope(
         root_domains=("example.com",),
         exact_hosts=("api.example.com",),
         exact_addresses=("192.0.2.10", "2001:db8::10"),
         cloud_tenants=("aws:123456789012",),
-        exclusions=("status.example.com",),
+        exclusions=(ScopeExclusion(target_type="exact_host", value="status.example.com"),),
         third_party_boundaries=("cdn-provider",),
     )
 
@@ -81,7 +110,12 @@ def _attestation() -> EngagementAttested:
         manifest_hash="a" * 64,
         manifest_signature_ref="kms://authorization/key-1/signatures/attestation-1",
         attested_by="designated-user-1",
-        mode="recon_only",
+        mode=EngagementMode(
+            knowledge="blind",
+            execution="covert",
+            tier="recon_only",
+            pacing="short",
+        ),
         scope=_scope(),
         valid_from=valid_from,
         expires_at=valid_from + timedelta(days=7),
@@ -121,6 +155,17 @@ def test_register_rejects_invalid_schema_declarations(model: object) -> None:
     registry = EventRegistry()
     with pytest.raises(LedgerValidationError):
         registry.register(model)
+
+
+@pytest.mark.parametrize("model", [_LooseThing, _UnfrozenThing, _CoercingThing])
+def test_register_rejects_weakened_payload_config(model: type[EventPayload]) -> None:
+    with pytest.raises(LedgerValidationError, match="strict frozen config"):
+        EventRegistry().register(model)
+
+
+def test_register_rejects_subclass_bypassing_snapshot_hook() -> None:
+    with pytest.raises(LedgerValidationError, match="snapshot hook"):
+        EventRegistry().register(_HookSkippingThing)
 
 
 def test_register_duplicate_rejected_but_versions_coexist() -> None:
@@ -168,6 +213,12 @@ def test_parse_valid_json_payload_returns_typed_model() -> None:
 
     assert isinstance(parsed, EngagementAttested)
     assert parsed.scope.exact_addresses == ("192.0.2.10", "2001:db8::10")
+    assert parsed.mode == EngagementMode(
+        knowledge="blind",
+        execution="covert",
+        tier="recon_only",
+        pacing="short",
+    )
 
 
 @pytest.mark.parametrize(
@@ -202,7 +253,15 @@ def test_parse_rejects_missing_field_and_non_mapping() -> None:
         {"root_domains": ("z.example.com", "a.example.com")},
         {"root_domains": tuple(f"{index}.example.com" for index in range(501))},
         {"exact_addresses": ("2001:0db8::10",)},
-        {"exclusions": (" trailing-space ",), "root_domains": ("example.com",)},
+        {"exact_addresses": ("fe80::1%eth0",)},
+        {
+            "exclusions": ({"target_type": "exact_host", "value": "Admin.Example.com"},),
+            "root_domains": ("example.com",),
+        },
+        {
+            "exclusions": ({"target_type": "exact_address", "value": "2001:0db8::10"},),
+            "root_domains": ("example.com",),
+        },
         {},
     ],
 )
@@ -217,7 +276,12 @@ def test_attestation_rejects_invalid_validity_and_naive_time() -> None:
         "manifest_hash": "a" * 64,
         "manifest_signature_ref": "kms://signature/1",
         "attested_by": "user-1",
-        "mode": "recon_only",
+        "mode": EngagementMode(
+            knowledge="blind",
+            execution="covert",
+            tier="recon_only",
+            pacing="short",
+        ),
         "scope": _scope(),
         "valid_from": now,
         "expires_at": now,
@@ -245,6 +309,43 @@ def test_stopped_event_is_typed_and_strict() -> None:
             stopped_by="operator-1",
             disposition="freeze_forensic_hold",
         )
+    with pytest.raises(ValidationError, match="require canonical detail"):
+        EngagementStopped(
+            reason="other",
+            stopped_by="operator-1",
+            disposition="freeze_forensic_hold",
+        )
+    assert (
+        EngagementStopped(
+            reason="other",
+            detail="client-defined emergency stop",
+            stopped_by="operator-1",
+            disposition="freeze_forensic_hold",
+        ).detail
+        == "client-defined emergency stop"
+    )
+
+
+@pytest.mark.parametrize(
+    "reason",
+    [
+        "white_cell_stop",
+        "service_instability",
+        "target_identity_uncertain",
+        "third_party_boundary",
+        "real_incident_collision",
+        "unexpected_sensitive_data",
+        "operator_heartbeat_lost",
+    ],
+)
+def test_stopped_event_preserves_contract_stop_triggers(reason: str) -> None:
+    event = EngagementStopped(
+        reason=reason,
+        stopped_by="conductor",
+        disposition="graceful_stop",
+    )
+
+    assert event.reason == reason
 
 
 @pytest.mark.parametrize("stopped_by", [" ", "x" * 201, "bad\x00actor", "\ud800"])
