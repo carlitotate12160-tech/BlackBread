@@ -1,3 +1,4 @@
 # .gitleaksignore
-# Intentionally empty — test fixtures use `# gitleaks:allow` comments
-# in-source (e.g. tests/test_app.py) instead of commit-pinned suppressions.
+# Historical findings from commits before `# gitleaks:allow` comments were added.
+# New test fixtures use in-source `# gitleaks:allow` comments instead.
+5bf3be2a93fcf927399b357a154b58bdc4c0302c:tests/test_app.py:generic-api-key:13

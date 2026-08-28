@@ -349,10 +349,7 @@ def test_agent_delivery_authority_is_explicit_and_fail_closed() -> None:
 
 def test_gitleaks_baseline_contains_only_exact_historical_fingerprints() -> None:
     content = (ROOT / ".gitleaksignore").read_text(encoding="utf-8")
-    fingerprints = [
-        line for line in content.splitlines()
-        if line.strip() and not line.strip().startswith("#")
-    ]
+    fingerprints = [line for line in content.splitlines() if line.strip() and not line.strip().startswith("#")]
     fingerprint_pattern = re.compile(r"^[0-9a-f]{40}:[A-Za-z0-9_./-]+:[A-Za-z0-9_-]+:[1-9][0-9]*$")
 
     assert all(fingerprint_pattern.fullmatch(fingerprint) for fingerprint in fingerprints)
