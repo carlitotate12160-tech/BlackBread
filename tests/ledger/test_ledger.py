@@ -283,11 +283,8 @@ async def test_database_rejects_event_mutation(
     await session.commit()
 
     if operation == "update":
-        statement = (
-            AgentEvent.__table__.update()
-            .where(AgentEvent.id == event.id)
-            .values(producer="x")
-        )
+        events = AgentEvent.__table__
+        statement = events.update().where(AgentEvent.id == event.id).values(producer="x")
     elif operation == "delete":
         statement = AgentEvent.__table__.delete().where(AgentEvent.id == event.id)
     else:
