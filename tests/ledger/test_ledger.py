@@ -76,9 +76,7 @@ async def test_mapping_and_stable_float_round_trip_through_jsonb(
         schema_name="test.numeric",
         schema_version=1,
         producer="test-producer",
-        payload=MappingProxyType(
-            {"score": 1.5, "nested": MappingProxyType({"marker": "x"})}
-        ),
+        payload=MappingProxyType({"score": 1.5, "nested": MappingProxyType({"marker": "x"})}),
         occurred_at=datetime.now(UTC),
     )
     event = await append_event(session, draft)
