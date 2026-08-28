@@ -1,7 +1,7 @@
 import hashlib
 import json
 import math
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Protocol, cast
 from uuid import UUID
@@ -32,7 +32,7 @@ class SealedEvent(Protocol):
     hash_algorithm: str
     hash_version: int
     sensitivity: str
-    redaction_refs: Sequence[str]
+    redaction_refs: list[str]
 
 
 def canonical_timestamp(value: datetime) -> str:
