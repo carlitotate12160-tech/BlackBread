@@ -70,4 +70,5 @@ async def append_event(session: AsyncSession, draft: EventDraft) -> AgentEvent:
     event.event_hash = compute_event_hash(event)
     session.add(event)
     await session.flush()
+    session.expire(engagement)
     return event
