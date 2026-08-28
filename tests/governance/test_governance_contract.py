@@ -158,26 +158,9 @@ def load_registry() -> dict[str, object]:
 
 def load_workflow() -> dict[str, object]:
     path = ROOT / ".github/workflows/ci.yml"
-
-    class StringKeyLoader(yaml.SafeLoader):
-        pass
-
-    StringKeyLoader.add_implicit_resolver(
-        "tag:yaml.org,2002:bool",
-        yaml.resolver.Resolver.yaml_implicit_resolvers["tag:yaml.org,2002:bool"][0],
-        "true True TRUE false False FALSE",
-    )
-    for key in list(StringKeyLoader.yaml_implicit_resolvers):
-        if key == "tag:yaml.org,2002:bool":
-            StringKeyLoader.yaml_implicit_resolvers[key] = [
-                r
-                for r in StringKeyLoader.yaml_implicit_resolvers[key]
-                if r[0] != "tag:yaml.org,2002:bool"
-            ]
-    StringKeyLoader.yaml_implicit_resolvers.pop("o", None)
-    StringKeyLoader.yaml_implicit_resolvers.pop("O", None)
-
-    return yaml.load(path.read_text(encoding="utf-8"), Loader=StringKeyLoader)
+    text = path.read_text(encoding="utf-8")
+    quoted = re.sub(r"^on:", '"on":', text, count=1, flags=re.MULTILINE)
+    return yaml.safe_load(quoted)
 
 
 def load_delivery_contract() -> dict[str, object]:
