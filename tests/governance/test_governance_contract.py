@@ -158,10 +158,26 @@ def load_registry() -> dict[str, object]:
 
 def load_workflow() -> dict[str, object]:
     path = ROOT / ".github/workflows/ci.yml"
-    workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
-    if True in workflow:
-        workflow["on"] = workflow.pop(True)
-    return workflow
+
+    class StringKeyLoader(yaml.SafeLoader):
+        pass
+
+    StringKeyLoader.add_implicit_resolver(
+        "tag:yaml.org,2002:bool",
+        yaml.resolver.Resolver.yaml_implicit_resolvers["tag:yaml.org,2002:bool"][0],
+        "true True TRUE false False FALSE",
+    )
+    for key in list(StringKeyLoader.yaml_implicit_resolvers):
+        if key == "tag:yaml.org,2002:bool":
+            StringKeyLoader.yaml_implicit_resolvers[key] = [
+                r
+                for r in StringKeyLoader.yaml_implicit_resolvers[key]
+                if r[0] != "tag:yaml.org,2002:bool"
+            ]
+    StringKeyLoader.yaml_implicit_resolvers.pop("o", None)
+    StringKeyLoader.yaml_implicit_resolvers.pop("O", None)
+
+    return yaml.load(path.read_text(encoding="utf-8"), Loader=StringKeyLoader)
 
 
 def load_delivery_contract() -> dict[str, object]:
@@ -349,8 +365,14 @@ def test_agent_delivery_authority_is_explicit_and_fail_closed() -> None:
 
 
 def test_gitleaks_baseline_contains_only_exact_historical_fingerprints() -> None:
-    fingerprints = (ROOT / ".gitleaksignore").read_text(encoding="utf-8").splitlines()
+    content = (ROOT / ".gitleaksignore").read_text(encoding="utf-8")
+    fingerprints = [
+        line for line in content.splitlines()
+        if line.strip() and not line.strip().startswith("#")
+    ]
     fingerprint_pattern = re.compile(r"^[0-9a-f]{40}:[A-Za-z0-9_./-]+:[A-Za-z0-9_-]+:[1-9][0-9]*$")
 
-    assert fingerprints
     assert all(fingerprint_pattern.fullmatch(fingerprint) for fingerprint in fingerprints)
+
+    test_app = (ROOT / "tests/test_app.py").read_text(encoding="utf-8")
+    assert "gitleaks:allow" in test_app

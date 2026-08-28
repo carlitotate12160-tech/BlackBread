@@ -10,7 +10,7 @@ from blackbread.health import Readiness
 
 def settings() -> Settings:
     return Settings(
-        database_url="postgresql+asyncpg://user:password@localhost/test",
+        database_url="postgresql+asyncpg://user:password@localhost/test",  # gitleaks:allow
         artifact_key=base64.urlsafe_b64encode(bytes(range(32))).decode("ascii"),
     )
 
