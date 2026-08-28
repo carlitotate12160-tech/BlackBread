@@ -10,16 +10,21 @@ class UndefinedTableError(Exception):
     sqlstate = "42P01"
 
 
-@pytest.mark.asyncio
-async def test_readiness_reports_missing_migration() -> None:
+def _engine_with_revisions(*revisions: str) -> MagicMock:
+    result = MagicMock()
+    result.all.return_value = list(revisions)
     connection = AsyncMock()
-    connection.scalar.return_value = None
+    connection.scalars.return_value = result
     context = AsyncMock()
     context.__aenter__.return_value = connection
     engine = MagicMock()
     engine.connect.return_value = context
+    return engine
 
-    readiness = await check_readiness(engine)
+
+@pytest.mark.asyncio
+async def test_readiness_reports_missing_migration() -> None:
+    readiness = await check_readiness(_engine_with_revisions())
 
     assert readiness.ready is False
     assert readiness.database == "available"
@@ -28,14 +33,7 @@ async def test_readiness_reports_missing_migration() -> None:
 
 @pytest.mark.asyncio
 async def test_readiness_accepts_only_current_migration_head() -> None:
-    connection = AsyncMock()
-    connection.scalar.return_value = EXPECTED_SCHEMA_REVISION
-    context = AsyncMock()
-    context.__aenter__.return_value = connection
-    engine = MagicMock()
-    engine.connect.return_value = context
-
-    readiness = await check_readiness(engine)
+    readiness = await check_readiness(_engine_with_revisions(EXPECTED_SCHEMA_REVISION))
 
     assert readiness.ready is True
     assert readiness.migrations == EXPECTED_SCHEMA_REVISION
@@ -43,14 +41,7 @@ async def test_readiness_accepts_only_current_migration_head() -> None:
 
 @pytest.mark.asyncio
 async def test_readiness_rejects_outdated_migration() -> None:
-    connection = AsyncMock()
-    connection.scalar.return_value = "0001_m0_bootstrap"
-    context = AsyncMock()
-    context.__aenter__.return_value = connection
-    engine = MagicMock()
-    engine.connect.return_value = context
-
-    readiness = await check_readiness(engine)
+    readiness = await check_readiness(_engine_with_revisions("0001_m0_bootstrap"))
 
     assert readiness.ready is False
     assert readiness.database == "available"
@@ -58,9 +49,20 @@ async def test_readiness_rejects_outdated_migration() -> None:
 
 
 @pytest.mark.asyncio
+async def test_readiness_rejects_extra_migration_heads() -> None:
+    readiness = await check_readiness(
+        _engine_with_revisions(EXPECTED_SCHEMA_REVISION, "unexpected_head")
+    )
+
+    assert readiness.ready is False
+    assert readiness.database == "available"
+    assert readiness.migrations == f"{EXPECTED_SCHEMA_REVISION},unexpected_head"
+
+
+@pytest.mark.asyncio
 async def test_readiness_reports_missing_migration_table() -> None:
     connection = AsyncMock()
-    connection.scalar.side_effect = ProgrammingError(
+    connection.scalars.side_effect = ProgrammingError(
         "SELECT version_num",
         {},
         UndefinedTableError(),
@@ -80,7 +82,7 @@ async def test_readiness_reports_missing_migration_table() -> None:
 @pytest.mark.asyncio
 async def test_readiness_distinguishes_migration_query_errors() -> None:
     connection = AsyncMock()
-    connection.scalar.side_effect = OperationalError(
+    connection.scalars.side_effect = OperationalError(
         "SELECT version_num",
         {},
         Exception("permission denied"),
@@ -95,6 +97,27 @@ async def test_readiness_distinguishes_migration_query_errors() -> None:
     assert readiness.ready is False
     assert readiness.database == "available"
     assert readiness.migrations == "error"
+
+
+@pytest.mark.asyncio
+async def test_readiness_reports_invalidated_migration_connection() -> None:
+    connection = AsyncMock()
+    connection.scalars.side_effect = OperationalError(
+        "SELECT version_num",
+        {},
+        Exception("connection lost"),
+        connection_invalidated=True,
+    )
+    context = AsyncMock()
+    context.__aenter__.return_value = connection
+    engine = MagicMock()
+    engine.connect.return_value = context
+
+    readiness = await check_readiness(engine)
+
+    assert readiness.ready is False
+    assert readiness.database == "unavailable"
+    assert readiness.migrations == "unknown"
 
 
 @pytest.mark.asyncio

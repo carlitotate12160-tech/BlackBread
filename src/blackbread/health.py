@@ -20,13 +20,24 @@ def _is_undefined_table(error: SQLAlchemyError) -> bool:
     return getattr(original, "sqlstate", None) == UNDEFINED_TABLE_SQLSTATE
 
 
+def _is_connection_failure(error: SQLAlchemyError) -> bool:
+    return bool(getattr(error, "connection_invalidated", False))
+
+
 async def check_readiness(engine: AsyncEngine) -> Readiness:
     try:
         async with engine.connect() as connection:
             await connection.execute(text("SELECT 1"))
             try:
-                revision = await connection.scalar(text("SELECT version_num FROM alembic_version"))
+                result = await connection.scalars(text("SELECT version_num FROM alembic_version"))
+                revisions = {str(revision) for revision in result.all()}
             except SQLAlchemyError as exc:
+                if _is_connection_failure(exc):
+                    return Readiness(
+                        ready=False,
+                        database="unavailable",
+                        migrations="unknown",
+                    )
                 migration_state = "missing" if _is_undefined_table(exc) else "error"
                 return Readiness(
                     ready=False,
@@ -36,12 +47,17 @@ async def check_readiness(engine: AsyncEngine) -> Readiness:
     except SQLAlchemyError:
         return Readiness(ready=False, database="unavailable", migrations="unknown")
 
-    if not revision:
+    if not revisions:
         return Readiness(ready=False, database="available", migrations="missing")
-    if revision != EXPECTED_SCHEMA_REVISION:
+    expected = {EXPECTED_SCHEMA_REVISION}
+    if revisions != expected:
         return Readiness(
             ready=False,
             database="available",
-            migrations=str(revision),
+            migrations=",".join(sorted(revisions)),
         )
-    return Readiness(ready=True, database="available", migrations=str(revision))
+    return Readiness(
+        ready=True,
+        database="available",
+        migrations=EXPECTED_SCHEMA_REVISION,
+    )
