@@ -6,6 +6,100 @@ from blackbread.governance.ai_review_gate import GitHubEvidenceReader, evaluate
 
 HEAD = "aca9606cc6842c1282cb5c182efaef82fb6b2e64"
 USER_AGENT = "BlackBread-ai-review-gate/1"
+REPOSITORY = "carlitotate12160-tech/BlackBread"
+QODO_MARKER = (
+    "[Code review](https://example.invalid/review) by qodo was updated up to the latest "
+    f"commit\nhttps://github.com/{REPOSITORY}/commit/{HEAD}"
+)
+
+
+def _qodo_issue_comment(body: str = QODO_MARKER) -> dict[str, object]:
+    return {
+        "user": {
+            "login": "qodo-code-review[bot]",
+            "id": 151058649,
+            "type": "Bot",
+        },
+        "performed_via_github_app": {
+            "id": 484649,
+            "slug": "qodo-code-review",
+        },
+        "body": body,
+    }
+
+
+def test_authenticated_current_head_qodo_issue_comment_is_eligible(
+    current_qodo_evidence: dict[str, object],
+) -> None:
+    current_qodo_evidence["reviews"] = []
+    current_qodo_evidence["repository"] = REPOSITORY
+    current_qodo_evidence["issue_comments"] = [_qodo_issue_comment()]
+
+    assert evaluate(current_qodo_evidence).eligible
+
+
+@pytest.mark.parametrize(
+    ("mutation"),
+    [
+        lambda comment: comment["user"].update(login="repository-owner"),
+        lambda comment: comment["user"].update(id=1),
+        lambda comment: comment["performed_via_github_app"].update(id=1),
+        lambda comment: comment["performed_via_github_app"].update(slug="wrong-app"),
+        lambda comment: comment.update(performed_via_github_app=None),
+        lambda comment: comment.update(body=QODO_MARKER.replace(HEAD, "0" * 40)),
+        lambda comment: comment.update(body=QODO_MARKER.replace(HEAD, HEAD[:7])),
+        lambda comment: comment.update(body=QODO_MARKER.replace(HEAD, "not-a-sha")),
+        lambda comment: comment.update(
+            body=QODO_MARKER.replace(REPOSITORY, "another-owner/another-repository")
+        ),
+        lambda comment: comment.update(body=f"{QODO_MARKER}\n{QODO_MARKER}"),
+        lambda comment: comment.update(body="No current review marker"),
+    ],
+    ids=[
+        "owner-copied-marker",
+        "wrong-user-id",
+        "wrong-app-id",
+        "wrong-app-slug",
+        "missing-app",
+        "stale-sha",
+        "short-sha",
+        "malformed-sha",
+        "wrong-repository",
+        "ambiguous-markers",
+        "missing-marker",
+    ],
+)
+def test_qodo_issue_comment_evidence_fails_closed(
+    current_qodo_evidence: dict[str, object], mutation: object
+) -> None:
+    comment = _qodo_issue_comment()
+    mutation(comment)
+    current_qodo_evidence.update(repository=REPOSITORY, reviews=[], issue_comments=[comment])
+
+    assert not evaluate(current_qodo_evidence).eligible
+
+
+def test_reader_fetches_bounded_issue_comments(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    requested_urls: list[str] = []
+
+    def request(
+        self: GitHubEvidenceReader,
+        url: str,
+        payload: dict[str, object] | None = None,
+    ) -> object:
+        requested_urls.append(url)
+        if "?" not in url:
+            return {"head": {"sha": HEAD}}
+        return []
+
+    monkeypatch.setattr(GitHubEvidenceReader, "_request", request)
+
+    evidence = GitHubEvidenceReader(REPOSITORY, 13, "token").read()
+
+    assert any("/issues/13/comments?per_page=100&page=1" in url for url in requested_urls)
+    assert evidence["issue_comments"] == []
 
 
 def test_github_requests_use_repository_owned_user_agent(

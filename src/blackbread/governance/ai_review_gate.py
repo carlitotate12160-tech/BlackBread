@@ -14,6 +14,8 @@ from typing import Any
 QODO_LOGIN = "qodo-code-review[bot]"
 QODO_USER_ID = 151058649
 QODO_APP_SLUG = "qodo-code-review"
+QODO_APP_ID = 484649
+QODO_UPDATE_MARKER = "by qodo was updated up to the latest commit"
 COMPLETED_QODO_STATES = {"COMMENTED"}
 SHA_PATTERN = re.compile(r"[0-9a-f]{40}")
 PAGE_SIZE = 100
@@ -61,6 +63,30 @@ def _is_current_qodo_review(review: object, head_sha: str) -> bool:
     )
 
 
+def _is_current_qodo_issue_comment(comment: object, repository: str, head_sha: str) -> bool:
+    if not isinstance(comment, dict):
+        return False
+    user = comment.get("user")
+    app = comment.get("performed_via_github_app")
+    body = comment.get("body")
+    if not (
+        isinstance(user, dict)
+        and user.get("login") == QODO_LOGIN
+        and user.get("id") == QODO_USER_ID
+        and user.get("type") == "Bot"
+        and isinstance(app, dict)
+        and app.get("id") == QODO_APP_ID
+        and app.get("slug") == QODO_APP_SLUG
+        and isinstance(body, str)
+    ):
+        return False
+    marker_urls = re.findall(
+        rf"{re.escape(QODO_UPDATE_MARKER)}\s+(https://github\.com/[^\s]+)", body
+    )
+    expected_url = f"https://github.com/{repository}/commit/{head_sha}"
+    return marker_urls == [expected_url]
+
+
 def _is_safety_critical(paths: object) -> bool:
     if not isinstance(paths, list) or not all(isinstance(path, str) for path in paths):
         return True
@@ -83,9 +109,19 @@ def evaluate(evidence: object) -> Decision:
 
     reasons: list[str] = []
     reviews = evidence.get("reviews")
-    if not isinstance(reviews, list) or not any(
+    repository = evidence.get("repository")
+    comments = evidence.get("issue_comments")
+    trusted_review = isinstance(reviews, list) and any(
         _is_current_qodo_review(review, head_sha) for review in reviews
-    ):
+    )
+    trusted_comment = (
+        isinstance(repository, str)
+        and isinstance(comments, list)
+        and any(
+            _is_current_qodo_issue_comment(comment, repository, head_sha) for comment in comments
+        )
+    )
+    if not trusted_review and not trusted_comment:
         reasons.append("missing current-head Qodo review")
     if _is_safety_critical(evidence.get("changed_paths")):
         reasons.append("verified current-head CodeRabbit full-review evidence unavailable")
@@ -142,14 +178,17 @@ class GitHubEvidenceReader:
         pull_url = f"https://api.github.com/repos/{self.repository}/pulls/{self.pull_number}"
         pull = self._request(pull_url)
         reviews = self._rest_pages(f"pulls/{self.pull_number}/reviews")
+        issue_comments = self._rest_pages(f"issues/{self.pull_number}/comments")
         files = self._rest_pages(f"pulls/{self.pull_number}/files")
         verified_pull = self._request(pull_url)
         return {
             "evidence_read_success": True,
             "head_sha": pull["head"]["sha"],
             "verified_head_sha": verified_pull["head"]["sha"],
+            "repository": self.repository,
             "changed_paths": [item["filename"] for item in files],
             "reviews": reviews,
+            "issue_comments": issue_comments,
         }
 
 
