@@ -32,6 +32,7 @@ SAFETY_CRITICAL_PATH_PARTS = (
     "src/blackbread/capabilities/",
     "src/blackbread/gateway/",
     "src/blackbread/tenant",
+    "src/blackbread/models/core.py",
     "config/capability-registry.json",
 )
 
@@ -57,22 +58,6 @@ def _is_current_qodo_review(review: object, head_sha: str) -> bool:
         and review.get("state") in COMPLETED_QODO_STATES
         and review.get("commit_id") == head_sha
     )
-
-
-def _has_unresolved_qodo_thread(threads: object) -> bool:
-    if not isinstance(threads, list):
-        return True
-    for thread in threads:
-        if not isinstance(thread, dict):
-            return True
-        authors = thread.get("authors")
-        if (
-            thread.get("is_resolved") is False
-            and isinstance(authors, list)
-            and QODO_LOGIN in authors
-        ):
-            return True
-    return False
 
 
 def _is_safety_critical(paths: object) -> bool:
@@ -101,8 +86,6 @@ def evaluate(evidence: object) -> Decision:
         _is_current_qodo_review(review, head_sha) for review in reviews
     ):
         reasons.append("missing current-head Qodo review")
-    if _has_unresolved_qodo_thread(evidence.get("threads")):
-        reasons.append("unresolved Qodo review thread")
     if _is_safety_critical(evidence.get("changed_paths")):
         reasons.append("verified current-head CodeRabbit full-review evidence unavailable")
     return Decision(not reasons, tuple(reasons))
@@ -153,48 +136,6 @@ class GitHubEvidenceReader:
                 return results
         raise ValueError("GitHub REST evidence exceeds bounded pagination")
 
-    def _threads(self) -> list[dict[str, object]]:
-        owner, name = self.repository.split("/", maxsplit=1)
-        query = """
-        query($owner:String!,$name:String!,$number:Int!,$cursor:String) {
-          repository(owner:$owner,name:$name) {
-            pullRequest(number:$number) {
-              reviewThreads(first:100,after:$cursor) {
-                pageInfo { hasNextPage endCursor }
-                nodes { isResolved comments(first:100) { nodes { author { login } } } }
-              }
-            }
-          }
-        }
-        """
-        cursor: str | None = None
-        threads: list[dict[str, object]] = []
-        for _ in range(10):
-            data = self._request(
-                "https://api.github.com/graphql",
-                {
-                    "query": query,
-                    "variables": {
-                        "owner": owner,
-                        "name": name,
-                        "number": self.pull_number,
-                        "cursor": cursor,
-                    },
-                },
-            )
-            connection = data["data"]["repository"]["pullRequest"]["reviewThreads"]
-            for node in connection["nodes"]:
-                authors = [
-                    comment["author"]["login"]
-                    for comment in node["comments"]["nodes"]
-                    if comment.get("author")
-                ]
-                threads.append({"is_resolved": node["isResolved"], "authors": authors})
-            if not connection["pageInfo"]["hasNextPage"]:
-                return threads
-            cursor = connection["pageInfo"]["endCursor"]
-        raise ValueError("GitHub review threads exceed bounded pagination")
-
     def read(self) -> dict[str, object]:
         pull_url = f"https://api.github.com/repos/{self.repository}/pulls/{self.pull_number}"
         pull = self._request(pull_url)
@@ -207,7 +148,6 @@ class GitHubEvidenceReader:
             "verified_head_sha": verified_pull["head"]["sha"],
             "changed_paths": [item["filename"] for item in files],
             "reviews": reviews,
-            "threads": self._threads(),
         }
 
 

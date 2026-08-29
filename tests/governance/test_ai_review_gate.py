@@ -26,7 +26,6 @@ def current_qodo_evidence() -> dict[str, object]:
                 "commit_id": HEAD,
             }
         ],
-        "threads": [],
     }
 
 
@@ -78,17 +77,6 @@ def test_current_head_change_invalidates_old_qodo_review(
     assert "current PR head changed during evidence collection" in decision.reasons
 
 
-def test_unresolved_qodo_thread_denies_merge(current_qodo_evidence: dict[str, object]) -> None:
-    current_qodo_evidence["threads"] = [
-        {"is_resolved": False, "authors": ["qodo-code-review[bot]"]}
-    ]
-
-    decision = evaluate(current_qodo_evidence)
-
-    assert not decision.eligible
-    assert "unresolved Qodo review thread" in decision.reasons
-
-
 @pytest.mark.parametrize(
     "path",
     [
@@ -102,6 +90,7 @@ def test_unresolved_qodo_thread_denies_merge(current_qodo_evidence: dict[str, ob
         "src/blackbread/kill_switch.py",
         "src/blackbread/capabilities/gateway.py",
         "src/blackbread/tenant_context.py",
+        "src/blackbread/models/core.py",
         "config/capability-registry.json",
     ],
 )

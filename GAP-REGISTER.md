@@ -29,7 +29,9 @@ admission blockers are recorded with their owner, milestone, and release in
   app slug `qodo-code-review`) bound to head `aca9606cc6842c1282cb5c182efaef82fb6b2e64`
   through review `commit_id`. A manually triggered CodeRabbit FULL review covered the same head but
   no sufficiently verified machine-readable CodeRabbit current-head schema is yet encoded. Re-read
-  the live ruleset and exercise `ai-review-gate` on a new head before closure.
+  the live ruleset and exercise `ai-review-gate` on a new head before closure. PR #13 only installs
+  bootstrap infrastructure: its candidate evaluator is not trusted authority and cannot validate
+  this PR. Protected `main` must own the evaluator before an activation PR can exercise it.
 - **Compensating control:** fail closed. Safety-critical changes remain ineligible until independent
   CodeRabbit evidence can be verified deterministically; no automatic degraded mode is approved.
 

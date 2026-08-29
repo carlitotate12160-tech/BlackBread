@@ -396,7 +396,9 @@ def test_agent_delivery_authority_is_explicit_and_fail_closed() -> None:
         "allow_changes_requested": False,
         "require_ai_bot_comment_disposition": True,
         "require_branch_up_to_date": True,
-        "required_status_checks": ["governance", "quality", "security", "tests", "ai-review-gate"],
+        "required_status_checks": ["governance", "quality", "security", "tests"],
+        "pending_required_status_checks": ["ai-review-gate"],
+        "ai_review_gate_state": "bootstrap_not_enforced",
         "allow_blocking_debt": False,
         "ruleset_bypass_actor_type": "Integration",
         "ruleset_bypass_actor_id": 1144995,
@@ -411,8 +413,9 @@ def test_agent_delivery_authority_is_explicit_and_fail_closed() -> None:
 
     required_checks = set(delivery["required_status_checks"])
     assert {"governance", "quality", "security", "tests"} <= required_checks
-    assert "ai-review-gate" in required_checks
+    assert "ai-review-gate" not in required_checks
     assert "Sourcery review" not in required_checks
+    assert delivery["pending_required_status_checks"] == ["ai-review-gate"]
 
     delivery_rules = (ROOT / ".devin/rules/blackbread.md").read_text(encoding="utf-8")
     branch_protection = (ROOT / ".github/BRANCH-PROTECTION.md").read_text(encoding="utf-8")
@@ -446,9 +449,17 @@ def test_agent_delivery_authority_is_explicit_and_fail_closed() -> None:
     workflow = load_ai_review_workflow()
     ai_review_job = workflow["jobs"]["ai-review-gate"]
     assert ai_review_job["name"] == "ai-review-gate"
+    assert set(workflow["on"]) == {"pull_request_target", "pull_request_review"}
     assert "pull_request_review" in workflow["on"]
-    assert "pull_request_review_thread" in workflow["on"]
     assert "if" not in ai_review_job
+    assert workflow["env"]["UV_VERSION"] == "0.8.11"
+    checkout = ai_review_job["steps"][0]
+    assert checkout["with"] == {"ref": "main", "persist-credentials": False}
+    assert ai_review_job["steps"][1]["uses"] == "./.github/actions/setup-uv"
+    assert ai_review_job["steps"][2]["run"] == (
+        "uv run python -m blackbread.governance.ai_review_gate"
+    )
+    assert delivery["require_review_thread_resolution"] is True
 
     review_setup = (ROOT / "docs/AI-REVIEW-SETUP.md").read_text(encoding="utf-8")
     test_audit = (ROOT / "TEST-AUDIT.md").read_text(encoding="utf-8")

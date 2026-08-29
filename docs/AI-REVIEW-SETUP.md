@@ -1,8 +1,10 @@
 # AI Review Integration Evidence
 
-Repository configuration cannot guarantee that a third-party SaaS reviewer runs. Merge eligibility
-is decided by the repository-owned `ai-review-gate` from native GitHub evidence for the current PR
-head, in addition to the mandatory `quality`, `tests`, `security`, and `governance` jobs.
+Repository configuration cannot guarantee that a third-party SaaS reviewer runs. PR #13 installs
+`ai-review-gate` as bootstrap infrastructure; it is not yet a live required check. After merge,
+protected `main` must own the workflow and evaluator before they can decide merge eligibility from
+native GitHub evidence. The mandatory `quality`, `tests`, `security`, and `governance` jobs remain
+independent requirements.
 
 ## Qodo: primary automated reviewer
 
@@ -13,7 +15,8 @@ PR #13 established the observed trusted identity and evidence shape:
 - GitHub App slug: `qodo-code-review`;
 - completed submitted review state: `COMMENTED`;
 - reviewed head binding: the GitHub review `commit_id` equals the PR head SHA;
-- actionable evidence: native GitHub review threads and their resolution state.
+- actionable findings: native GitHub review threads, whose resolution is independently required by
+  protected-main branch rules.
 
 Qodo did not publish a check run or commit status on the observed head. Do not invent or require a
 raw Qodo status context. The gate does not parse vendor-controlled prose summaries. Missing,
@@ -46,9 +49,14 @@ this change and does not replace Qodo, CodeRabbit, or first-party CI.
 Codex, Bito, and other reviewers provide additional evidence only when actually present. They do not
 silently substitute for Qodo or the required independent CodeRabbit review.
 
-## Repository-owned policy
+## Repository-owned policy and bootstrap
 
 Normal changes require a trusted completed Qodo review for the current head and zero unresolved
 Qodo-authored review threads. Safety-critical paths additionally require verified current-head
 CodeRabbit FULL-review evidence. No automatic degraded mode is approved; outages, quota exhaustion,
 timeouts, missing evidence, and policy evaluation errors fail closed.
+
+The workflow uses only supported `pull_request_target` and `pull_request_review` triggers and checks
+out protected `main`, never candidate PR code. PR #13 cannot run this trusted boundary because `main`
+does not yet contain it. After PR #13 merges, a separate activation PR must demonstrate the exact
+`ai-review-gate` context and fail-closed behavior. Only then may the live ruleset require the gate.
