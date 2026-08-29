@@ -539,6 +539,99 @@ def test_graphql_pagination_overflow_fails_closed(
         GitHubEvidenceReader(REPOSITORY, 13, "token").read()
 
 
+def test_graphql_errors_with_partial_data_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def request(
+        self: GitHubEvidenceReader,
+        url: str,
+        payload: dict[str, object] | None = None,
+    ) -> object:
+        if payload is not None:
+            return {
+                "errors": [{"message": "internal error"}],
+                "data": {
+                    "repository": {
+                        "pullRequest": {
+                            "reviewThreads": {
+                                "nodes": [],
+                                "pageInfo": {"hasNextPage": False},
+                            }
+                        }
+                    }
+                },
+            }
+        if "?" not in url:
+            return {"head": {"sha": HEAD}}
+        return []
+
+    monkeypatch.setattr(GitHubEvidenceReader, "_request", request)
+
+    with pytest.raises(ValueError, match="errors"):
+        GitHubEvidenceReader(REPOSITORY, 13, "token").read()
+
+
+def test_graphql_missing_page_info_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def request(
+        self: GitHubEvidenceReader,
+        url: str,
+        payload: dict[str, object] | None = None,
+    ) -> object:
+        if payload is not None:
+            return {
+                "data": {
+                    "repository": {
+                        "pullRequest": {
+                            "reviewThreads": {
+                                "nodes": [{"isResolved": True}],
+                            }
+                        }
+                    }
+                }
+            }
+        if "?" not in url:
+            return {"head": {"sha": HEAD}}
+        return []
+
+    monkeypatch.setattr(GitHubEvidenceReader, "_request", request)
+
+    with pytest.raises(ValueError, match=r"malformed.*pagination"):
+        GitHubEvidenceReader(REPOSITORY, 13, "token").read()
+
+
+def test_graphql_non_boolean_has_next_page_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def request(
+        self: GitHubEvidenceReader,
+        url: str,
+        payload: dict[str, object] | None = None,
+    ) -> object:
+        if payload is not None:
+            return {
+                "data": {
+                    "repository": {
+                        "pullRequest": {
+                            "reviewThreads": {
+                                "nodes": [{"isResolved": True}],
+                                "pageInfo": {"hasNextPage": "true"},
+                            }
+                        }
+                    }
+                }
+            }
+        if "?" not in url:
+            return {"head": {"sha": HEAD}}
+        return []
+
+    monkeypatch.setattr(GitHubEvidenceReader, "_request", request)
+
+    with pytest.raises(ValueError, match=r"malformed.*pagination"):
+        GitHubEvidenceReader(REPOSITORY, 13, "token").read()
+
+
 # ---------------------------------------------------------------------------
 # Status publisher
 # ---------------------------------------------------------------------------
@@ -715,6 +808,50 @@ def test_run_gate_eligible_publishes_success_to_head(
     states = [p["state"] for p in published]
     assert states == ["pending", "success"]
     assert all(p["sha"] == HEAD for p in published)
+
+
+def test_run_gate_head_race_after_success_re_fetches_and_denies(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fetch_calls = [0]
+
+    def fetch_head_sha(self: GitHubEvidenceReader) -> str:
+        fetch_calls[0] += 1
+        return HEAD if fetch_calls[0] == 1 else HEAD2
+
+    def read(self: GitHubEvidenceReader) -> dict[str, object]:
+        return {
+            "evidence_read_success": True,
+            "head_sha": HEAD,
+            "verified_head_sha": HEAD,
+            "repository": REPOSITORY,
+            "changed_paths": ["README.md"],
+            "reviews": [
+                {
+                    "user": {
+                        "login": "qodo-code-review[bot]",
+                        "id": 151058649,
+                        "type": "Bot",
+                    },
+                    "performed_via_github_app": {"id": 484649, "slug": "qodo-code-review"},
+                    "state": "COMMENTED",
+                    "commit_id": HEAD,
+                }
+            ],
+            "issue_comments": [],
+            "review_threads": _resolved_threads(),
+        }
+
+    monkeypatch.setattr(GitHubEvidenceReader, "fetch_head_sha", fetch_head_sha)
+    monkeypatch.setattr(GitHubEvidenceReader, "read", read)
+    published = _mock_publisher(monkeypatch)
+
+    result = run_gate(REPOSITORY, 13, "token")
+
+    assert result == 1
+    assert "success" not in [p["state"] for p in published]
+    failure_to_head = [p for p in published if p["sha"] == HEAD and p["state"] == "failure"]
+    assert failure_to_head
 
 
 def test_run_gate_ineligible_publishes_failure_to_head(

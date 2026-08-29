@@ -225,6 +225,8 @@ class GitHubEvidenceReader:
                 "https://api.github.com/graphql",
                 {"query": GRAPHQL_REVIEW_THREADS_QUERY, "variables": variables},
             )
+            if not isinstance(result, dict) or result.get("errors"):
+                raise ValueError("GraphQL review-thread response contains errors")
             pr_data = (
                 result.get("data", {}).get("repository", {}).get("pullRequest")
                 if isinstance(result, dict)
@@ -239,8 +241,12 @@ class GitHubEvidenceReader:
             if not isinstance(nodes, list) or not all(isinstance(n, dict) for n in nodes):
                 raise ValueError("malformed review-thread nodes")
             threads.extend(nodes)
-            page_info = page.get("pageInfo", {})
-            if not isinstance(page_info, dict) or not page_info.get("hasNextPage"):
+            page_info = page.get("pageInfo")
+            if not isinstance(page_info, dict) or not isinstance(
+                page_info.get("hasNextPage"), bool
+            ):
+                raise ValueError("malformed review-thread pagination")
+            if not page_info["hasNextPage"]:
                 return threads
             after = page_info.get("endCursor")
             if not isinstance(after, str):
@@ -332,6 +338,10 @@ def run_gate(repository: str, pull_number: int, token: str) -> int:
             publisher.publish(head_sha, "failure", "head changed during evaluation")
             return 1
         if decision.eligible:
+            final_head = reader.fetch_head_sha()
+            if final_head != head_sha:
+                publisher.publish(head_sha, "failure", "head changed during evaluation")
+                return 1
             publisher.publish(head_sha, "success", "AI review gate passed")
             return 0
         publisher.publish(head_sha, "failure", "; ".join(decision.reasons))
