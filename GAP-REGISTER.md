@@ -64,6 +64,32 @@ admission blockers are recorded with their owner, milestone, and release in
   first-party CI checks (`quality`, `tests`, `security`, `governance`) remain required. No merge
   depends on `ai-review-gate` until GOV-GAP-002 is closed and GOV-GAP-001 is closed.
 
+## GOV-GAP-003 — ai-review-gate does not verify Qodo review-thread resolution
+
+- **Status:** OPEN
+- **Severity:** P1 governance
+- **Owner:** repository administrator
+- **Target milestone:** ai-review-gate activation
+- **Blocks:** ai-review-gate activation as a required status check
+- **Current evidence:** `evaluate()` marks `trusted_review` from a current-head Qodo review's
+  identity, state (`COMMENTED`), and `commit_id` only; `GitHubEvidenceReader.read()` never retrieves
+  review-thread resolution state. A current-head Qodo review with an unresolved Qodo-authored thread
+  therefore makes a non-safety-critical PR eligible — verified directly against `evaluate()` with a
+  synthetic current-head Qodo review and no thread state. Because the gate is repository-owned and
+  meant to be deterministic and independent of GitHub server configuration, it must not depend on
+  branch protection to enforce thread resolution once it becomes a required status check.
+- **Required closure:** `GitHubEvidenceReader.read()` retrieves review-thread resolution (for example
+  the GraphQL `reviewThreads { isResolved comments { author { login } } }`) and passes it to
+  `evaluate()`, which denies eligibility while any Qodo-authored review thread on the verified head is
+  unresolved. Prove with governance tests covering the resolved (accept) and unresolved (deny) cases.
+  Close together with GOV-GAP-001 and GOV-GAP-002 before activation.
+- **Verification:** the activation PR demonstrates that a current-head Qodo review with an unresolved
+  Qodo thread is rejected and the same review with every Qodo thread resolved is accepted.
+- **Compensating control:** the live `main-branch-protection` ruleset (`21644438`) independently
+  requires review-thread resolution for every conversation, so an unresolved Qodo thread blocks merge
+  today, and `ai-review-gate` is `bootstrap_not_enforced`. No merge depends on this gate until
+  GOV-GAP-001, GOV-GAP-002, and GOV-GAP-003 are closed.
+
 ## LEDGER-GAP-001 — R0 trust-spine integration remains incomplete
 
 - **Status:** OPEN

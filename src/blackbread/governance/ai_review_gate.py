@@ -26,6 +26,8 @@ SAFETY_CRITICAL_PATH_PARTS = (
     "src/blackbread/ledger/",
     "src/blackbread/conductor/",
     "src/blackbread/policy/",
+    "src/blackbread/opsec/",
+    "src/blackbread/identity/",
     "src/blackbread/authorization/",
     "src/blackbread/scope/",
     "src/blackbread/security/",

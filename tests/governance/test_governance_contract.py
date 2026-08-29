@@ -7,6 +7,7 @@ import yaml
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 
+from blackbread.governance.ai_review_gate import SAFETY_CRITICAL_PATH_PARTS
 from blackbread.health import EXPECTED_SCHEMA_REVISION
 from blackbread.models.base import Base
 from blackbread.models.core import PlatformMetadata
@@ -538,3 +539,16 @@ def test_gitleaks_baseline_contains_only_exact_historical_fingerprints() -> None
 
     test_app = (ROOT / "tests/test_app.py").read_text(encoding="utf-8")
     assert "gitleaks:allow" in test_app
+
+
+def test_ai_review_gate_covers_every_safety_critical_coverage_module() -> None:
+    config = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    includes = config["tool"]["coverage"]["safety_critical"]["include"]
+
+    for include in includes:
+        module = include.removeprefix("blackbread.").removesuffix(".*")
+        expected = f"src/blackbread/{module}/"
+        assert expected in SAFETY_CRITICAL_PATH_PARTS, (
+            f"ai-review-gate SAFETY_CRITICAL_PATH_PARTS must cover {expected}; the pyproject "
+            "safety-critical coverage list is the single source for safety-critical paths"
+        )
