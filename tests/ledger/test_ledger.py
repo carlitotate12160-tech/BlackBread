@@ -114,7 +114,7 @@ async def test_mapping_and_stable_float_round_trip_through_jsonb(
         await session.execute(select(AgentEvent).where(AgentEvent.id == event_id))
     ).scalar_one()
     result = await verify_chain(
-        session,
+        session.bind,
         tenant_id=engagement.tenant_id,
         engagement_id=engagement.id,
     )
@@ -133,7 +133,7 @@ async def test_verify_passes_for_untampered_chain(
     await session.commit()
 
     result = await verify_chain(
-        session,
+        session.bind,
         tenant_id=engagement.tenant_id,
         engagement_id=engagement.id,
     )
@@ -170,7 +170,7 @@ async def test_verify_detects_tamper(
         AgentEvent.__table__.update().where(AgentEvent.id == target.id).values({column: value}),
     )
     result = await verify_chain(
-        session,
+        session.bind,
         tenant_id=engagement.tenant_id,
         engagement_id=engagement.id,
     )
@@ -199,7 +199,7 @@ async def test_append_and_verify_fail_closed_for_wrong_tenant(
         await append_event(session, wrong)
     with pytest.raises(LedgerAccessError):
         await verify_chain(
-            session,
+            session.bind,
             tenant_id="tenant-other",
             engagement_id=engagement.id,
         )
@@ -222,7 +222,7 @@ async def test_missing_engagement_fails_closed(session: AsyncSession) -> None:
         )
     with pytest.raises(LedgerAccessError):
         await verify_chain(
-            session,
+            session.bind,
             tenant_id="tenant-a",
             engagement_id=engagement_id,
         )
@@ -253,12 +253,12 @@ async def test_two_engagements_have_independent_chains(
 
     async with session_factory() as active:
         result_a = await verify_chain(
-            active,
+            active.bind,
             tenant_id=eng_a.tenant_id,
             engagement_id=eng_a.id,
         )
         result_b = await verify_chain(
-            active,
+            active.bind,
             tenant_id=eng_b.tenant_id,
             engagement_id=eng_b.id,
         )
@@ -301,7 +301,7 @@ async def test_concurrent_appends_serialize_without_gaps(
         )
         assert [row.sequence for row in rows] == list(range(1, 11))
         result = await verify_chain(
-            active,
+            active.bind,
             tenant_id=engagement.tenant_id,
             engagement_id=engagement.id,
         )
@@ -324,7 +324,7 @@ async def test_verify_detects_deleted_middle_event(
     await admin_session.commit()
 
     result = await verify_chain(
-        session,
+        session.bind,
         tenant_id=engagement.tenant_id,
         engagement_id=engagement.id,
     )
@@ -348,7 +348,7 @@ async def test_verify_detects_deleted_tail_event(
         AgentEvent.__table__.delete().where(AgentEvent.id == last.id),
     )
     result = await verify_chain(
-        session,
+        session.bind,
         tenant_id=engagement.tenant_id,
         engagement_id=engagement.id,
     )

@@ -454,7 +454,7 @@ async def test_typed_attestation_appends_parses_and_verifies(
 
     parsed = registry.parse(event.schema_name, event.schema_version, event.payload)
     result = await verify_chain(
-        session,
+        session.bind,
         tenant_id=engagement.tenant_id,
         engagement_id=engagement.id,
     )
@@ -477,7 +477,7 @@ async def test_typed_stop_appends_and_verifies(
     event = await append_event(session, draft)
     await session.commit()
     result = await verify_chain(
-        session,
+        session.bind,
         tenant_id=engagement.tenant_id,
         engagement_id=engagement.id,
     )
