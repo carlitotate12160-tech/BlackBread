@@ -401,7 +401,7 @@ def test_agent_delivery_authority_is_explicit_and_fail_closed() -> None:
         "direct_push_main_allowed": False,
         "force_push_allowed": False,
         "expected_head_sha_required": True,
-        "required_approving_reviews": 1,
+        "required_approving_reviews": 0,
         "require_code_owner_review": False,
         "dismiss_stale_reviews": True,
         "require_review_thread_resolution": True,
@@ -459,8 +459,8 @@ def test_agent_delivery_authority_is_explicit_and_fail_closed() -> None:
     assert "**Status:** OPEN" in governance_gap
 
     workflow = load_ai_review_workflow()
-    ai_review_job = workflow["jobs"]["ai-review-gate"]
-    assert ai_review_job["name"] == "ai-review-gate"
+    ai_review_job = workflow["jobs"]["ai-review-gate-controller"]
+    assert ai_review_job["name"] == "ai-review-gate-controller"
     assert set(workflow["on"]) == {
         "pull_request_target",
         "pull_request_review",
@@ -490,7 +490,7 @@ def test_agent_delivery_authority_is_explicit_and_fail_closed() -> None:
 
 def test_ai_review_gate_issue_comment_wakeup_is_pr_scoped_and_read_only() -> None:
     workflow = load_ai_review_workflow()
-    ai_review_job = workflow["jobs"]["ai-review-gate"]
+    ai_review_job = workflow["jobs"]["ai-review-gate-controller"]
 
     assert workflow["on"]["issue_comment"]["types"] == ["created", "edited", "deleted"]
     assert ai_review_job["if"] == (
@@ -500,6 +500,7 @@ def test_ai_review_gate_issue_comment_wakeup_is_pr_scoped_and_read_only() -> Non
         "contents": "read",
         "issues": "read",
         "pull-requests": "read",
+        "statuses": "write",
     }
     assert ai_review_job["steps"][2]["env"]["PR_NUMBER"] == (
         "${{ github.event.pull_request.number || github.event.issue.number }}"

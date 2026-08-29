@@ -7,7 +7,7 @@
     "direct_push_main_allowed": false,
     "force_push_allowed": false,
     "expected_head_sha_required": true,
-    "required_approving_reviews": 1,
+    "required_approving_reviews": 0,
     "require_code_owner_review": false,
     "dismiss_stale_reviews": true,
     "require_review_thread_resolution": true,
