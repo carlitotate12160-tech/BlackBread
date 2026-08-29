@@ -57,6 +57,7 @@ def _is_current_qodo_review(review: object, head_sha: str) -> bool:
         and user.get("id") == QODO_USER_ID
         and user.get("type") == "Bot"
         and isinstance(app, dict)
+        and app.get("id") == QODO_APP_ID
         and app.get("slug") == QODO_APP_SLUG
         and review.get("state") in COMPLETED_QODO_STATES
         and review.get("commit_id") == head_sha

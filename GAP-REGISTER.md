@@ -35,6 +35,35 @@ admission blockers are recorded with their owner, milestone, and release in
 - **Compensating control:** fail closed. Safety-critical changes remain ineligible until independent
   CodeRabbit evidence can be verified deterministically; no automatic degraded mode is approved.
 
+## GOV-GAP-002 — ai-review-gate issue_comment check SHA targeting
+
+- **Status:** OPEN
+- **Severity:** P1 governance
+- **Owner:** repository administrator
+- **Target milestone:** ai-review-gate activation
+- **Blocks:** ai-review-gate activation as required status check
+- **Current evidence:** GitHub `issue_comment` workflows use the last commit on the default branch as
+  `GITHUB_SHA`, not the PR head. The automatic Actions job check from `issue_comment` events is
+  therefore attached to the wrong SHA and cannot serve as the required `ai-review-gate` context for
+  branch protection. PR #13 adds `issue_comment` triggers as wake-up signals but does not implement
+  an explicit commit-status publisher that targets the verified PR head SHA. This is acceptable for
+  the bootstrap phase because `ai-review-gate` is `bootstrap_not_enforced` and no live ruleset
+  consumes it yet.
+- **Required closure:** implement a repository-owned status publisher using the GitHub commit-status
+  API (`POST /repos/{repository}/statuses/{verified_head_sha}`) with context `ai-review-gate`,
+  publishing `pending` before evaluation and `success` or `failure` after, always targeting the
+  authoritative PR head SHA from `GitHubEvidenceReader`. Handle head races, API exceptions, and
+  bounded descriptions. Rename the Actions job to `ai-review-gate-controller` so its automatic check
+  is not confused with the required gate context. Add `statuses: write` permission. Prove with
+  governance tests that the target SHA comes from the authoritative PR API, never from event
+  `GITHUB_SHA` or candidate-controlled input.
+- **Verification:** a separate activation PR must demonstrate the exact `ai-review-gate` status
+  context published against the correct PR head SHA, with fail-closed behavior for missing evidence,
+  head races, and API exceptions.
+- **Compensating control:** `ai-review-gate` is not a required status check. The four mandatory
+  first-party CI checks (`quality`, `tests`, `security`, `governance`) remain required. No merge
+  depends on `ai-review-gate` until GOV-GAP-002 is closed and GOV-GAP-001 is closed.
+
 ## LEDGER-GAP-001 — R0 trust-spine integration remains incomplete
 
 - **Status:** OPEN

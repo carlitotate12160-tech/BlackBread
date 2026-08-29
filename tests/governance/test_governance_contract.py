@@ -371,12 +371,23 @@ def test_ci_uses_composite_actions_and_safety_script() -> None:
 def test_unenforced_branch_checks_are_recorded_as_release_blocker() -> None:
     gaps = (ROOT / "GAP-REGISTER.md").read_text(encoding="utf-8")
     governance_gap = gaps.split("## GOV-GAP-001", maxsplit=1)[1].split(
-        "## LEDGER-GAP-001", maxsplit=1
+        "## GOV-GAP-002", maxsplit=1
     )[0]
 
     assert "**Status:** OPEN" in governance_gap
     assert "**Severity:** P0 governance" in governance_gap
     assert "**Blocks:** R0 and every real-target release" in governance_gap
+
+
+def test_ai_review_gate_sha_targeting_gap_is_recorded() -> None:
+    gaps = (ROOT / "GAP-REGISTER.md").read_text(encoding="utf-8")
+    sha_gap = gaps.split("## GOV-GAP-002", maxsplit=1)[1].split("## LEDGER-GAP-001", maxsplit=1)[0]
+
+    assert "**Status:** OPEN" in sha_gap
+    assert "**Severity:** P1 governance" in sha_gap
+    assert "ai-review-gate activation" in sha_gap
+    assert "commit-status" in sha_gap
+    assert "bootstrap_not_enforced" in sha_gap
 
 
 def test_agent_delivery_authority_is_explicit_and_fail_closed() -> None:
@@ -480,7 +491,7 @@ def test_ai_review_gate_issue_comment_wakeup_is_pr_scoped_and_read_only() -> Non
     workflow = load_ai_review_workflow()
     ai_review_job = workflow["jobs"]["ai-review-gate"]
 
-    assert workflow["on"]["issue_comment"]["types"] == ["created", "edited"]
+    assert workflow["on"]["issue_comment"]["types"] == ["created", "edited", "deleted"]
     assert ai_review_job["if"] == (
         "github.event_name != 'issue_comment' || github.event.issue.pull_request != null"
     )

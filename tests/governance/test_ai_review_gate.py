@@ -158,7 +158,7 @@ def current_qodo_evidence() -> dict[str, object]:
                     "id": 151058649,
                     "type": "Bot",
                 },
-                "performed_via_github_app": {"slug": "qodo-code-review"},
+                "performed_via_github_app": {"id": 484649, "slug": "qodo-code-review"},
                 "state": "COMMENTED",
                 "commit_id": HEAD,
             }
@@ -259,3 +259,38 @@ def test_qodo_app_slug_is_enforced(current_qodo_evidence: dict[str, object]) -> 
     current_qodo_evidence["reviews"][0]["performed_via_github_app"]["slug"] = "unexpected"
 
     assert not evaluate(current_qodo_evidence).eligible
+
+
+def test_qodo_native_review_app_id_is_enforced(
+    current_qodo_evidence: dict[str, object],
+) -> None:
+    current_qodo_evidence["reviews"][0]["performed_via_github_app"]["id"] = 999999
+
+    assert not evaluate(current_qodo_evidence).eligible
+
+
+def test_qodo_native_review_missing_app_id_fails_closed(
+    current_qodo_evidence: dict[str, object],
+) -> None:
+    current_qodo_evidence["reviews"][0]["performed_via_github_app"].pop("id", None)
+
+    assert not evaluate(current_qodo_evidence).eligible
+
+
+def test_qodo_native_review_missing_app_fails_closed(
+    current_qodo_evidence: dict[str, object],
+) -> None:
+    current_qodo_evidence["reviews"][0]["performed_via_github_app"] = None
+
+    assert not evaluate(current_qodo_evidence).eligible
+
+
+def test_qodo_native_review_correct_app_id_and_slug_accepted(
+    current_qodo_evidence: dict[str, object],
+) -> None:
+    current_qodo_evidence["reviews"][0]["performed_via_github_app"] = {
+        "id": 484649,
+        "slug": "qodo-code-review",
+    }
+
+    assert evaluate(current_qodo_evidence).eligible
