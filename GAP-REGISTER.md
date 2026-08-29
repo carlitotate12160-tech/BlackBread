@@ -82,6 +82,30 @@ admission blockers are recorded with their owner, milestone, and release in
   today, and `ai-review-gate` is `bootstrap_not_enforced`. No merge depends on this gate until
   GOV-GAP-001, GOV-GAP-002, and GOV-GAP-003 are closed.
 
+## GOV-GAP-004 — ai-review-gate controller lacks concurrency ordering
+
+- **Status:** OPEN
+- **Severity:** P2 governance
+- **Owner:** repository administrator
+- **Target milestone:** ai-review-gate activation
+- **Blocks:** ai-review-gate activation as a required status check
+- **Current evidence:** the workflow has no `concurrency` group. Multiple
+  `pull_request_target`, `pull_request_review`, and `issue_comment` events can
+  trigger overlapping controller runs for the same unchanged head. An older run
+  that finishes last can overwrite a newer failure with success after evidence
+  was removed or a thread became unresolved. The SHA comparison only detects
+  commit changes, not changing review/thread evidence on the same SHA.
+- **Required closure:** add a `concurrency` group keyed by PR number with
+  `cancel-in-progress: false`, or implement timestamp-based status ordering so
+  older runs cannot overwrite newer decisions. Prove with governance tests.
+  Close together with GOV-GAP-001, GOV-GAP-002, and GOV-GAP-003 before
+  activation.
+- **Verification:** the live-activation PR demonstrates that overlapping runs
+  do not produce conflicting status outcomes.
+- **Compensating control:** `ai-review-gate` is `bootstrap_not_enforced`. The
+  four mandatory first-party CI checks remain required. No merge depends on
+  this gate until all GOV gaps are closed.
+
 ## LEDGER-GAP-001 — R0 trust-spine integration remains incomplete
 
 - **Status:** OPEN
