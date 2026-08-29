@@ -449,9 +449,12 @@ def test_agent_delivery_authority_is_explicit_and_fail_closed() -> None:
     workflow = load_ai_review_workflow()
     ai_review_job = workflow["jobs"]["ai-review-gate"]
     assert ai_review_job["name"] == "ai-review-gate"
-    assert set(workflow["on"]) == {"pull_request_target", "pull_request_review"}
+    assert set(workflow["on"]) == {
+        "pull_request_target",
+        "pull_request_review",
+        "issue_comment",
+    }
     assert "pull_request_review" in workflow["on"]
-    assert "if" not in ai_review_job
     assert workflow["env"]["UV_VERSION"] == "0.8.11"
     checkout = ai_review_job["steps"][0]
     assert checkout["with"] == {"ref": "main", "persist-credentials": False}
@@ -465,9 +468,30 @@ def test_agent_delivery_authority_is_explicit_and_fail_closed() -> None:
     test_audit = (ROOT / "TEST-AUDIT.md").read_text(encoding="utf-8")
     codeowners = (ROOT / ".github/CODEOWNERS").read_text(encoding="utf-8")
     assert "qodo-code-review[bot]" in review_setup
+    assert "authenticated provider-specific machine evidence" in review_setup
+    assert "issue-comment marker" in review_setup
+    assert "bug counts" in review_setup
     assert "Sourcery is advisory" in review_setup
     assert "CodeRabbit auto-review" not in test_audit
     assert "CodeRabbit AI review runs in parallel" not in codeowners
+
+
+def test_ai_review_gate_issue_comment_wakeup_is_pr_scoped_and_read_only() -> None:
+    workflow = load_ai_review_workflow()
+    ai_review_job = workflow["jobs"]["ai-review-gate"]
+
+    assert workflow["on"]["issue_comment"]["types"] == ["created", "edited"]
+    assert ai_review_job["if"] == (
+        "github.event_name != 'issue_comment' || github.event.issue.pull_request != null"
+    )
+    assert workflow["permissions"] == {
+        "contents": "read",
+        "issues": "read",
+        "pull-requests": "read",
+    }
+    assert ai_review_job["steps"][2]["env"]["PR_NUMBER"] == (
+        "${{ github.event.pull_request.number || github.event.issue.number }}"
+    )
 
 
 def test_bootstrap_table_is_registered_in_model_metadata() -> None:

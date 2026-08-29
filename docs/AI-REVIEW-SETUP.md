@@ -8,20 +8,34 @@ independent requirements.
 
 ## Qodo: primary automated reviewer
 
-PR #13 established the observed trusted identity and evidence shape:
+PR #13 established the observed trusted identity and two accepted evidence shapes. Qodo evidence is
+valid when either:
+
+1. Qodo emits a trusted native `PullRequestReview` in submitted state `COMMENTED`, with its
+   `commit_id` equal to the current PR head; or
+2. Qodo emits the narrow authenticated provider-specific machine evidence observed live: an issue
+   comment from the trusted bot and GitHub App containing exactly one
+   `by qodo was updated up to the latest commit` marker whose full repository-bound commit URL
+   equals the current PR head.
+
+The trusted identity fields are:
 
 - bot login: `qodo-code-review[bot]`;
 - bot user ID: `151058649`;
+- bot user type: `Bot`;
+- GitHub App ID: `484649`;
 - GitHub App slug: `qodo-code-review`;
-- completed submitted review state: `COMMENTED`;
-- reviewed head binding: the GitHub review `commit_id` equals the PR head SHA;
 - actionable findings: native GitHub review threads, whose resolution is independently required by
   protected-main branch rules.
 
 Qodo did not publish a check run or commit status on the observed head. Do not invent or require a
-raw Qodo status context. The gate does not parse vendor-controlled prose summaries. Missing,
-wrong-identity, stale, wrong-head, incomplete, unreadable, or unresolved-thread evidence fails closed.
-Qodo had to be triggered on the already-open PR #13, so automatic review must not be assumed.
+raw Qodo status context. Vendor prose is untrusted: the gate does not parse summaries, bug counts,
+rule-violation counts, skill-insight counts, recommendations, or arbitrary issue-comment text. It
+recognizes only the authenticated current-head issue-comment marker above as provider-specific
+machine evidence; owner/user-authored copies do not qualify. Missing, wrong-identity, stale,
+wrong-head, incomplete, or unreadable evidence fails closed. Actionable findings remain governed by
+native review threads and protected-main thread resolution. Qodo had to be triggered on the
+already-open PR #13, so automatic review must not be assumed.
 
 `.pr_agent.toml` predates the observed modern app identity. Its authority or compatibility with the
 installed app has not been verified; treat it as a candidate configuration pending live evidence.
@@ -56,7 +70,10 @@ Qodo-authored review threads. Safety-critical paths additionally require verifie
 CodeRabbit FULL-review evidence. No automatic degraded mode is approved; outages, quota exhaustion,
 timeouts, missing evidence, and policy evaluation errors fail closed.
 
-The workflow uses only supported `pull_request_target` and `pull_request_review` triggers and checks
-out protected `main`, never candidate PR code. PR #13 cannot run this trusted boundary because `main`
-does not yet contain it. After PR #13 merges, a separate activation PR must demonstrate the exact
-`ai-review-gate` context and fail-closed behavior. Only then may the live ruleset require the gate.
+The workflow uses supported `pull_request_target`, `pull_request_review`, and `issue_comment`
+triggers and checks out protected `main`, never candidate PR code. An issue-comment create/edit event
+is only a PR-scoped wake-up signal: the trusted evaluator ignores event comment content and re-fetches
+the PR head and evidence through GitHub APIs before re-verifying the head. PR #13 cannot run this
+trusted boundary because `main` does not yet contain it. After PR #13 merges, a separate activation PR
+must demonstrate the exact `ai-review-gate` context and fail-closed behavior. Only then may the live
+ruleset require the gate.
