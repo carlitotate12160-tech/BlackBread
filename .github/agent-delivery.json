@@ -18,7 +18,8 @@
       "governance",
       "quality",
       "security",
-      "tests"
+      "tests",
+      "Sourcery review"
     ],
     "allow_blocking_debt": false,
     "ruleset_bypass_actor_type": "Integration",

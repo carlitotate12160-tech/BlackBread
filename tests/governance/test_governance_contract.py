@@ -387,7 +387,13 @@ def test_agent_delivery_authority_is_explicit_and_fail_closed() -> None:
         "allow_changes_requested": False,
         "require_ai_bot_comment_disposition": True,
         "require_branch_up_to_date": True,
-        "required_status_checks": ["governance", "quality", "security", "tests"],
+        "required_status_checks": [
+            "governance",
+            "quality",
+            "security",
+            "tests",
+            "Sourcery review",
+        ],
         "allow_blocking_debt": False,
         "ruleset_bypass_actor_type": "Integration",
         "ruleset_bypass_actor_id": 1144995,
@@ -399,6 +405,17 @@ def test_agent_delivery_authority_is_explicit_and_fail_closed() -> None:
 
     assert contract["schema_version"] == 1
     assert delivery == expected
+
+    required_checks = set(delivery["required_status_checks"])
+    assert {"governance", "quality", "security", "tests"} <= required_checks
+    assert "Sourcery review" in required_checks
+
+    delivery_rules = (ROOT / ".devin/rules/blackbread.md").read_text(encoding="utf-8")
+    branch_protection = (ROOT / ".github/BRANCH-PROTECTION.md").read_text(encoding="utf-8")
+    for content in (delivery_rules, branch_protection):
+        assert "mandatory first-party CI" in content
+        assert "`Sourcery review`" in content
+        assert "does not replace" in content
 
     documents = (
         ROOT / "ADR-FINAL-002.md",
