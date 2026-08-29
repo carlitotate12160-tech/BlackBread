@@ -121,7 +121,7 @@ def _has_unresolved_threads(threads: object) -> bool:
     if not isinstance(threads, list):
         return True
     return any(
-        not isinstance(thread, dict) or not thread.get("isResolved", False) for thread in threads
+        not isinstance(thread, dict) or thread.get("isResolved") is not True for thread in threads
     )
 
 

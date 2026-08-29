@@ -421,6 +421,17 @@ def test_malformed_thread_response_fails_closed(
     assert "unresolved review threads" in decision.reasons
 
 
+def test_non_boolean_is_resolved_fails_closed(
+    current_qodo_evidence: dict[str, object],
+) -> None:
+    current_qodo_evidence["review_threads"] = [{"isResolved": "false"}]
+
+    decision = evaluate(current_qodo_evidence)
+
+    assert not decision.eligible
+    assert "unresolved review threads" in decision.reasons
+
+
 # ---------------------------------------------------------------------------
 # GraphQL review-thread fetching
 # ---------------------------------------------------------------------------

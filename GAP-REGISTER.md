@@ -106,6 +106,32 @@ admission blockers are recorded with their owner, milestone, and release in
   four mandatory first-party CI checks remain required. No merge depends on
   this gate until all GOV gaps are closed.
 
+## GOV-GAP-005 — review-thread resolution changes lack wake-up trigger
+
+- **Status:** OPEN
+- **Severity:** P1 governance
+- **Owner:** repository administrator
+- **Target milestone:** ai-review-gate activation
+- **Blocks:** ai-review-gate activation as a required status check
+- **Current evidence:** the workflow listens to `pull_request_target`,
+  `pull_request_review`, and `issue_comment` triggers. GitHub has no native
+  webhook for review-thread resolution changes. Resolving or unresolving a
+  thread does not trigger any configured event. Consequently, resolving the
+  last outstanding thread leaves a previously published failure in place
+  indefinitely, and creating/reopening a thread after success leaves a stale
+  success until some unrelated event runs the controller.
+- **Required closure:** add a reliable wake-up path for thread-resolution
+  changes (scheduled reconciliation, GitHub webhook subscription, or another
+  bounded mechanism). Prove that thread resolution changes trigger
+  re-evaluation. Close together with GOV-GAP-001 through GOV-GAP-004 before
+  activation.
+- **Verification:** the live-activation PR demonstrates that resolving a
+  thread triggers re-evaluation and status update.
+- **Compensating control:** `ai-review-gate` is `bootstrap_not_enforced`.
+  The live `main-branch-protection` ruleset (`21644438`) independently
+  requires review-thread resolution for every conversation. No merge depends
+  on this gate until all GOV gaps are closed.
+
 ## LEDGER-GAP-001 — R0 trust-spine integration remains incomplete
 
 - **Status:** OPEN
