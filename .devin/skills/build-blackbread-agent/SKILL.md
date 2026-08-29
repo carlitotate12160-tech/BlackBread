@@ -26,9 +26,10 @@ confirmation. Load and enforce `.github/agent-delivery.json` before delivery.
 2. Push only a fast-forward feature-branch update and bind merge to the expected head SHA.
 3. Evaluate every AI-bot comment against the latest tree. Fix valid findings; reply with evidence to
    addressed, stale, or false-positive findings; resolve their threads only after that disposition.
-4. Merge only when every named check for that SHA is green, all review threads are resolved, at least
-   one approving review exists, no `changes requested` review remains, the branch is current, and no
-   blocking debt applies to the requested milestone/release.
+4. Merge only when every named check for that SHA is green, all review threads are resolved, no
+   `changes requested` review remains, the branch is current, and no blocking debt applies to the
+   requested milestone/release. Required human approvals remain 0 while the repository has no
+   independent write-access reviewer; this is deliberate, not an AI approval substitution.
 5. A configured automation-integration bypass is transport authority for the final PR merge only. It
    cannot waive a gate and never permits direct push to `main`.
 6. Never force-push, rewrite history, delete a protected branch, weaken a safety gate, conceal a

@@ -65,15 +65,29 @@ silently substitute for Qodo or the required independent CodeRabbit review.
 
 ## Repository-owned policy and bootstrap
 
-Normal changes require a trusted completed Qodo review for the current head and zero unresolved
-Qodo-authored review threads. Safety-critical paths additionally require verified current-head
+Normal changes require a trusted completed Qodo review for the current head and zero unresolved PR
+review threads (any author). Safety-critical paths additionally require verified current-head
 CodeRabbit FULL-review evidence. No automatic degraded mode is approved; outages, quota exhaustion,
 timeouts, missing evidence, and policy evaluation errors fail closed.
 
 The workflow uses supported `pull_request_target`, `pull_request_review`, and `issue_comment`
 triggers and checks out protected `main`, never candidate PR code. An issue-comment create/edit event
 is only a PR-scoped wake-up signal: the trusted evaluator ignores event comment content and re-fetches
-the PR head and evidence through GitHub APIs before re-verifying the head. PR #13 cannot run this
-trusted boundary because `main` does not yet contain it. After PR #13 merges, a separate activation PR
-must demonstrate the exact `ai-review-gate` context and fail-closed behavior. Only then may the live
-ruleset require the gate.
+the PR head and evidence through GitHub APIs before re-verifying the head.
+
+The controller job is named `ai-review-gate-controller` to avoid confusing its automatic Actions
+check-run with the policy status context. The repository policy context remains exactly
+`ai-review-gate`. The controller publishes `pending` to the authoritative PR head SHA before
+evaluation, then `success` or `failure` to the same SHA after evaluation. If the PR head changes
+during evaluation, the controller publishes `failure` to the original head and never publishes
+`success`. The SHA target comes exclusively from the authoritative GitHub PR API response, never from
+`GITHUB_SHA`, issue-comment text, or candidate-controlled inputs.
+
+Review-thread resolution is enforced by the repository-owned gate via GraphQL `reviewThreads`
+fetching with bounded pagination. The gate denies eligibility while any PR review thread is
+unresolved, regardless of thread author. This is intentionally at least as strict as branch-protection
+thread resolution and does not depend on GitHub server configuration.
+
+PR #13 cannot run this trusted boundary because `main` does not yet contain it. After PR #13 merges, a
+separate activation PR must demonstrate the exact `ai-review-gate` context and fail-closed behavior.
+Only then may the live ruleset require the gate.

@@ -42,53 +42,95 @@ admission blockers are recorded with their owner, milestone, and release in
 - **Owner:** repository administrator
 - **Target milestone:** ai-review-gate activation
 - **Blocks:** ai-review-gate activation as required status check
-- **Current evidence:** GitHub `issue_comment` workflows use the last commit on the default branch as
-  `GITHUB_SHA`, not the PR head. The automatic Actions job check from `issue_comment` events is
-  therefore attached to the wrong SHA and cannot serve as the required `ai-review-gate` context for
-  branch protection. PR #13 adds `issue_comment` triggers as wake-up signals but does not implement
-  an explicit commit-status publisher that targets the verified PR head SHA. This is acceptable for
-  the bootstrap phase because `ai-review-gate` is `bootstrap_not_enforced` and no live ruleset
-  consumes it yet.
-- **Required closure:** implement a repository-owned status publisher using the GitHub commit-status
-  API (`POST /repos/{repository}/statuses/{verified_head_sha}`) with context `ai-review-gate`,
-  publishing `pending` before evaluation and `success` or `failure` after, always targeting the
-  authoritative PR head SHA from `GitHubEvidenceReader`. Handle head races, API exceptions, and
-  bounded descriptions. Rename the Actions job to `ai-review-gate-controller` so its automatic check
-  is not confused with the required gate context. Add `statuses: write` permission. Prove with
-  governance tests that the target SHA comes from the authoritative PR API, never from event
-  `GITHUB_SHA` or candidate-controlled input.
-- **Verification:** a separate activation PR must demonstrate the exact `ai-review-gate` status
-  context published against the correct PR head SHA, with fail-closed behavior for missing evidence,
-  head races, and API exceptions.
+- **Current evidence:** the activation implementation PR adds a `StatusPublisher` that publishes
+  commit-status `pending`/`success`/`failure` to the authoritative PR head SHA via
+  `POST /repos/{repository}/statuses/{verified_head_sha}` with context `ai-review-gate`. The workflow
+  job is renamed to `ai-review-gate-controller` and `statuses: write` is added. The SHA target comes
+  exclusively from `GitHubEvidenceReader.fetch_head_sha()` which calls the GitHub PR API. Head races
+  publish `failure` to the original head and never `success`. Exceptions after head capture attempt
+  `failure` to the known head. Implementation exists but protected-main live activation proof is still
+  pending.
+- **Required closure:** a separate live-activation PR must demonstrate the exact `ai-review-gate`
+  status context published against the correct PR head SHA from protected `main`, with fail-closed
+  behavior for missing evidence, head races, and API exceptions. Then update the live ruleset to
+  require `ai-review-gate` and verify.
+- **Verification:** the live-activation PR exercises the controller from protected `main` and proves
+  the status appears on the correct PR head SHA with the correct context.
 - **Compensating control:** `ai-review-gate` is not a required status check. The four mandatory
   first-party CI checks (`quality`, `tests`, `security`, `governance`) remain required. No merge
   depends on `ai-review-gate` until GOV-GAP-002 is closed and GOV-GAP-001 is closed.
 
-## GOV-GAP-003 — ai-review-gate does not verify Qodo review-thread resolution
+## GOV-GAP-003 — ai-review-gate does not verify review-thread resolution
 
 - **Status:** OPEN
 - **Severity:** P1 governance
 - **Owner:** repository administrator
 - **Target milestone:** ai-review-gate activation
 - **Blocks:** ai-review-gate activation as a required status check
-- **Current evidence:** `evaluate()` marks `trusted_review` from a current-head Qodo review's
-  identity, state (`COMMENTED`), and `commit_id` only; `GitHubEvidenceReader.read()` never retrieves
-  review-thread resolution state. A current-head Qodo review with an unresolved Qodo-authored thread
-  therefore makes a non-safety-critical PR eligible — verified directly against `evaluate()` with a
-  synthetic current-head Qodo review and no thread state. Because the gate is repository-owned and
-  meant to be deterministic and independent of GitHub server configuration, it must not depend on
-  branch protection to enforce thread resolution once it becomes a required status check.
-- **Required closure:** `GitHubEvidenceReader.read()` retrieves review-thread resolution (for example
-  the GraphQL `reviewThreads { isResolved comments { author { login } } }`) and passes it to
-  `evaluate()`, which denies eligibility while any Qodo-authored review thread on the verified head is
-  unresolved. Prove with governance tests covering the resolved (accept) and unresolved (deny) cases.
-  Close together with GOV-GAP-001 and GOV-GAP-002 before activation.
-- **Verification:** the activation PR demonstrates that a current-head Qodo review with an unresolved
-  Qodo thread is rejected and the same review with every Qodo thread resolved is accepted.
+- **Current evidence:** the activation implementation PR adds GraphQL `reviewThreads` fetching with
+  bounded pagination to `GitHubEvidenceReader.read()` and passes `review_threads` to `evaluate()`.
+  The gate denies eligibility while any PR review thread is unresolved, regardless of thread author.
+  API failures, malformed responses, and pagination overflow fail closed. Implementation exists but
+  protected-main live activation proof is still pending.
+- **Required closure:** a separate live-activation PR must demonstrate that a current-head Qodo review
+  with an unresolved thread is rejected and the same review with every thread resolved is accepted,
+  from protected `main`. Close together with GOV-GAP-001 and GOV-GAP-002 before activation.
+- **Verification:** the live-activation PR demonstrates thread enforcement against real GitHub
+  review-thread state.
 - **Compensating control:** the live `main-branch-protection` ruleset (`21644438`) independently
-  requires review-thread resolution for every conversation, so an unresolved Qodo thread blocks merge
+  requires review-thread resolution for every conversation, so an unresolved thread blocks merge
   today, and `ai-review-gate` is `bootstrap_not_enforced`. No merge depends on this gate until
   GOV-GAP-001, GOV-GAP-002, and GOV-GAP-003 are closed.
+
+## GOV-GAP-004 — ai-review-gate controller lacks concurrency ordering
+
+- **Status:** OPEN
+- **Severity:** P2 governance
+- **Owner:** repository administrator
+- **Target milestone:** ai-review-gate activation
+- **Blocks:** ai-review-gate activation as a required status check
+- **Current evidence:** the workflow has no `concurrency` group. Multiple
+  `pull_request_target`, `pull_request_review`, and `issue_comment` events can
+  trigger overlapping controller runs for the same unchanged head. An older run
+  that finishes last can overwrite a newer failure with success after evidence
+  was removed or a thread became unresolved. The SHA comparison only detects
+  commit changes, not changing review/thread evidence on the same SHA.
+- **Required closure:** add a `concurrency` group keyed by PR number with
+  `cancel-in-progress: false`, or implement timestamp-based status ordering so
+  older runs cannot overwrite newer decisions. Prove with governance tests.
+  Close together with GOV-GAP-001, GOV-GAP-002, and GOV-GAP-003 before
+  activation.
+- **Verification:** the live-activation PR demonstrates that overlapping runs
+  do not produce conflicting status outcomes.
+- **Compensating control:** `ai-review-gate` is `bootstrap_not_enforced`. The
+  four mandatory first-party CI checks remain required. No merge depends on
+  this gate until all GOV gaps are closed.
+
+## GOV-GAP-005 — review-thread resolution changes lack wake-up trigger
+
+- **Status:** OPEN
+- **Severity:** P1 governance
+- **Owner:** repository administrator
+- **Target milestone:** ai-review-gate activation
+- **Blocks:** ai-review-gate activation as a required status check
+- **Current evidence:** the workflow listens to `pull_request_target`,
+  `pull_request_review`, and `issue_comment` triggers. GitHub has no native
+  webhook for review-thread resolution changes. Resolving or unresolving a
+  thread does not trigger any configured event. Consequently, resolving the
+  last outstanding thread leaves a previously published failure in place
+  indefinitely, and creating/reopening a thread after success leaves a stale
+  success until some unrelated event runs the controller.
+- **Required closure:** add a reliable wake-up path for thread-resolution
+  changes (scheduled reconciliation, GitHub webhook subscription, or another
+  bounded mechanism). Prove that thread resolution changes trigger
+  re-evaluation. Close together with GOV-GAP-001 through GOV-GAP-004 before
+  activation.
+- **Verification:** the live-activation PR demonstrates that resolving a
+  thread triggers re-evaluation and status update.
+- **Compensating control:** `ai-review-gate` is `bootstrap_not_enforced`.
+  The live `main-branch-protection` ruleset (`21644438`) independently
+  requires review-thread resolution for every conversation. No merge depends
+  on this gate until all GOV gaps are closed.
 
 ## LEDGER-GAP-001 — R0 trust-spine integration remains incomplete
 
