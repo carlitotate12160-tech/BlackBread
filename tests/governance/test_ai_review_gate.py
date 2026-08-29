@@ -90,6 +90,19 @@ def test_reader_fetches_bounded_issue_comments(
         payload: dict[str, object] | None = None,
     ) -> object:
         requested_urls.append(url)
+        if url.endswith("/graphql"):
+            return {
+                "data": {
+                    "repository": {
+                        "pullRequest": {
+                            "reviewThreads": {
+                                "nodes": [],
+                                "pageInfo": {"hasNextPage": False, "endCursor": None},
+                            }
+                        }
+                    }
+                }
+            }
         if "?" not in url:
             return {"head": {"sha": HEAD}}
         return []
@@ -100,6 +113,7 @@ def test_reader_fetches_bounded_issue_comments(
 
     assert any("/issues/13/comments?per_page=100&page=1" in url for url in requested_urls)
     assert evidence["issue_comments"] == []
+    assert evidence["review_threads"] == []
 
 
 def test_github_requests_use_repository_owned_user_agent(
@@ -163,6 +177,7 @@ def current_qodo_evidence() -> dict[str, object]:
                 "commit_id": HEAD,
             }
         ],
+        "review_threads": [],
     }
 
 
