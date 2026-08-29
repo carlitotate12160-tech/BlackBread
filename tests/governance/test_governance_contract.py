@@ -401,26 +401,27 @@ def test_agent_delivery_authority_is_explicit_and_fail_closed() -> None:
         "direct_push_main_allowed": False,
         "force_push_allowed": False,
         "expected_head_sha_required": True,
-        "required_approving_reviews": 0,
-        "require_code_owner_review": False,
+        "required_approving_reviews": 1,
+        "require_code_owner_review": True,
         "dismiss_stale_reviews": True,
         "require_review_thread_resolution": True,
         "allow_changes_requested": False,
         "require_ai_bot_comment_disposition": True,
         "require_branch_up_to_date": True,
-        "required_status_checks": ["governance", "quality", "security", "tests"],
+        "required_status_checks": [
+            "governance",
+            "GitGuardian Security Checks",
+            "quality",
+            "security",
+            "tests",
+        ],
         "pending_required_status_checks": ["ai-review-gate"],
         "ai_review_gate_state": "bootstrap_not_enforced",
         "allow_blocking_debt": False,
-        "ruleset_bypass_actor_type": "Integration",
-        "ruleset_bypass_actor_id": 1144995,
-        "ruleset_bypass_may_waive_gates": False,
-        "ruleset_bypass_scope": "approval_only",
-        "ruleset_no_bypass_id": 21644438,
-        "ruleset_bypass_id": 21698082,
+        "ruleset_id": 21644438,
     }
 
-    assert contract["schema_version"] == 1
+    assert contract["schema_version"] == 2
     assert delivery == expected
 
     required_checks = set(delivery["required_status_checks"])
@@ -450,7 +451,6 @@ def test_agent_delivery_authority_is_explicit_and_fail_closed() -> None:
         assert "blocking debt" in content or "blocking-debt" in content
 
     gaps = (ROOT / "GAP-REGISTER.md").read_text(encoding="utf-8")
-    assert "actor_id: 1144995" in gaps
     assert "21644438" in gaps
     assert "21698082" in gaps
     governance_gap = gaps.split("## GOV-GAP-001", maxsplit=1)[1].split(

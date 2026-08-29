@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "agent_delivery": {
     "owner_instruction_required": true,
     "feature_branch_commit_push_allowed": true,
@@ -7,8 +7,8 @@
     "direct_push_main_allowed": false,
     "force_push_allowed": false,
     "expected_head_sha_required": true,
-    "required_approving_reviews": 0,
-    "require_code_owner_review": false,
+    "required_approving_reviews": 1,
+    "require_code_owner_review": true,
     "dismiss_stale_reviews": true,
     "require_review_thread_resolution": true,
     "allow_changes_requested": false,
@@ -16,6 +16,7 @@
     "require_branch_up_to_date": true,
     "required_status_checks": [
       "governance",
+      "GitGuardian Security Checks",
       "quality",
       "security",
       "tests"
@@ -23,11 +24,6 @@
     "pending_required_status_checks": ["ai-review-gate"],
     "ai_review_gate_state": "bootstrap_not_enforced",
     "allow_blocking_debt": false,
-    "ruleset_bypass_actor_type": "Integration",
-    "ruleset_bypass_actor_id": 1144995,
-    "ruleset_bypass_may_waive_gates": false,
-    "ruleset_bypass_scope": "approval_only",
-    "ruleset_no_bypass_id": 21644438,
-    "ruleset_bypass_id": 21698082
+    "ruleset_id": 21644438
   }
 }
