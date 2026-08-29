@@ -20,6 +20,8 @@
       "security",
       "tests"
     ],
+    "pending_required_status_checks": ["ai-review-gate"],
+    "ai_review_gate_state": "bootstrap_not_enforced",
     "allow_blocking_debt": false,
     "ruleset_bypass_actor_type": "Integration",
     "ruleset_bypass_actor_id": 1144995,

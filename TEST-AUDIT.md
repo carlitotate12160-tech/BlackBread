@@ -351,7 +351,7 @@ Alpha has zero deception tests. BlackBread must detect honeypots.
 - nuclei templates (lab targets only)
 
 # AI review:
-- CodeRabbit auto-review with path-specific instructions
+- CodeRabbit review guidance with manual FULL-review triggering when the service does not run automatically
 ```
 
 ## 7. Anti-patterns that must fail in CI
@@ -433,4 +433,3 @@ These are the non-negotiable additions. Alpha's 240 files missed all of these:
 | Database append-only enforcement | migration installs mutation and truncate triggers | UPDATE, DELETE, and TRUNCATE rejected | VERIFIED |
 | Canonical and versioned hashing | stable UTC/JSON hashing with SHA-256 version 1 | naive time, non-finite numbers, non-JSON values, unknown hash scheme rejected | VERIFIED |
 | R0 trust spine | ledger primitive only | `LEDGER-GAP-001` blocks graph, Conductor, Policy Kernel, leases, kill-switch, and RLS claims | OPEN |
-

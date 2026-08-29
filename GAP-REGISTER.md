@@ -4,27 +4,91 @@ This register contains cross-cutting blockers that cannot be closed by source ch
 admission blockers are recorded with their owner, milestone, and release in
 `config/capability-registry.json`.
 
-## GOV-GAP-001 — Main ruleset lacks required checks and branch currency
+## GOV-GAP-001 — AI review policy and live main ruleset are not aligned
 
-- **Status:** CLOSED
+- **Status:** OPEN
 - **Severity:** P0 governance
 - **Owner:** repository administrator
 - **Target milestone:** M0 governance hardening
 - **Blocks:** R0 and every real-target release
-- **Current evidence:** two rulesets now enforce main-branch protection:
+- **Current evidence:** two rulesets enforce main-branch protection, but AI review enforcement is
+  transitioning to the repository-owned `ai-review-gate`:
   - Ruleset `main-branch-protection` (`21644438`): deletion, non-fast-forward, required linear
     history, pull_request (0 approving reviews, stale-review dismissal, review-thread resolution
-    required), required_status_checks (`quality`, `tests`, `security`, `governance`) with strict
-    branch-currency policy. No bypass actors.
+    required), required_status_checks (`quality`, `tests`, `security`, `governance`,
+    `Sourcery review`) with strict branch-currency policy. No bypass actors. The live ruleset does
+    not yet require repository-owned `ai-review-gate`; Sourcery produced quota-driven `skipped`
+    evidence on PR #13 and is advisory in the intended policy.
   - Ruleset `main-approval-required` (`21698082`): pull_request (1 approving review). Bypass actor:
     ChatGPT/Codex integration (`actor_id: 1144995`, `bypass_mode: pull_request`).
   - The split ensures Codex can bypass the human-approval requirement but CANNOT bypass status
     checks, thread resolution, deletion, non-fast-forward, or linear history.
-- **Required closure:** satisfied — required checks and branch currency are enforced.
-- **Verification:** re-read both rulesets through the GitHub API on 2026-08-28; confirmed
-  `required_status_checks` and `strict_required_status_checks_policy: true` in ruleset 21644438
-  with no bypass actors, and Codex bypass limited to ruleset 21698082 (approval only).
-- **Compensating control:** none needed — server-side configuration verified.
+- **Required closure:** accepted ADR, repository rules, machine contract, governance tests, actual
+  Qodo and CodeRabbit evidence semantics, and the live ruleset must agree on `ai-review-gate`.
+- **Verification:** PR #13 observed Qodo review actor `qodo-code-review[bot]` (user ID 151058649,
+  app slug `qodo-code-review`) bound to head `aca9606cc6842c1282cb5c182efaef82fb6b2e64`
+  through review `commit_id`. A manually triggered CodeRabbit FULL review covered the same head but
+  no sufficiently verified machine-readable CodeRabbit current-head schema is yet encoded. Re-read
+  the live ruleset and exercise `ai-review-gate` on a new head before closure. PR #13 only installs
+  bootstrap infrastructure: its candidate evaluator is not trusted authority and cannot validate
+  this PR. Protected `main` must own the evaluator before an activation PR can exercise it.
+- **Compensating control:** fail closed. Safety-critical changes remain ineligible until independent
+  CodeRabbit evidence can be verified deterministically; no automatic degraded mode is approved.
+
+## GOV-GAP-002 — ai-review-gate issue_comment check SHA targeting
+
+- **Status:** OPEN
+- **Severity:** P1 governance
+- **Owner:** repository administrator
+- **Target milestone:** ai-review-gate activation
+- **Blocks:** ai-review-gate activation as required status check
+- **Current evidence:** GitHub `issue_comment` workflows use the last commit on the default branch as
+  `GITHUB_SHA`, not the PR head. The automatic Actions job check from `issue_comment` events is
+  therefore attached to the wrong SHA and cannot serve as the required `ai-review-gate` context for
+  branch protection. PR #13 adds `issue_comment` triggers as wake-up signals but does not implement
+  an explicit commit-status publisher that targets the verified PR head SHA. This is acceptable for
+  the bootstrap phase because `ai-review-gate` is `bootstrap_not_enforced` and no live ruleset
+  consumes it yet.
+- **Required closure:** implement a repository-owned status publisher using the GitHub commit-status
+  API (`POST /repos/{repository}/statuses/{verified_head_sha}`) with context `ai-review-gate`,
+  publishing `pending` before evaluation and `success` or `failure` after, always targeting the
+  authoritative PR head SHA from `GitHubEvidenceReader`. Handle head races, API exceptions, and
+  bounded descriptions. Rename the Actions job to `ai-review-gate-controller` so its automatic check
+  is not confused with the required gate context. Add `statuses: write` permission. Prove with
+  governance tests that the target SHA comes from the authoritative PR API, never from event
+  `GITHUB_SHA` or candidate-controlled input.
+- **Verification:** a separate activation PR must demonstrate the exact `ai-review-gate` status
+  context published against the correct PR head SHA, with fail-closed behavior for missing evidence,
+  head races, and API exceptions.
+- **Compensating control:** `ai-review-gate` is not a required status check. The four mandatory
+  first-party CI checks (`quality`, `tests`, `security`, `governance`) remain required. No merge
+  depends on `ai-review-gate` until GOV-GAP-002 is closed and GOV-GAP-001 is closed.
+
+## GOV-GAP-003 — ai-review-gate does not verify Qodo review-thread resolution
+
+- **Status:** OPEN
+- **Severity:** P1 governance
+- **Owner:** repository administrator
+- **Target milestone:** ai-review-gate activation
+- **Blocks:** ai-review-gate activation as a required status check
+- **Current evidence:** `evaluate()` marks `trusted_review` from a current-head Qodo review's
+  identity, state (`COMMENTED`), and `commit_id` only; `GitHubEvidenceReader.read()` never retrieves
+  review-thread resolution state. A current-head Qodo review with an unresolved Qodo-authored thread
+  therefore makes a non-safety-critical PR eligible — verified directly against `evaluate()` with a
+  synthetic current-head Qodo review and no thread state. Because the gate is repository-owned and
+  meant to be deterministic and independent of GitHub server configuration, it must not depend on
+  branch protection to enforce thread resolution once it becomes a required status check.
+- **Required closure:** `GitHubEvidenceReader.read()` retrieves review-thread resolution (for example
+  the GraphQL `reviewThreads { isResolved comments { author { login } } }`) and passes it to
+  `evaluate()`, which denies eligibility while any Qodo-authored review thread on the verified head is
+  unresolved. Prove with governance tests covering the resolved (accept) and unresolved (deny) cases.
+  Close together with GOV-GAP-001 and GOV-GAP-002 before activation.
+- **Verification:** the activation PR demonstrates that a current-head Qodo review with an unresolved
+  Qodo thread is rejected and the same review with every Qodo thread resolved is accepted.
+- **Compensating control:** the live `main-branch-protection` ruleset (`21644438`) independently
+  requires review-thread resolution for every conversation, so an unresolved Qodo thread blocks merge
+  today, and `ai-review-gate` is `bootstrap_not_enforced`. No merge depends on this gate until
+  GOV-GAP-001, GOV-GAP-002, and GOV-GAP-003 are closed.
 
 ## LEDGER-GAP-001 — R0 trust-spine integration remains incomplete
 
@@ -44,4 +108,3 @@ admission blockers are recorded with their owner, milestone, and release in
   conformance record.
 - **Compensating control:** none. The ledger slice may merge, but R0/M1 and target-facing execution
   remain blocked until closure evidence is attached.
-
