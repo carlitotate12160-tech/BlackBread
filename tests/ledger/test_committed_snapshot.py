@@ -176,7 +176,8 @@ async def test_cancellation_cleans_up_single_connection_pool(
     engagement: Engagement,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    constrained = create_async_engine(str(engine.url), pool_size=1, max_overflow=0)
+    database_url = engine.url.render_as_string(hide_password=False)
+    constrained = create_async_engine(database_url, pool_size=1, max_overflow=0)
     stream_entered = asyncio.Event()
     never_resume = asyncio.Event()
     _pause_connection_stream(monkeypatch, stream_entered, never_resume)
