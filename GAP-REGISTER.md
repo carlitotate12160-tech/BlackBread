@@ -11,18 +11,20 @@ admission blockers are recorded with their owner, milestone, and release in
 - **Owner:** repository administrator
 - **Target milestone:** M0 governance hardening
 - **Blocks:** R0 and every real-target release
-- **Current evidence:** the live ruleset is being consolidated into a single `main-branch-protection`
+- **Current evidence:** the live ruleset is consolidated into a single `main-branch-protection`
   (`21644438`) that requires deletion, non-fast-forward, required linear history, pull_request with
-  one human Code Owner approval, `require_last_push_approval`, review-thread resolution,
-  source-pinned required_status_checks (`quality`, `tests`, `security`, `governance`,
-  `GitGuardian Security Checks`), CodeQL code scanning (`high_or_higher` security alerts and `errors`
-  tool/analysis alerts), and strict branch currency. The legacy `main-approval-required` ruleset
-  (`21698082`) is retained only in `evaluate` mode as rollback evidence and no longer provides an
-  active bypass. `ai-review-gate` remains `bootstrap_not_enforced` and is not a required status check
-  until `GOV-GAP-001` through `GOV-GAP-005` are closed.
+  zero approving reviews (solo-developer mode: `require_code_owner_review: false`,
+  `require_last_push_approval: false`, `require_extra_approval_for_unattributed_changes: false`),
+  review-thread resolution, source-pinned required_status_checks (`quality`, `tests`, `security`,
+  `governance`, `GitGuardian Security Checks`), CodeQL code scanning (`high_or_higher` security
+  alerts and `errors` tool/analysis alerts), and strict branch currency. The legacy
+  `main-approval-required` ruleset (`21698082`) is retained only in `evaluate` mode as rollback
+  evidence and no longer provides an active bypass. `ai-review-gate` remains
+  `bootstrap_not_enforced` and is not a required status check until `GOV-GAP-001` through
+  `GOV-GAP-005` are closed.
 - **Required closure:** accepted ADR, repository rules, machine contract, governance tests, live
-  source-pinned status checks (including `GitGuardian Security Checks`), CodeQL code scanning, one
-  human Code Owner approval, actual Qodo and CodeRabbit evidence semantics, and the live ruleset must
+  source-pinned status checks (including `GitGuardian Security Checks`), CodeQL code scanning,
+  review-thread resolution, actual Qodo and CodeRabbit evidence semantics, and the live ruleset must
   agree on `ai-review-gate`.
 - **Verification:** PR #13 observed Qodo review actor `qodo-code-review[bot]` (user ID 151058649,
   app slug `qodo-code-review`) bound to head `aca9606cc6842c1282cb5c182efaef82fb6b2e64`

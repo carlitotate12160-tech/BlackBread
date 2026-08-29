@@ -4,12 +4,11 @@ The machine-readable contract is `.github/agent-delivery.json`. The repository r
 must enforce the following default path:
 
 - Pull request required.
-- **One human Code Owner approval is required.** `CODEOWNERS` names the repository owner and
-  `@speedup12160-spec` as Code Owners. The pull-request author cannot self-approve; another Code
-  Owner must review and approve every change. The final merge is performed manually by the repository
-  owner.
+- **Solo-developer mode: zero approving reviews required.** `CODEOWNERS` names the repository owner
+  and `@speedup12160-spec` as Code Owners, but Code Owner review is not enforced and
+  `require_last_push_approval` is disabled. The pull-request author may merge without a second
+  approving review. `require_extra_approval_for_unattributed_changes` is disabled.
 - Stale approvals are dismissed on new commits.
-- `require_last_push_approval` is enabled.
 - All review threads resolved and no `changes requested` review remaining.
 - The branch must be current before merge.
 - **No ruleset bypass actors.** Automation integrations may create commits, push a feature branch,
@@ -28,7 +27,7 @@ must enforce the following default path:
   activated.
 - **AI review:** Qodo review on the exact current head and CodeRabbit FULL review for safety-critical
   changes are mandatory parts of the review process, and every actionable AI-bot comment must be
-  dispositioned before a human Code Owner approval is given. The repository-owned `ai-review-gate`
+  dispositioned before merge. The repository-owned `ai-review-gate`
   is `bootstrap_not_enforced` and does not replace any first-party CI check. It is not a required
   status check until `GOV-GAP-001` through `GOV-GAP-005` are closed.
 - Linear history; branch deletion, force-push, direct push to `main`, and non-fast-forward updates
@@ -43,3 +42,12 @@ currency, and the human Code Owner approval gate.
 A governance-only change may merge when it closes a recorded governance blocker and there is no
 remaining blocking debt for the requested milestone or release. If GitHub denies an operation, the
 agent must stop and report the exact server-side constraint.
+
+## Solo-developer configuration
+
+This repository operates in solo-developer mode. The live `main-branch-protection` ruleset
+(`21644438`) enforces `required_approving_review_count: 0`,
+`require_code_owner_review: false`, `require_last_push_approval: false`,
+`require_extra_approval_for_unattributed_changes: false`, `dismiss_stale_reviews_on_push: true`,
+`require_review_thread_resolution: true`, and `allowed_merge_methods: ["squash"]`. The
+`CODEOWNERS` file is retained for reviewer auto-assignment but does not block merge.
