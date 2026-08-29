@@ -404,6 +404,7 @@ def test_agent_delivery_authority_is_explicit_and_fail_closed() -> None:
         "required_approving_reviews": 0,
         "require_code_owner_review": False,
         "require_last_push_approval": False,
+        "require_extra_approval_for_unattributed_changes": False,
         "dismiss_stale_reviews": True,
         "require_review_thread_resolution": True,
         "allow_changes_requested": False,
@@ -487,6 +488,18 @@ def test_agent_delivery_authority_is_explicit_and_fail_closed() -> None:
     assert "Sourcery is advisory" in review_setup
     assert "CodeRabbit auto-review" not in test_audit
     assert "CodeRabbit AI review runs in parallel" not in codeowners
+
+
+def test_solo_developer_governance_contract_matches_live_ruleset() -> None:
+    delivery_rules = (ROOT / ".devin/rules/blackbread.md").read_text(encoding="utf-8")
+    branch_protection = (ROOT / ".github/BRANCH-PROTECTION.md").read_text(encoding="utf-8")
+    gaps = (ROOT / "GAP-REGISTER.md").read_text(encoding="utf-8")
+
+    assert "require_extra_approval_for_unattributed_changes` is disabled" in delivery_rules
+    assert "human Code Owner approval gate" not in branch_protection
+    assert "kept in `evaluate` mode" not in branch_protection
+    assert "is disabled as rollback evidence" in branch_protection
+    assert "`main-approval-required` ruleset (`21698082`) is disabled" in gaps
 
 
 def test_ai_review_gate_issue_comment_wakeup_is_pr_scoped_and_read_only() -> None:
