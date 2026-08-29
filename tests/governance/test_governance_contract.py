@@ -490,11 +490,13 @@ def test_agent_delivery_authority_is_explicit_and_fail_closed() -> None:
     assert "CodeRabbit AI review runs in parallel" not in codeowners
 
 
-def test_solo_developer_governance_contract_matches_live_ruleset() -> None:
+def test_solo_developer_governance_documents_match_machine_contract() -> None:
+    delivery = load_delivery_contract()["agent_delivery"]
     delivery_rules = (ROOT / ".devin/rules/blackbread.md").read_text(encoding="utf-8")
     branch_protection = (ROOT / ".github/BRANCH-PROTECTION.md").read_text(encoding="utf-8")
     gaps = (ROOT / "GAP-REGISTER.md").read_text(encoding="utf-8")
 
+    assert delivery["require_extra_approval_for_unattributed_changes"] is False
     assert "require_extra_approval_for_unattributed_changes` is disabled" in delivery_rules
     assert "human Code Owner approval gate" not in branch_protection
     assert "kept in `evaluate` mode" not in branch_protection
