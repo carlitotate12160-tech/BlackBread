@@ -65,6 +65,15 @@ class Decision:
     reasons: tuple[str, ...]
 
 
+def _app_identity_ok(app: object) -> bool:
+    """Accept None (GitHub API may omit app info) or a matching app identity."""
+    if app is None:
+        return True
+    return (
+        isinstance(app, dict) and app.get("id") == QODO_APP_ID and app.get("slug") == QODO_APP_SLUG
+    )
+
+
 def _is_current_qodo_review(review: object, head_sha: str) -> bool:
     if not isinstance(review, dict):
         return False
@@ -75,9 +84,7 @@ def _is_current_qodo_review(review: object, head_sha: str) -> bool:
         and user.get("login") == QODO_LOGIN
         and user.get("id") == QODO_USER_ID
         and user.get("type") == "Bot"
-        and isinstance(app, dict)
-        and app.get("id") == QODO_APP_ID
-        and app.get("slug") == QODO_APP_SLUG
+        and _app_identity_ok(app)
         and review.get("state") in COMPLETED_QODO_STATES
         and review.get("commit_id") == head_sha
     )
@@ -94,9 +101,7 @@ def _is_current_qodo_issue_comment(comment: object, repository: str, head_sha: s
         and user.get("login") == QODO_LOGIN
         and user.get("id") == QODO_USER_ID
         and user.get("type") == "Bot"
-        and isinstance(app, dict)
-        and app.get("id") == QODO_APP_ID
-        and app.get("slug") == QODO_APP_SLUG
+        and _app_identity_ok(app)
         and isinstance(body, str)
     ):
         return False

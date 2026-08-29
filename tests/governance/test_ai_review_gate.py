@@ -61,6 +61,20 @@ def test_authenticated_current_head_qodo_issue_comment_is_eligible(
     assert evaluate(current_qodo_evidence).eligible
 
 
+def test_qodo_issue_comment_without_app_field_is_eligible(
+    current_qodo_evidence: dict[str, object],
+) -> None:
+    """GitHub API may omit performed_via_github_app for bot reviews."""
+    current_qodo_evidence["reviews"] = []
+    current_qodo_evidence["repository"] = REPOSITORY
+    comment = _qodo_issue_comment()
+    comment["performed_via_github_app"] = None
+    current_qodo_evidence["issue_comments"] = [comment]
+    current_qodo_evidence["review_threads"] = _resolved_threads()
+
+    assert evaluate(current_qodo_evidence).eligible
+
+
 @pytest.mark.parametrize(
     ("mutation"),
     [
@@ -68,7 +82,6 @@ def test_authenticated_current_head_qodo_issue_comment_is_eligible(
         lambda comment: comment["user"].update(id=1),
         lambda comment: comment["performed_via_github_app"].update(id=1),
         lambda comment: comment["performed_via_github_app"].update(slug="wrong-app"),
-        lambda comment: comment.update(performed_via_github_app=None),
         lambda comment: comment.update(body=QODO_MARKER.replace(HEAD, "0" * 40)),
         lambda comment: comment.update(body=QODO_MARKER.replace(HEAD, HEAD[:7])),
         lambda comment: comment.update(body=QODO_MARKER.replace(HEAD, "not-a-sha")),
@@ -83,7 +96,6 @@ def test_authenticated_current_head_qodo_issue_comment_is_eligible(
         "wrong-user-id",
         "wrong-app-id",
         "wrong-app-slug",
-        "missing-app",
         "stale-sha",
         "short-sha",
         "malformed-sha",
@@ -334,20 +346,24 @@ def test_qodo_app_slug_is_enforced(current_qodo_evidence: dict[str, object]) -> 
     [
         (lambda app: app.update(id=999999), "wrong-app-id"),
         (lambda app: app.pop("id", None), "missing-app-id"),
-        (lambda review: review.update(performed_via_github_app=None), "missing-app"),
     ],
-    ids=["wrong-app-id", "missing-app-id", "missing-app"],
+    ids=["wrong-app-id", "missing-app-id"],
 )
 def test_qodo_native_review_app_identity_fails_closed(
     current_qodo_evidence: dict[str, object], mutation: object, label: str
 ) -> None:
-    mutation(
-        current_qodo_evidence["reviews"][0]["performed_via_github_app"]
-        if label != "missing-app"
-        else current_qodo_evidence["reviews"][0]
-    )
+    mutation(current_qodo_evidence["reviews"][0]["performed_via_github_app"])
 
     assert not evaluate(current_qodo_evidence).eligible
+
+
+def test_qodo_native_review_without_app_field_is_eligible(
+    current_qodo_evidence: dict[str, object],
+) -> None:
+    """GitHub API may omit performed_via_github_app for bot reviews."""
+    current_qodo_evidence["reviews"][0]["performed_via_github_app"] = None
+
+    assert evaluate(current_qodo_evidence).eligible
 
 
 # ---------------------------------------------------------------------------
