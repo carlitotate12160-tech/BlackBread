@@ -10,6 +10,7 @@
     "required_approving_reviews": 0,
     "require_code_owner_review": false,
     "require_last_push_approval": false,
+    "require_extra_approval_for_unattributed_changes": false,
     "dismiss_stale_reviews": true,
     "require_review_thread_resolution": true,
     "allow_changes_requested": false,

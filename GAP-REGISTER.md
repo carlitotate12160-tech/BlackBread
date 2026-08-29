@@ -18,8 +18,8 @@ admission blockers are recorded with their owner, milestone, and release in
   review-thread resolution, source-pinned required_status_checks (`quality`, `tests`, `security`,
   `governance`, `GitGuardian Security Checks`), CodeQL code scanning (`high_or_higher` security
   alerts and `errors` tool/analysis alerts), and strict branch currency. The legacy
-  `main-approval-required` ruleset (`21698082`) is retained only in `evaluate` mode as rollback
-  evidence and no longer provides an active bypass. `ai-review-gate` remains
+  `main-approval-required` ruleset (`21698082`) is disabled and retained only as rollback evidence;
+  it has no enforcement effect and provides no active bypass. `ai-review-gate` remains
   `bootstrap_not_enforced` and is not a required status check until `GOV-GAP-001` through
   `GOV-GAP-005` are closed.
 - **Required closure:** accepted ADR, repository rules, machine contract, governance tests, live

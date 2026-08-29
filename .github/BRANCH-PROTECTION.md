@@ -11,7 +11,7 @@ must enforce the following default path:
 - Stale approvals are dismissed on new commits.
 - All review threads resolved and no `changes requested` review remaining.
 - The branch must be current before merge.
-- **No ruleset bypass actors.** Automation integrations may create commits, push a feature branch,
+- **No active ruleset bypass actors.** Automation integrations may create commits, push a feature branch,
   and update a pull request, but they may not bypass the approval, status-check, or thread-resolution
   gates, and they may not click the merge button. The repository owner is the only merge authority.
 - **Required status checks** (source-pinned):
@@ -33,11 +33,11 @@ must enforce the following default path:
 - Linear history; branch deletion, force-push, direct push to `main`, and non-fast-forward updates
   are blocked.
 
-The legacy ruleset `main-approval-required` is kept in `evaluate` mode only as rollback evidence. It
-must not provide an active bypass path. `GOV-GAP-001` remains open until the `ai-review-gate` is
+The legacy ruleset `main-approval-required` is disabled as rollback evidence. Its inactive
+configuration does not provide a bypass path. `GOV-GAP-001` remains open until the `ai-review-gate` is
 owned by protected `main`, exercised by a later activation PR, and the live ruleset is then updated
 while retaining the four mandatory first-party CI checks, `GitGuardian Security Checks`, branch
-currency, and the human Code Owner approval gate.
+currency, review-thread resolution, and the solo-developer zero-approval policy.
 
 A governance-only change may merge when it closes a recorded governance blocker and there is no
 remaining blocking debt for the requested milestone or release. If GitHub denies an operation, the
