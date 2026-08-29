@@ -2,9 +2,52 @@ from copy import deepcopy
 
 import pytest
 
-from blackbread.governance.ai_review_gate import evaluate
+from blackbread.governance.ai_review_gate import GitHubEvidenceReader, evaluate
 
 HEAD = "aca9606cc6842c1282cb5c182efaef82fb6b2e64"
+USER_AGENT = "BlackBread-ai-review-gate/1"
+
+
+def test_github_requests_use_repository_owned_user_agent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured_headers: list[dict[str, str]] = []
+
+    class Response:
+        status = 200
+
+        def read(self) -> bytes:
+            return b"{}"
+
+    class Connection:
+        def __init__(self, host: str, timeout: int) -> None:
+            assert host == "api.github.com"
+            assert timeout == 20
+
+        def request(
+            self,
+            method: str,
+            path: str,
+            body: bytes | None,
+            headers: dict[str, str],
+        ) -> None:
+            captured_headers.append(headers)
+
+        def getresponse(self) -> Response:
+            return Response()
+
+        def close(self) -> None:
+            pass
+
+    monkeypatch.setattr(
+        "blackbread.governance.ai_review_gate.http.client.HTTPSConnection", Connection
+    )
+    reader = GitHubEvidenceReader("owner/repository", 13, "token")
+
+    reader._request("https://api.github.com/repos/owner/repository/pulls/13")
+
+    assert captured_headers
+    assert all(headers["User-Agent"] == USER_AGENT for headers in captured_headers)
 
 
 @pytest.fixture

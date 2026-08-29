@@ -19,6 +19,7 @@ SHA_PATTERN = re.compile(r"[0-9a-f]{40}")
 PAGE_SIZE = 100
 HTTP_SUCCESS_MIN = 200
 HTTP_SUCCESS_MAX = 300
+GITHUB_API_USER_AGENT = "BlackBread-ai-review-gate/1"
 SAFETY_CRITICAL_PATH_PARTS = (
     "src/blackbread/ledger/",
     "src/blackbread/conductor/",
@@ -105,6 +106,7 @@ class GitHubEvidenceReader:
         headers = {
             "Accept": "application/vnd.github+json",
             "Authorization": f"Bearer {self.token}",
+            "User-Agent": GITHUB_API_USER_AGENT,
             "X-GitHub-Api-Version": "2022-11-28",
         }
         if body:
