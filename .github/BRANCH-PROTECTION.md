@@ -4,10 +4,10 @@ The machine-readable contract is `.github/agent-delivery.json`. The repository r
 must enforce the following default path:
 
 - Pull request required.
-- **One human Code Owner approval is required.** `CODEOWNERS` names the repository owner as the sole
-  Code Owner. The owner must manually review and approve every change; GitHub does not permit a
-  pull-request author to self-approve, so the owner may not author the final merge commit they also
-  approve. The final merge is performed manually by the repository owner.
+- **One human Code Owner approval is required.** `CODEOWNERS` names the repository owner and
+  `@speedup12160-spec` as Code Owners. The pull-request author cannot self-approve; another Code
+  Owner must review and approve every change. The final merge is performed manually by the repository
+  owner.
 - Stale approvals are dismissed on new commits.
 - `require_last_push_approval` is enabled.
 - All review threads resolved and no `changes requested` review remaining.
