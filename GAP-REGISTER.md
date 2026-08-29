@@ -90,17 +90,16 @@ admission blockers are recorded with their owner, milestone, and release in
 - **Owner:** repository administrator
 - **Target milestone:** ai-review-gate activation
 - **Blocks:** ai-review-gate activation as a required status check
-- **Current evidence:** the workflow has no `concurrency` group. Multiple
-  `pull_request_target`, `pull_request_review`, and `issue_comment` events can
-  trigger overlapping controller runs for the same unchanged head. An older run
-  that finishes last can overwrite a newer failure with success after evidence
-  was removed or a thread became unresolved. The SHA comparison only detects
-  commit changes, not changing review/thread evidence on the same SHA.
-- **Required closure:** add a `concurrency` group keyed by PR number with
-  `cancel-in-progress: false`, or implement timestamp-based status ordering so
-  older runs cannot overwrite newer decisions. Prove with governance tests.
-  Close together with GOV-GAP-001, GOV-GAP-002, and GOV-GAP-003 before
-  activation.
+- **Current evidence:** before PR-B1, live PR #21 produced overlapping controller
+  runs on the same head SHA: run `33265538553` executed from `17:24:14Z` to
+  `17:24:30Z`, while run `33265548636` executed from `17:24:27Z` to `17:24:43Z`.
+  PR-B1 adds a workflow-level `concurrency` group keyed by PR number with
+  `cancel-in-progress: false` and a deterministic governance contract assertion.
+  The candidate implementation is not protected-main live proof.
+- **Required closure:** merge the serialization mechanism, then demonstrate on a
+  separate live-activation PR that overlapping wake-up events for one PR are
+  serialized and cannot publish out-of-order decisions. Close together with
+  GOV-GAP-001, GOV-GAP-002, and GOV-GAP-003 before activation.
 - **Verification:** the live-activation PR demonstrates that overlapping runs
   do not produce conflicting status outcomes.
 - **Compensating control:** `ai-review-gate` is `bootstrap_not_enforced`. The

@@ -17,6 +17,10 @@ permissions:
 env:
   UV_VERSION: 0.8.11
 
+concurrency:
+  group: ai-review-gate-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: false
+
 jobs:
   ai-review-gate-controller:
     name: ai-review-gate-controller

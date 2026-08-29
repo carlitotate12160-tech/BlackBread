@@ -508,6 +508,12 @@ def test_ai_review_gate_issue_comment_wakeup_is_pr_scoped_and_read_only() -> Non
     workflow = load_ai_review_workflow()
     ai_review_job = workflow["jobs"]["ai-review-gate-controller"]
 
+    assert workflow["concurrency"] == {
+        "group": (
+            "ai-review-gate-${{ github.event.pull_request.number || github.event.issue.number }}"
+        ),
+        "cancel-in-progress": False,
+    }
     assert workflow["on"]["issue_comment"]["types"] == ["created", "edited", "deleted"]
     assert ai_review_job["if"] == (
         "github.event_name != 'issue_comment' || github.event.issue.pull_request != null"
