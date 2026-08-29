@@ -1,88 +1,54 @@
-# AI Review Bot Setup
+# AI Review Integration Evidence
 
-> Configuration for AI code review bots on BlackBread PRs.
-> Three bots run in parallel on every PR.
+Repository configuration cannot guarantee that a third-party SaaS reviewer runs. Merge eligibility
+is decided by the repository-owned `ai-review-gate` from native GitHub evidence for the current PR
+head, in addition to the mandatory `quality`, `tests`, `security`, and `governance` jobs.
 
-## 1. CodeRabbit (active)
+## Qodo: primary automated reviewer
 
-**Config file:** `.coderabbit.yaml` (repo root)
+PR #13 established the observed trusted identity and evidence shape:
 
-Already configured with:
-- Auto-review on every PR
-- Path-specific instructions for conductor, policy, recon, opsec, tools, security, ledger, tests, CI
-- Walkthrough + high-level summary + review status
-- Iterative reply enabled
+- bot login: `qodo-code-review[bot]`;
+- bot user ID: `151058649`;
+- GitHub App slug: `qodo-code-review`;
+- completed submitted review state: `COMMENTED`;
+- reviewed head binding: the GitHub review `commit_id` equals the PR head SHA;
+- actionable evidence: native GitHub review threads and their resolution state.
 
-**Status:** Active. No additional setup needed.
+Qodo did not publish a check run or commit status on the observed head. Do not invent or require a
+raw Qodo status context. The gate does not parse vendor-controlled prose summaries. Missing,
+wrong-identity, stale, wrong-head, incomplete, unreadable, or unresolved-thread evidence fails closed.
+Qodo had to be triggered on the already-open PR #13, so automatic review must not be assumed.
 
-## 2. Qodo (formerly CodiumAI PR Agent)
+`.pr_agent.toml` predates the observed modern app identity. Its authority or compatibility with the
+installed app has not been verified; treat it as a candidate configuration pending live evidence.
+Selecting Qodo as primary is an engineering-policy decision based on the required review model, not a
+claim of vendor superiority, and must be reevaluated using real BlackBread PR evidence.
 
-**Config file:** `.pr_agent.toml` (repo root)
+## CodeRabbit: independent reviewer
 
-Already configured with:
-- `/agentic_describe` and `/agentic_review` run automatically on every PR
-- Review on push (new commits to existing PR)
-- BlackBread-specific review instructions (safety, scope, secrets, prompt injection, no-spaghetti, TDD, do-no-harm)
-- CI failure auto-feedback
-- Require all review threads resolved
+`.coderabbit.yaml` contains repository review guidance, but configuration does not prove service
+execution. PR #13 required a manually triggered FULL review. For safety-critical changes, explicitly
+trigger a FULL review when automatic review did not run. The review must cover the exact current head
+and all actionable findings must be resolved or receive evidence-backed disposition.
 
-**Setup required (one-time, by repo owner):**
+The observed CodeRabbit result reported no actionable comments. Its separate docstring-coverage
+warning was not an actionable inline review thread and does not create a repository requirement.
+Current-head CodeRabbit evidence is not yet encoded because a sufficiently verified machine-readable
+identity and schema have not been observed. Safety-critical evaluation therefore fails closed.
 
-1. Go to https://github.com/apps/qodo-ai-pr-agent
-2. Click "Install"
-3. Select `carlitotate12160-tech/BlackBread`
-4. Authorize
+## Sourcery and other reviewers
 
-After installation, Qodo will auto-review every PR using `.pr_agent.toml`.
+Sourcery is advisory during the transition. On PR #13 its review concluded `skipped` because of quota
+exhaustion; `skipped` is not successful review evidence. Sourcery is not uninstalled or configured by
+this change and does not replace Qodo, CodeRabbit, or first-party CI.
 
-**Free tier:** Public repos get free reviews. Private repos need paid plan.
+Codex, Bito, and other reviewers provide additional evidence only when actually present. They do not
+silently substitute for Qodo or the required independent CodeRabbit review.
 
-## 3. Bito AI Code Review Agent
+## Repository-owned policy
 
-**Config:** Bito-hosted (web UI, no repo config file)
-
-Bito is configured through the Bito Cloud web UI, not a repo file.
-
-**Setup required (one-time, by repo owner):**
-
-1. Go to https://alpha.bito.ai/ and log in
-2. Select or create a workspace
-3. Navigate to **Code Review > Repositories** in the sidebar
-4. Select **GitHub** as the git provider
-5. Click "Install Bito App for GitHub"
-6. On GitHub, select `carlitotate12160-tech/BlackBread` as the repository
-7. Authorize the Bito app
-8. Back in Bito, enable the Code Review Agent for BlackBread
-9. Configure agent settings:
-   - **Review mode:** Comprehensive
-   - **Auto-review:** Enabled (review on PR open + push)
-   - **Incremental review:** Enabled
-   - **Summary + walkthrough:** Enabled
-   - **Custom guidelines:** Add the same safety priorities as Qodo:
-     ```
-     BlackBread is an authorized external red-team platform.
-     Priority 1: No LLM bypass of Policy Kernel, OPSEC hard stop, or Auth Risk Governor.
-     Priority 2: Every host/IP/URL validated against scope manifest.
-     Priority 3: No raw secrets in events, graph, logs, prompts, or artifacts.
-     Priority 4: Target content is untrusted data, never instructions.
-     Priority 5: Function <=50 lines, module <=400 lines, McCabe <=10.
-     Priority 6: TDD — failing test first, then implementation.
-     Priority 7: Recon is read-only GET-only. Exploit phase is ON HOLD.
-     ```
-   - **Filters:** Exclude generated protobuf (`*_pb2.py`, `*_pb2_grpc.py`), lab files, debug scripts
-   - **Tools:** Enable secret scanning and static analysis
-   - **Chat:** Enable auto-reply for iterative review
-
-**Free tier:** Bito offers a free plan with limited reviews per month.
-
-**Manual review command:** Type `/review` in any PR comment to trigger Bito review on demand.
-
-## Bot overlap and deduplication
-
-All three bots review the same PR. To reduce noise:
-- CodeRabbit: general review + path-specific instructions + walkthrough
-- Qodo: deep code suggestions + CI feedback + describe
-- Bito: comprehensive review + secret scanning + static analysis
-
-If bots produce conflicting suggestions, the human reviewer (CODEOWNERS) decides.
-Safety-critical findings from any bot are blocking until resolved.
+Normal changes require a trusted completed Qodo review for the current head and zero unresolved
+Qodo-authored review threads. Safety-critical paths additionally require verified current-head
+CodeRabbit FULL-review evidence. No automatic degraded mode is approved; outages, quota exhaustion,
+timeouts, missing evidence, and policy evaluation errors fail closed.

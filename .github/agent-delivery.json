@@ -19,7 +19,7 @@
       "quality",
       "security",
       "tests",
-      "Sourcery review"
+      "ai-review-gate"
     ],
     "allow_blocking_debt": false,
     "ruleset_bypass_actor_type": "Integration",

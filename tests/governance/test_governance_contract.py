@@ -169,6 +169,13 @@ def load_workflow() -> dict[str, object]:
     return yaml.safe_load(quoted)
 
 
+def load_ai_review_workflow() -> dict[str, object]:
+    path = ROOT / ".github/workflows/ai-review-gate.yml"
+    text = path.read_text(encoding="utf-8")
+    quoted = re.sub(r"^on:", '"on":', text, count=1, flags=re.MULTILINE)
+    return yaml.safe_load(quoted)
+
+
 def load_delivery_contract() -> dict[str, object]:
     path = ROOT / ".github/agent-delivery.json"
     return json.loads(path.read_text(encoding="utf-8"))
@@ -363,11 +370,13 @@ def test_ci_uses_composite_actions_and_safety_script() -> None:
 
 def test_unenforced_branch_checks_are_recorded_as_release_blocker() -> None:
     gaps = (ROOT / "GAP-REGISTER.md").read_text(encoding="utf-8")
+    governance_gap = gaps.split("## GOV-GAP-001", maxsplit=1)[1].split(
+        "## LEDGER-GAP-001", maxsplit=1
+    )[0]
 
-    assert "GOV-GAP-001" in gaps
-    assert "**Status:** CLOSED" in gaps
-    assert "**Severity:** P0 governance" in gaps
-    assert "**Blocks:** R0 and every real-target release" in gaps
+    assert "**Status:** OPEN" in governance_gap
+    assert "**Severity:** P0 governance" in governance_gap
+    assert "**Blocks:** R0 and every real-target release" in governance_gap
 
 
 def test_agent_delivery_authority_is_explicit_and_fail_closed() -> None:
@@ -387,13 +396,7 @@ def test_agent_delivery_authority_is_explicit_and_fail_closed() -> None:
         "allow_changes_requested": False,
         "require_ai_bot_comment_disposition": True,
         "require_branch_up_to_date": True,
-        "required_status_checks": [
-            "governance",
-            "quality",
-            "security",
-            "tests",
-            "Sourcery review",
-        ],
+        "required_status_checks": ["governance", "quality", "security", "tests", "ai-review-gate"],
         "allow_blocking_debt": False,
         "ruleset_bypass_actor_type": "Integration",
         "ruleset_bypass_actor_id": 1144995,
@@ -408,13 +411,14 @@ def test_agent_delivery_authority_is_explicit_and_fail_closed() -> None:
 
     required_checks = set(delivery["required_status_checks"])
     assert {"governance", "quality", "security", "tests"} <= required_checks
-    assert "Sourcery review" in required_checks
+    assert "ai-review-gate" in required_checks
+    assert "Sourcery review" not in required_checks
 
     delivery_rules = (ROOT / ".devin/rules/blackbread.md").read_text(encoding="utf-8")
     branch_protection = (ROOT / ".github/BRANCH-PROTECTION.md").read_text(encoding="utf-8")
     for content in (delivery_rules, branch_protection):
         assert "mandatory first-party CI" in content
-        assert "`Sourcery review`" in content
+        assert "`ai-review-gate`" in content
         assert "does not replace" in content
 
     documents = (
@@ -434,7 +438,25 @@ def test_agent_delivery_authority_is_explicit_and_fail_closed() -> None:
     assert "actor_id: 1144995" in gaps
     assert "21644438" in gaps
     assert "21698082" in gaps
-    assert "**Status:** CLOSED" in gaps
+    governance_gap = gaps.split("## GOV-GAP-001", maxsplit=1)[1].split(
+        "## LEDGER-GAP-001", maxsplit=1
+    )[0]
+    assert "**Status:** OPEN" in governance_gap
+
+    workflow = load_ai_review_workflow()
+    ai_review_job = workflow["jobs"]["ai-review-gate"]
+    assert ai_review_job["name"] == "ai-review-gate"
+    assert "pull_request_review" in workflow["on"]
+    assert "pull_request_review_thread" in workflow["on"]
+    assert "if" not in ai_review_job
+
+    review_setup = (ROOT / "docs/AI-REVIEW-SETUP.md").read_text(encoding="utf-8")
+    test_audit = (ROOT / "TEST-AUDIT.md").read_text(encoding="utf-8")
+    codeowners = (ROOT / ".github/CODEOWNERS").read_text(encoding="utf-8")
+    assert "qodo-code-review[bot]" in review_setup
+    assert "Sourcery is advisory" in review_setup
+    assert "CodeRabbit auto-review" not in test_audit
+    assert "CodeRabbit AI review runs in parallel" not in codeowners
 
 
 def test_bootstrap_table_is_registered_in_model_metadata() -> None:

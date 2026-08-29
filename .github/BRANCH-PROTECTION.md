@@ -8,7 +8,7 @@ must enforce the following default path:
 - All review threads resolved and no `changes requested` review remaining.
 - The branch must be current before merge.
 - Required status checks: mandatory first-party CI `quality`, `tests`, `security`, and `governance`,
-  plus the blocking third-party `Sourcery review` check. Sourcery does not replace first-party CI.
+  plus the repository-owned `ai-review-gate`. AI review does not replace first-party CI.
 - Linear history; branch deletion, force-push, direct push to `main`, and non-fast-forward updates
   blocked.
 
@@ -27,7 +27,7 @@ merge without repeated confirmation. Its bypass is transport authority only and 
 entry in `.github/agent-delivery.json`. In particular, the agent must:
 
 - validate the complete changed tree and expected head SHA;
-- require all four mandatory first-party CI checks and `Sourcery review` green for that SHA;
+- require all four mandatory first-party CI checks and `ai-review-gate` green for that SHA;
 - evaluate and reply to every AI-bot comment, fixing valid findings;
 - require every applicable review thread resolved;
 - require at least one approving review and no `changes requested` review;
@@ -39,6 +39,6 @@ A governance-only change may merge when it closes a recorded governance blocker.
 operation, the agent must stop and report the exact server-side constraint.
 
 The workflow alone does not make checks blocking, and repository prose cannot configure a GitHub
-ruleset. The active ruleset response is release evidence. Until all four first-party CI checks,
-`Sourcery review`, and the up-to-date requirement are visible in ruleset `21644438`, `GOV-GAP-001`
-blocks R0 and every later release.
+ruleset. The active ruleset response is release evidence. `GOV-GAP-001` remains open until all four
+first-party CI checks, `ai-review-gate`, and the up-to-date requirement are independently verified in
+the live protected-main ruleset with actual current-head reviewer evidence semantics.
