@@ -2,9 +2,9 @@
 # CodeRabbit is a separately configured reviewer; service execution is verified per PR.
 
 # Default: require review for all changes
-* @carlitotate12160-tech
+* @carlitotate12160-tech @speedup12160-spec
 
 # Safety-critical paths — highlight in review
-/.devin/         @carlitotate12160-tech
-/.coderabbit.yaml @carlitotate12160-tech
-/.github/        @carlitotate12160-tech
+/.devin/         @carlitotate12160-tech @speedup12160-spec
+/.coderabbit.yaml @carlitotate12160-tech @speedup12160-spec
+/.github/        @carlitotate12160-tech @speedup12160-spec
