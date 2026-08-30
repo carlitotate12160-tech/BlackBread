@@ -123,6 +123,20 @@ def test_legacy_function_allowance_does_not_move_between_scopes() -> None:
     ) == ["src/blackbread/example.py:Container.repeated: 4 lines exceeds protected allowance 3"]
 
 
+def test_unique_scoped_legacy_function_may_remain_unchanged() -> None:
+    caps = QualityCaps(production_module=400, function=3, test_module=500)
+    source = (
+        "class Container:\n"
+        "    def existing():\n"
+        "        one = 1\n"
+        "        two = 2\n"
+        "        return one + two\n"
+    )
+    files = {"src/blackbread/example.py": source}
+
+    assert evaluate_size_budget(files, files, caps) == []
+
+
 def _workflow(path: str) -> dict[str, object]:
     source = (ROOT / path).read_text(encoding="utf-8")
     quoted = re.sub(r"^on:", '"on":', source, count=1, flags=re.MULTILINE)
