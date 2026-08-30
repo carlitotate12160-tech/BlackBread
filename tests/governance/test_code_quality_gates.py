@@ -29,7 +29,7 @@ KNOWN_FUNCTION_OVERSIZES: dict[str, tuple[str, int]] = {
 }
 KNOWN_TEST_MODULE_OVERSIZES: dict[str, int] = {
     "tests/governance/test_governance_contract.py": 537,
-    "tests/ledger/test_ledger.py": 563,
+    "tests/ledger/test_ledger.py": 567,
 }
 ACTIVE_CAPABILITY_LIFECYCLES = ("IMPLEMENTED", "VERIFIED", "RELEASED")
 

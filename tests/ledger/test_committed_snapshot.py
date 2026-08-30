@@ -13,6 +13,11 @@ from sqlalchemy.ext.asyncio import (
 
 from blackbread.ledger import EventDraft, append_event, verify_chain
 from blackbread.models.core import Engagement
+from blackbread.tenancy import TenantContext, bind_tenant_context
+
+
+async def _bind(binder: AsyncSession, tenant_id: str) -> None:
+    await bind_tenant_context(binder, TenantContext(tenant_id))
 
 
 def _draft(engagement: Engagement, marker: str) -> EventDraft:
@@ -32,8 +37,13 @@ async def _seed(
 ) -> list[str]:
     hashes: list[str] = []
     async with factory() as session:
+        await _bind(session, engagement.tenant_id)
         for sequence in range(1, count + 1):
-            event_record = await append_event(session, _draft(engagement, f"seed-{sequence}"))
+            event_record = await append_event(
+                session,
+                _draft(engagement, f"seed-{sequence}"),
+                tenant_context=TenantContext(engagement.tenant_id),
+            )
             hashes.append(event_record.event_hash)
         await session.commit()
     return hashes
@@ -69,7 +79,12 @@ async def test_uncommitted_append_does_not_block_or_enter_snapshot(
 
     async def writer() -> None:
         async with session_factory() as session:
-            await append_event(session, _draft(engagement, "uncommitted"))
+            await _bind(session, engagement.tenant_id)
+            await append_event(
+                session,
+                _draft(engagement, "uncommitted"),
+                tenant_context=TenantContext(engagement.tenant_id),
+            )
             flushed.set()
             await release.wait()
             await session.rollback()
@@ -113,7 +128,12 @@ async def test_commit_during_verification_is_excluded_from_exact_snapshot(
     await asyncio.wait_for(stream_entered.wait(), timeout=2)
 
     async with session_factory() as writer:
-        fourth = await append_event(writer, _draft(engagement, "committed-during-verification"))
+        await _bind(writer, engagement.tenant_id)
+        fourth = await append_event(
+            writer,
+            _draft(engagement, "committed-during-verification"),
+            tenant_context=TenantContext(engagement.tenant_id),
+        )
         await asyncio.wait_for(writer.commit(), timeout=2)
     assert not verification.done()
 

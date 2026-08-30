@@ -5,7 +5,7 @@ from sqlalchemy import (
     BigInteger,
     CheckConstraint,
     DateTime,
-    ForeignKey,
+    ForeignKeyConstraint,
     Integer,
     String,
     Text,
@@ -36,10 +36,16 @@ class PlatformMetadata(Base):
 class Client(Base):
     __tablename__ = "clients"
     __table_args__ = (
+        UniqueConstraint("id", "tenant_id", name="uq_clients_id_tenant_id"),
         CheckConstraint("char_length(btrim(name)) > 0", name="ck_clients_name_not_blank"),
+        CheckConstraint(
+            "char_length(btrim(tenant_id)) > 0",
+            name="ck_clients_tenant_not_blank",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -52,6 +58,12 @@ class Engagement(Base):
     __tablename__ = "engagements"
     __table_args__ = (
         UniqueConstraint("id", "tenant_id", name="uq_engagements_id_tenant_id"),
+        ForeignKeyConstraint(
+            ["client_id", "tenant_id"],
+            ["clients.id", "clients.tenant_id"],
+            name="fk_engagements_client_tenant",
+            ondelete="RESTRICT",
+        ),
         CheckConstraint(
             "char_length(btrim(tenant_id)) > 0",
             name="ck_engagements_tenant_not_blank",
@@ -76,7 +88,7 @@ class Engagement(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     client_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("clients.id", ondelete="RESTRICT"),
+        UUID(as_uuid=True),
         nullable=False,
         index=True,
     )
