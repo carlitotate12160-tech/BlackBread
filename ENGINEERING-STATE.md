@@ -8,21 +8,21 @@ and never overrides live GitHub, accepted architecture, delivery policy, tests, 
 * **State:** ACTIVE
 * **Current milestone:** M1 — Trust Spine
 * **Last verified:** 2026-08-30 UTC
-* **Protected main:** `f40d7204a1890dfdaceb1163cab6408424a64031`
-* **Last merged PR:** `#23` — M1: verify ledger from a committed PostgreSQL snapshot
-* **Merged PR head (pre-squash):** `dc0d8d77187886c04dad55428394ddea1f148143`
-* **Squash-merge commit:** `f40d7204a1890dfdaceb1163cab6408424a64031`
+* **Protected main:** `ae30871106ae671c42c81904abe51c2cc3754a05`
+* **Last merged PRs:** `#24` (cross-session continuity + ENGINEERING-STATE.md), `#25` (ai-review-gate bot-comment filter)
+* **Squash-merge commits:** `b3880d19ffb04832c8a3c17461c3d1fdb021f3dd` (#24), `ae30871106ae671c42c81904abe51c2cc3754a05` (#25)
 * **Active ruleset:** `main-branch-protection` (`21644438`)
-* **AI review gate state:** `bootstrap_not_enforced`
+* **AI review gate state:** `bootstrap_not_enforced` (bot-comment cascade fixed in #25)
 
 These values are checkpoints to verify, not facts to trust without querying live GitHub.
 
 ## Current decision
 
-PR #23, "M1: verify ledger from a committed PostgreSQL snapshot," has been squash-merged into
-protected `main` as `f40d7204a1890dfdaceb1163cab6408424a64031`. Post-merge first-party CI
-(`CI`, `Push on main`) is verified green on `f40d720`. The bootstrap `AI Review Gate` failure is
-expected and not a blocker (`bootstrap_not_enforced`).
+PR #24 (cross-session continuity protocol and ENGINEERING-STATE.md) and PR #25 (ai-review-gate
+bot-comment filter) have been squash-merged into protected `main`. Post-merge first-party CI
+(`CI`, `Push on main`) is verified green on `ae30871`. The ai-review-gate bot-comment cascade is
+resolved: bot `created`/`edited` issue comments are filtered, bot `deleted` events still trigger
+fail-closed re-evaluation.
 
 A failure from the non-required bootstrap ai-review-gate is not by itself a merge blocker. Do not
 modify ai-review-gate as part of any M1 implementation slice.
