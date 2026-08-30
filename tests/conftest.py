@@ -3,6 +3,7 @@ import base64
 import os
 import subprocess
 import sys
+import uuid
 from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 
@@ -182,13 +183,13 @@ async def create_engagement(
     client: Client | None = None,
     status: str = "created",
 ) -> Engagement:
-    """Insert an engagement under its own transaction-bound tenant context."""
+    """Insert a tenant-owned client and engagement under the bound tenant context."""
 
+    await bind_tenant(session, tenant_id)
     if client is None:
-        client = Client(name="acme")
+        client = Client(name="acme", tenant_id=tenant_id)
         session.add(client)
         await session.flush()
-    await bind_tenant(session, tenant_id)
     engagement = Engagement(client_id=client.id, tenant_id=tenant_id, status=status)
     session.add(engagement)
     await session.flush()
@@ -197,9 +198,12 @@ async def create_engagement(
 
 @pytest_asyncio.fixture
 async def engagement(session: AsyncSession) -> Engagement:
-    client = Client(name="acme")
+    client_id = uuid.uuid4()
+    tenant_id = str(client_id)
+    await bind_tenant(session, tenant_id)
+    client = Client(id=client_id, name="acme", tenant_id=tenant_id)
     session.add(client)
     await session.flush()
-    record = await create_engagement(session, str(client.id), client=client)
+    record = await create_engagement(session, tenant_id, client=client)
     await session.commit()
     return record

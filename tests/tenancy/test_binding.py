@@ -84,14 +84,16 @@ async def test_tenant_transaction_rolls_back_and_clears_on_error(
 ) -> None:
     engagement = await _new_engagement(session_factory, "tenant-a")
 
-    class _Boom(RuntimeError):
+    class _BoomError(RuntimeError):
         pass
 
     async with session_factory() as session:
-        with pytest.raises(_Boom):
+        with pytest.raises(_BoomError):
             async with tenant_transaction(session, TenantContext("tenant-a")) as bound:
-                await append_event(bound, _draft(engagement, "doomed"), tenant_context=TenantContext("tenant-a"))
-                raise _Boom
+                await append_event(
+                    bound, _draft(engagement, "doomed"), tenant_context=TenantContext("tenant-a")
+                )
+                raise _BoomError
         leaked = (await session.execute(TENANT_SETTING)).scalar_one()
         assert leaked in (None, "")
 
@@ -113,11 +115,15 @@ async def test_tenant_transaction_cancellation_releases_pool(
     release = asyncio.Event()
 
     async def worker() -> None:
-        async with factory() as session:
-            async with tenant_transaction(session, TenantContext("tenant-a")) as bound:
-                await append_event(bound, _draft(engagement, "cancelled"), tenant_context=TenantContext("tenant-a"))
-                entered.set()
-                await release.wait()
+        async with (
+            factory() as session,
+            tenant_transaction(session, TenantContext("tenant-a")) as bound,
+        ):
+            await append_event(
+                bound, _draft(engagement, "cancelled"), tenant_context=TenantContext("tenant-a")
+            )
+            entered.set()
+            await release.wait()
 
     try:
         task = asyncio.create_task(worker())
@@ -131,9 +137,7 @@ async def test_tenant_transaction_cancellation_releases_pool(
             count = (
                 await session.execute(select(func.count()).select_from(Engagement))
             ).scalar_one()
-            leaked = (
-                await session.execute(text("SELECT count(*) FROM agent_events"))
-            ).scalar_one()
+            leaked = (await session.execute(text("SELECT count(*) FROM agent_events"))).scalar_one()
         assert count == 1
         assert leaked == 0
         assert pinned.pool.checkedout() == 0

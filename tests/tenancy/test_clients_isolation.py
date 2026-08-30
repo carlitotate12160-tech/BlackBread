@@ -26,8 +26,7 @@ async def test_clients_force_row_level_security(session: AsyncSession) -> None:
     row = (
         await session.execute(
             text(
-                "SELECT relrowsecurity, relforcerowsecurity "
-                "FROM pg_class WHERE relname = 'clients'"
+                "SELECT relrowsecurity, relforcerowsecurity FROM pg_class WHERE relname = 'clients'"
             )
         )
     ).one()

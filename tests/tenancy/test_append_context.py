@@ -1,3 +1,4 @@
+import uuid
 from datetime import UTC, datetime
 
 import pytest
@@ -69,8 +70,6 @@ async def test_append_requires_explicit_context() -> None:
 async def test_append_context_unavailable_engagement_still_raises_access_error(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    import uuid
-
     async with session_factory() as session:
         draft = EventDraft(
             tenant_id="tenant-a",
@@ -93,8 +92,6 @@ async def test_direct_protected_write_without_context_fails_closed(
     async with session_factory() as session:
         await session.execute(text("SELECT 1"))
         anchor = (
-            await session.execute(
-                select(Engagement.id).where(Engagement.id == engagement.id)
-            )
+            await session.execute(select(Engagement.id).where(Engagement.id == engagement.id))
         ).one_or_none()
     assert anchor is None

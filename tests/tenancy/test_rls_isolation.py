@@ -19,10 +19,10 @@ TENANT_SETTING = text("SELECT current_setting('blackbread.tenant_id', true)")
 
 async def _new_engagement(factory: async_sessionmaker[AsyncSession], tenant_id: str) -> Engagement:
     async with factory() as session:
-        client = Client(name="acme")
+        await bind_tenant_context(session, TenantContext(tenant_id))
+        client = Client(name="acme", tenant_id=tenant_id)
         session.add(client)
         await session.flush()
-        await bind_tenant_context(session, TenantContext(tenant_id))
         engagement = Engagement(client_id=client.id, tenant_id=tenant_id, status="created")
         session.add(engagement)
         await session.commit()
@@ -47,7 +47,11 @@ async def _append_events(
     async with factory() as session:
         await bind_tenant_context(session, TenantContext(engagement.tenant_id))
         for index in range(count):
-            await append_event(session, _draft(engagement, f"e{index}"))
+            await append_event(
+                session,
+                _draft(engagement, f"e{index}"),
+                tenant_context=TenantContext(engagement.tenant_id),
+            )
         await session.commit()
 
 
@@ -107,10 +111,10 @@ async def test_cross_tenant_insert_is_denied(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     async with session_factory() as session:
-        client = Client(name="acme")
+        await bind_tenant_context(session, TenantContext("tenant-a"))
+        client = Client(name="acme", tenant_id="tenant-a")
         session.add(client)
         await session.flush()
-        await bind_tenant_context(session, TenantContext("tenant-a"))
         session.add(Engagement(client_id=client.id, tenant_id="tenant-b", status="created"))
         with pytest.raises(DBAPIError):
             await session.flush()
@@ -188,7 +192,9 @@ async def test_same_tenant_append_advances_anchor_under_rls(
     engagement = await _new_engagement(session_factory, "tenant-a")
     async with session_factory() as session:
         await bind_tenant_context(session, TenantContext("tenant-a"))
-        event = await append_event(session, _draft(engagement, "first"))
+        event = await append_event(
+            session, _draft(engagement, "first"), tenant_context=TenantContext("tenant-a")
+        )
         await session.commit()
 
     async with session_factory() as session:
@@ -229,8 +235,39 @@ async def test_tenant_transaction_binds_and_commits(
         session_factory() as session,
         tenant_transaction(session, TenantContext("tenant-a")) as bound,
     ):
-        await append_event(bound, _draft(engagement, "tx"))
+        await append_event(
+            bound, _draft(engagement, "tx"), tenant_context=TenantContext("tenant-a")
+        )
     async with session_factory() as session:
         await bind_tenant_context(session, TenantContext("tenant-a"))
         count = (await session.execute(text("SELECT count(*) FROM agent_events"))).scalar_one()
     assert count == 1
+
+
+async def test_cross_tenant_event_cannot_advance_other_tenant_head(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    victim = await _new_engagement(session_factory, "tenant-a")
+    forged = EventDraft(
+        tenant_id="tenant-b",
+        engagement_id=victim.id,
+        schema_name="test.rls",
+        schema_version=1,
+        producer="attacker",
+        payload={"marker": "forged"},
+        occurred_at=datetime.now(UTC),
+    )
+    async with session_factory() as session:
+        await bind_tenant_context(session, TenantContext("tenant-b"))
+        with pytest.raises(LedgerAccessError):
+            await append_event(session, forged, tenant_context=TenantContext("tenant-b"))
+        await session.rollback()
+
+    async with session_factory() as session:
+        await bind_tenant_context(session, TenantContext("tenant-a"))
+        anchor = (
+            await session.execute(
+                select(Engagement.ledger_event_count).where(Engagement.id == victim.id)
+            )
+        ).scalar_one()
+    assert anchor == 0

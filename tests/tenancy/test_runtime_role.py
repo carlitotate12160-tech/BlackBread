@@ -56,9 +56,7 @@ async def test_isolatable_runtime_role_passes(admin_session: AsyncSession) -> No
 async def test_runtime_login_is_not_superuser_and_lacks_bypassrls(session: AsyncSession) -> None:
     row = (
         await session.execute(
-            text(
-                "SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user"
-            )
+            text("SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user")
         )
     ).one()
     assert row.rolsuper is False

@@ -46,7 +46,21 @@ def _draft(engagement: Engagement, marker: str) -> EventDraft:
 
 async def _append(session: AsyncSession, engagement: Engagement, marker: str) -> AgentEvent:
     await _bind(session, engagement.tenant_id)
-    return await append_event(session, _draft(engagement, marker))
+    return await append_event(
+        session, _draft(engagement, marker), tenant_context=TenantContext(engagement.tenant_id)
+    )
+
+
+async def _seed_engagement(factory: async_sessionmaker[AsyncSession], tenant_id: str) -> Engagement:
+    async with factory() as setup:
+        await _bind(setup, tenant_id)
+        client = Client(name="acme", tenant_id=tenant_id)
+        setup.add(client)
+        await setup.flush()
+        engagement = Engagement(client_id=client.id, tenant_id=tenant_id)
+        setup.add(engagement)
+        await setup.commit()
+        return engagement
 
 
 async def _corrupt(session: AsyncSession, statement: object) -> None:
@@ -94,7 +108,7 @@ async def test_mutated_source_payload_cannot_bypass_validated_snapshot(
     source["oversized"] = "x" * 1_048_577
 
     await _bind(session, engagement.tenant_id)
-    event = await append_event(session, draft)
+    event = await append_event(session, draft, tenant_context=TenantContext(engagement.tenant_id))
     await session.commit()
 
     assert event.payload == {"marker": "validated"}
@@ -116,7 +130,7 @@ async def test_mapping_and_stable_float_round_trip_through_jsonb(
         occurred_at=datetime.now(UTC),
     )
     await _bind(session, engagement.tenant_id)
-    event = await append_event(session, draft)
+    event = await append_event(session, draft, tenant_context=TenantContext(engagement.tenant_id))
     event_id = event.id
     await session.commit()
     session.expunge_all()
@@ -211,7 +225,7 @@ async def test_append_and_verify_fail_closed_for_wrong_tenant(
     )
 
     with pytest.raises(LedgerAccessError):
-        await append_event(session, wrong)
+        await append_event(session, wrong, tenant_context=TenantContext("tenant-other"))
     with pytest.raises(LedgerAccessError):
         await verify_chain(
             engine,
@@ -237,6 +251,7 @@ async def test_missing_engagement_fails_closed(
                 payload={"marker": "x"},
                 occurred_at=datetime.now(UTC),
             ),
+            tenant_context=TenantContext("tenant-a"),
         )
     with pytest.raises(LedgerAccessError):
         await verify_chain(
@@ -250,28 +265,22 @@ async def test_two_engagements_have_independent_chains(
     engine: AsyncEngine,
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    async with session_factory() as setup:
-        client = Client(name="acme")
-        setup.add(client)
-        await setup.flush()
-        await _bind(setup, "tenant-a")
-        eng_a = Engagement(client_id=client.id, tenant_id="tenant-a")
-        setup.add(eng_a)
-        await setup.flush()
-        await _bind(setup, "tenant-b")
-        eng_b = Engagement(client_id=client.id, tenant_id="tenant-b")
-        setup.add(eng_b)
-        await setup.commit()
+    eng_a = await _seed_engagement(session_factory, "tenant-a")
+    eng_b = await _seed_engagement(session_factory, "tenant-b")
 
     async with session_factory() as active:
         await _bind(active, "tenant-a")
         for marker in ("a1", "a2"):
-            await append_event(active, _draft(eng_a, marker))
+            await append_event(
+                active, _draft(eng_a, marker), tenant_context=TenantContext("tenant-a")
+            )
         await active.commit()
 
     async with session_factory() as active:
         await _bind(active, "tenant-b")
-        first_b = await append_event(active, _draft(eng_b, "b1"))
+        first_b = await append_event(
+            active, _draft(eng_b, "b1"), tenant_context=TenantContext("tenant-b")
+        )
         await active.commit()
         assert first_b.sequence == 1
         assert first_b.prev_event_hash == GENESIS_PREV_HASH
@@ -295,19 +304,14 @@ async def test_concurrent_appends_serialize_without_gaps(
     engine: AsyncEngine,
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    async with session_factory() as setup:
-        client = Client(name="acme")
-        setup.add(client)
-        await setup.flush()
-        await _bind(setup, "tenant-c")
-        engagement = Engagement(client_id=client.id, tenant_id="tenant-c")
-        setup.add(engagement)
-        await setup.commit()
+    engagement = await _seed_engagement(session_factory, "tenant-c")
 
     async def append_one(marker: str) -> None:
         async with session_factory() as active:
             await _bind(active, "tenant-c")
-            await append_event(active, _draft(engagement, marker))
+            await append_event(
+                active, _draft(engagement, marker), tenant_context=TenantContext("tenant-c")
+            )
             await active.commit()
 
     await asyncio.gather(*(append_one(f"m{index}") for index in range(10)))
