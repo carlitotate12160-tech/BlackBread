@@ -34,6 +34,20 @@ class ChainVerification:
         return self.verified_event_count
 
 
+@dataclass(frozen=True, slots=True)
+class _LedgerAnchor:
+    event_count: int
+    head_hash: str
+
+
+@dataclass(frozen=True, slots=True)
+class _ChainScan:
+    event_count: int
+    head_hash: str
+    broken_at_sequence: int | None = None
+    reason: str | None = None
+
+
 def _first_failure(
     event: AgentEvent,
     expected_sequence: int,
@@ -67,16 +81,15 @@ def _first_failure(
     return None
 
 
-async def _verify_in_snapshot(
+async def _load_anchor(
     connection: AsyncConnection,
     *,
     tenant_id: str,
     engagement_id: UUID,
-) -> ChainVerification:
+) -> _LedgerAnchor:
     anchor = (
         await connection.execute(
             select(
-                Engagement.tenant_id,
                 Engagement.ledger_event_count,
                 Engagement.ledger_head_hash,
             ).where(
@@ -87,7 +100,18 @@ async def _verify_in_snapshot(
     ).one_or_none()
     if anchor is None:
         raise LedgerAccessError("engagement is unavailable for the requested tenant")
+    return _LedgerAnchor(
+        event_count=anchor.ledger_event_count,
+        head_hash=anchor.ledger_head_hash,
+    )
 
+
+async def _scan_chain(
+    connection: AsyncConnection,
+    *,
+    tenant_id: str,
+    engagement_id: UUID,
+) -> _ChainScan:
     statement = (
         select(AgentEvent.__table__)
         .where(
@@ -112,12 +136,9 @@ async def _verify_in_snapshot(
                 expected_prev,
             )
             if failure is not None:
-                return ChainVerification(
-                    ok=False,
-                    tenant_id=tenant_id,
-                    engagement_id=engagement_id,
-                    verified_event_count=event_count,
-                    verified_head_hash=None,
+                return _ChainScan(
+                    event_count=event_count,
+                    head_hash=expected_prev,
                     broken_at_sequence=event.sequence,
                     reason=failure,
                 )
@@ -125,33 +146,76 @@ async def _verify_in_snapshot(
             expected_sequence += 1
     finally:
         await stream.close()
+    return _ChainScan(event_count=event_count, head_hash=expected_prev)
 
-    if event_count != anchor.ledger_event_count:
+
+def _snapshot_result(
+    scan: _ChainScan,
+    anchor: _LedgerAnchor,
+    *,
+    tenant_id: str,
+    engagement_id: UUID,
+) -> ChainVerification:
+    if scan.reason is not None:
         return ChainVerification(
             ok=False,
             tenant_id=tenant_id,
             engagement_id=engagement_id,
-            verified_event_count=event_count,
+            verified_event_count=scan.event_count,
             verified_head_hash=None,
-            broken_at_sequence=min(event_count, anchor.ledger_event_count) + 1,
+            broken_at_sequence=scan.broken_at_sequence,
+            reason=scan.reason,
+        )
+    if scan.event_count != anchor.event_count:
+        return ChainVerification(
+            ok=False,
+            tenant_id=tenant_id,
+            engagement_id=engagement_id,
+            verified_event_count=scan.event_count,
+            verified_head_hash=None,
+            broken_at_sequence=min(scan.event_count, anchor.event_count) + 1,
             reason="anchored event count mismatch",
         )
-    if expected_prev != anchor.ledger_head_hash:
+    if scan.head_hash != anchor.head_hash:
         return ChainVerification(
             ok=False,
             tenant_id=tenant_id,
             engagement_id=engagement_id,
-            verified_event_count=event_count,
+            verified_event_count=scan.event_count,
             verified_head_hash=None,
-            broken_at_sequence=event_count or None,
+            broken_at_sequence=scan.event_count or None,
             reason="anchored head hash mismatch",
         )
     return ChainVerification(
         ok=True,
         tenant_id=tenant_id,
         engagement_id=engagement_id,
-        verified_event_count=event_count,
-        verified_head_hash=expected_prev,
+        verified_event_count=scan.event_count,
+        verified_head_hash=scan.head_hash,
+    )
+
+
+async def _verify_in_snapshot(
+    connection: AsyncConnection,
+    *,
+    tenant_id: str,
+    engagement_id: UUID,
+) -> ChainVerification:
+    anchor = await _load_anchor(
+        connection,
+        tenant_id=tenant_id,
+        engagement_id=engagement_id,
+    )
+    scan = await _scan_chain(
+        connection,
+        tenant_id=tenant_id,
+        engagement_id=engagement_id,
+    )
+    return _snapshot_result(
+        scan,
+        anchor,
+        tenant_id=tenant_id,
+        engagement_id=engagement_id,
     )
 
 
