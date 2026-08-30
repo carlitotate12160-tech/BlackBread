@@ -1,5 +1,6 @@
 import asyncio
 from collections.abc import Sequence
+from dataclasses import replace
 
 import pytest
 from sqlalchemy import text
@@ -14,7 +15,7 @@ from sqlalchemy.ext.asyncio import (
 
 from blackbread.graph import persistence
 from blackbread.graph.domain import GraphProjectionError, ProjectionNotFoundError
-from blackbread.graph.persistence import load_scope_projection
+from blackbread.graph.persistence import load_scope_projection, publish_scope_projection
 from blackbread.graph.replay import rebuild_scope_projection
 from blackbread.ledger import LedgerAccessError
 from blackbread.ledger.event import AgentEvent
@@ -256,6 +257,59 @@ async def test_postgresql_row_order_cannot_change_loaded_state_root(
 
     assert loaded.projection == expected
     assert loaded.projection.state_root == expected.state_root
+
+
+async def test_publication_rejects_head_hash_not_bound_to_verified_sequence(
+    engine: AsyncEngine,
+    session: AsyncSession,
+    engagement: Engagement,
+    graph_events,
+) -> None:
+    await graph_events.append(session, engagement, graph_events.attestation())
+    original = await rebuild_scope_projection(
+        engine, tenant_id=engagement.tenant_id, engagement_id=engagement.id
+    )
+    await graph_events.append(session, engagement, graph_events.stopped)
+    forged = replace(
+        original,
+        verified_event_count=2,
+        verified_head_hash="f" * 64,
+    )
+
+    with pytest.raises(GraphProjectionError, match="ledger anchor"):
+        await publish_scope_projection(engine, forged)
+
+    stored = await load_scope_projection(
+        engine, tenant_id=engagement.tenant_id, engagement_id=engagement.id
+    )
+    assert stored.projection == original
+    assert stored.is_current is False
+
+
+async def test_publication_rejects_anchor_ahead_of_committed_ledger(
+    engine: AsyncEngine,
+    session: AsyncSession,
+    engagement: Engagement,
+    graph_events,
+) -> None:
+    event = await graph_events.append(session, engagement, graph_events.attestation())
+    original = await rebuild_scope_projection(
+        engine, tenant_id=engagement.tenant_id, engagement_id=engagement.id
+    )
+    forged = replace(
+        original,
+        verified_event_count=2,
+        verified_head_hash=event.event_hash,
+    )
+
+    with pytest.raises(GraphProjectionError, match="ledger anchor"):
+        await publish_scope_projection(engine, forged)
+
+    stored = await load_scope_projection(
+        engine, tenant_id=engagement.tenant_id, engagement_id=engagement.id
+    )
+    assert stored.projection == original
+    assert stored.is_current is True
 
 
 async def test_projection_corruption_fails_closed_and_is_not_repaired(

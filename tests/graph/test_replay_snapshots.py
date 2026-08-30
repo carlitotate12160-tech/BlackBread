@@ -113,6 +113,10 @@ async def test_networkx_rebuild_matches_persisted_canonical_projection(
         (attributes["scope_kind"], attributes["canonical_value"])
         for _, attributes in graph.nodes(data=True)
     } == {(node.scope_kind, node.canonical_value) for node in stored.projection.nodes}
+    assert {
+        (attributes["tenant_id"], attributes["engagement_id"])
+        for _, attributes in graph.nodes(data=True)
+    } == {(engagement.tenant_id, engagement.id)}
     assert nx.is_frozen(graph)
     with pytest.raises(nx.NetworkXError):
         graph.add_node("mutation")

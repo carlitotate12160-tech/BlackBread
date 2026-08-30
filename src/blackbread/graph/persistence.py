@@ -51,6 +51,10 @@ _DELETE_NODES = text(
 )
 _ANCHOR = "SELECT ledger_event_count, ledger_head_hash FROM engagements WHERE tenant_id = "
 _ANCHOR += ":tenant_id AND id = :engagement_id"
+_EVENT_HASH = text(
+    "SELECT event_hash FROM agent_events WHERE tenant_id = :tenant_id "
+    "AND engagement_id = :engagement_id AND sequence = :sequence"
+)
 
 
 class _ProjectionStore:
@@ -67,6 +71,23 @@ class _ProjectionStore:
 
     async def node_rows(self) -> list[RowMapping]:
         return list((await self.connection.execute(_SELECT_NODES, self.key)).mappings().all())
+
+    async def validate_anchor(
+        self,
+        projection: ScopeProjection,
+        current: tuple[int, str],
+    ) -> None:
+        count = projection.verified_event_count
+        if count < 1 or count > current[0]:
+            raise GraphProjectionError("projection ledger anchor is invalid")
+        expected_hash = current[1]
+        if count < current[0]:
+            expected_hash = await self.connection.scalar(
+                _EVENT_HASH,
+                {**self.key, "sequence": count},
+            )
+        if projection.verified_head_hash != expected_hash:
+            raise GraphProjectionError("projection ledger anchor is invalid")
 
     @staticmethod
     def node(row: RowMapping, graph_version: int) -> ScopeRoot:
@@ -113,6 +134,7 @@ class _ProjectionStore:
         if projection.state_root != self.root(projection):
             raise GraphProjectionError("projection state root is invalid")
         anchor = await self.anchor(lock=True)
+        await self.validate_anchor(projection, anchor)
         try:
             existing = (await self.read(anchor)).projection
         except ProjectionNotFoundError:
