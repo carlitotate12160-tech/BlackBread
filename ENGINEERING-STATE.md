@@ -8,8 +8,8 @@ and never overrides live GitHub, accepted architecture, delivery policy, tests, 
 * **State:** ACTIVE
 * **Current milestone:** M1 — Trust Spine
 * **Last verified:** 2026-08-30 UTC
-* **Protected main baseline:** `bcf713f02f10e42cbda90e91f9a246dc57db0d8d`
-* **Last merged PR:** `#26` (governance: update ENGINEERING-STATE.md after PR #24 and #25 merge)
+* **Protected main baseline:** `38a6982b98dd44afcae47aa7354ae3907b127977`
+* **Last merged PR:** `#27` (governance: remove repository-owned AI review gate)
 * **Active ruleset:** `main-branch-protection` (`21644438`)
 * **Contractual gate:** first-party CI (`quality`, `tests`, `security`, `governance`) +
   `GitGuardian Security Checks` + review-thread resolution + branch currency (live ruleset
@@ -19,15 +19,15 @@ These values are checkpoints to verify, not facts to trust without querying live
 
 ## Current decision
 
-An in-flight governance slice removes the repository-owned AI-review gate apparatus (its workflow,
-its evaluator, `docs/AI-REVIEW-SETUP.md`, and the four activation sub-gaps). For a solo-developer
-repository the gate enforced nothing and produced a persistent failing check plus cascading
-`issue_comment` runs — pure noise. Qodo and CodeRabbit remain active advisory reviewers whose
-actionable comments must still be dispositioned before merge. Enforcement is the four first-party CI
-checks, `GitGuardian Security Checks`, and protected-main review-thread resolution.
+PR #27 has been squash-merged into protected `main`. The repository-owned AI review gate
+apparatus (its workflow, its evaluator, `docs/AI-REVIEW-SETUP.md`, `tests/governance/test_ai_review_gate.py`,
+and the four activation sub-gaps) is removed. For a solo-developer repository the gate enforced
+nothing and produced a persistent failing check plus cascading `issue_comment` runs — pure noise.
+Qodo and CodeRabbit remain active advisory reviewers whose actionable comments must still be
+dispositioned before merge. Enforcement is the four first-party CI checks, `GitGuardian Security
+Checks`, and protected-main review-thread resolution.
 
-This is a governance-only slice; it does not touch M1 trust-spine code. Verify its merge state on
-live GitHub before relying on it.
+This was a governance-only slice; it did not touch M1 trust-spine code.
 
 ## Next selected slice
 
