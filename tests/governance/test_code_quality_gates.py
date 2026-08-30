@@ -28,7 +28,7 @@ KNOWN_FUNCTION_OVERSIZES: dict[str, tuple[str, int]] = {
     "append_event": ("src/blackbread/ledger/append.py", 55),
 }
 KNOWN_TEST_MODULE_OVERSIZES: dict[str, int] = {
-    "tests/governance/test_governance_contract.py": 537,
+    "tests/governance/test_governance_contract.py": 535,
     "tests/ledger/test_ledger.py": 567,
 }
 ACTIVE_CAPABILITY_LIFECYCLES = ("IMPLEMENTED", "VERIFIED", "RELEASED")

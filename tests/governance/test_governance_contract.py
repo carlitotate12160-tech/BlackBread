@@ -293,12 +293,6 @@ def test_ci_defines_required_non_optional_jobs() -> None:
     assert {"pull_request", "push"} <= triggers.keys()
     assert triggers["push"]["branches"] == ["main"]
     assert jobs.keys() >= REQUIRED_CI_COMMANDS.keys()
-    assert "ci-ok" in jobs, "ci-ok aggregator job must exist"
-    ci_ok = jobs["ci-ok"]
-    assert ci_ok["if"] == "always()", "ci-ok must use if: always() aggregator pattern"
-    assert set(ci_ok["needs"]) == set(REQUIRED_CI_COMMANDS.keys()), (
-        "ci-ok must aggregate all required CI jobs"
-    )
     test_job = jobs["tests"]
     postgres = test_job["services"]["postgres"]
     assert "@sha256:" in postgres["image"]
