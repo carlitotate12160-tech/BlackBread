@@ -90,8 +90,9 @@ jobs:
   # to REQUIRED_CI_COMMANDS in test_governance_contract.py — the governance
   # test enforces that every required job appears in ci-ok.needs.
   #
-  # Semantics: `skipped` is a PASS (path-gated lanes legitimately skip);
-  # `failure` and `cancelled` are FAILs.
+  # Semantics: every needed job must report `success`. `failure`,
+  # `cancelled`, and `skipped` are all FAILs — no current job is path-gated,
+  # so a skip indicates a misconfiguration, not an intentional pass.
   ci-ok:
     name: ci-ok
     if: always()
@@ -99,13 +100,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
-      - name: Verify no needed job failed or was cancelled
+      - name: Verify every needed job succeeded
         env:
           RESULTS: ${{ toJSON(needs) }}
         run: |
           echo "$RESULTS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
-          bad=$(echo "$RESULTS" | jq -r '[to_entries[] | select(.value.result == "failure" or .value.result == "cancelled")] | length')
+          bad=$(echo "$RESULTS" | jq -r '[to_entries[] | select(.value.result != "success")] | length')
           if [ "$bad" != "0" ]; then
-            echo "::error::$bad required job(s) failed or were cancelled."
+            echo "::error::$bad required job(s) did not succeed (failed, cancelled, or skipped)."
             exit 1
           fi

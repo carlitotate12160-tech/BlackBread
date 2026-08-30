@@ -127,18 +127,23 @@ def test_no_noqa_without_code() -> None:
     """`# noqa` without a rule code is banned.
 
     Accepted forms: `# noqa: F401`, `# noqa: F401,E501`, `# noqa(F401)`.
-    Rejected: `# noqa` (bare), `# noqa: ` (no code after colon).
+    Rejected: `# noqa` (bare), `# noqa: ` (no code after colon),
+    `# noqa E501` (missing colon/paren), `# NOQA` (case variant without code).
+    Matching is case-insensitive on the `noqa` keyword but requires a
+    colon or paren followed by at least one word character.
     """
-    code_pattern = re.compile(r"^\s*[:\(]\s*\w+")
+    code_pattern = re.compile(r"^\s*[:\(]\s*\w+", re.IGNORECASE)
     offenders: list[tuple[str, int]] = []
     for path in _iter_python_files(SRC):
         for i, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-            stripped = line.split("# noqa", 1)
-            if len(stripped) == 2:
-                after = stripped[1]
-                if not code_pattern.match(after):
-                    rel = path.relative_to(ROOT).as_posix()
-                    offenders.append((rel, i))
+            lower = line.lower()
+            idx = lower.find("# noqa")
+            if idx == -1:
+                continue
+            after = line[idx + len("# noqa") :]
+            if not code_pattern.match(after):
+                rel = path.relative_to(ROOT).as_posix()
+                offenders.append((rel, i))
     assert not offenders, f"Bare `# noqa` without code: {offenders}"
 
 
@@ -211,7 +216,11 @@ def test_no_todo_without_issue_link() -> None:
 
 
 def test_no_if_true_else_false_pattern() -> None:
-    """`if cond: return True else: return False` is AI-slop — use `return cond`."""
+    """`if cond: return True else: return False` is AI-slop.
+
+    Accepted fix: `return bool(cond)` when boolean normalization is needed.
+    The bare `return cond` is only safe when cond is already boolean-typed.
+    """
     offenders: list[tuple[str, int]] = []
     for path in _iter_python_files(SRC):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
