@@ -504,13 +504,16 @@ def test_solo_developer_governance_documents_match_machine_contract() -> None:
     assert "`main-approval-required` ruleset (`21698082`) is disabled" in gaps
 
 
-def test_ai_review_gate_issue_comment_wakeup_is_pr_scoped_and_read_only() -> None:
+def test_ai_review_gate_issue_comment_wakeup_is_pr_scoped_and_filters_bots() -> None:
     workflow = load_ai_review_workflow()
     ai_review_job = workflow["jobs"]["ai-review-gate-controller"]
 
     assert workflow["on"]["issue_comment"]["types"] == ["created", "edited", "deleted"]
     assert ai_review_job["if"] == (
-        "github.event_name != 'issue_comment' || github.event.issue.pull_request != null"
+        "github.event_name != 'issue_comment' || "
+        "(github.event.issue.pull_request != null && "
+        "(github.event.comment.user.type != 'Bot' || "
+        "github.event.action == 'deleted'))"
     )
     assert workflow["permissions"] == {
         "contents": "read",

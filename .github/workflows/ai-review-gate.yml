@@ -20,7 +20,7 @@ env:
 jobs:
   ai-review-gate-controller:
     name: ai-review-gate-controller
-    if: github.event_name != 'issue_comment' || github.event.issue.pull_request != null
+    if: github.event_name != 'issue_comment' || (github.event.issue.pull_request != null && (github.event.comment.user.type != 'Bot' || github.event.action == 'deleted'))
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
