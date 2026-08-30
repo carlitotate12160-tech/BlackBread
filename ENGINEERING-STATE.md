@@ -40,7 +40,7 @@ modify ai-review-gate as part of any M1 implementation slice.
 
 * validated explicit tenant context;
 * transaction-local binding;
-* PostgreSQL RLS for existing protected tenant tables;
+* PostgreSQL RLS for existing protected tenant tables (engagements, agent_events, clients);
 * missing-context denial;
 * cross-tenant read and write denial;
 * pooled-connection context cleanup;

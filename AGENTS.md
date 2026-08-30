@@ -66,9 +66,10 @@ Obey repository authority in this order:
 2. accepted decisions in ADR-FINAL-002.md;
 3. PRD.md;
 4. .devin/rules/blackbread.md;
-5. config/capability-registry.json and schemas;
-6. applicable repository skills, including .devin/skills/build-blackbread-agent/SKILL.md;
-7. tests, readmes, derived summaries, and history.
+5. GAP-REGISTER.md (blocker status and closure evidence);
+6. config/capability-registry.json and schemas;
+7. applicable repository skills, including .devin/skills/build-blackbread-agent/SKILL.md;
+8. tests, readmes, derived summaries, and history.
 
 Load .github/agent-delivery.json before any branch, push, pull request, or merge operation. Lower
 authority may strengthen but never weaken higher authority. If authorities or live GitHub rules
