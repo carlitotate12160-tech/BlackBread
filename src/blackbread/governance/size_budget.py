@@ -35,6 +35,13 @@ class QualityCaps:
         return (self.production_module, self.function, self.test_module)
 
 
+@dataclass(frozen=True, slots=True)
+class _FunctionRecord:
+    qualified_name: str
+    length: int
+    fingerprint: str
+
+
 def cap_increases(base: QualityCaps, head: QualityCaps) -> list[str]:
     names = ("production_module", "function", "test_module")
     return [
@@ -51,12 +58,18 @@ def _line_count(source: str) -> int:
 class _FunctionCollector(ast.NodeVisitor):
     def __init__(self) -> None:
         self._scope: list[str] = []
-        self.lengths: list[tuple[str, int]] = []
+        self.records: list[_FunctionRecord] = []
 
     def _visit_function(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
         end_line = node.end_lineno or node.lineno
         qualified_name = ".".join([*self._scope, node.name])
-        self.lengths.append((qualified_name, end_line - node.lineno + 1))
+        self.records.append(
+            _FunctionRecord(
+                qualified_name=qualified_name,
+                length=end_line - node.lineno + 1,
+                fingerprint=ast.dump(node, include_attributes=False),
+            )
+        )
         self._scope.append(node.name)
         self.generic_visit(node)
         self._scope.pop()
@@ -73,11 +86,11 @@ class _FunctionCollector(ast.NodeVisitor):
         self._scope.pop()
 
 
-def _function_lengths(source: str, path: str) -> list[tuple[str, int]]:
+def _function_records(source: str, path: str) -> list[_FunctionRecord]:
     tree = ast.parse(source, filename=path)
     collector = _FunctionCollector()
     collector.visit(tree)
-    return collector.lengths
+    return collector.records
 
 
 def _module_violation(
@@ -100,30 +113,44 @@ def _function_violations(
     base_source: str | None,
     cap: int,
 ) -> list[str]:
-    current = _function_lengths(source, path)
-    base = _function_lengths(base_source, path) if base_source is not None else []
-    base_by_name: dict[str, list[int]] = {}
+    current = _function_records(source, path)
+    base = _function_records(base_source, path) if base_source is not None else []
+    base_by_name: dict[str, list[_FunctionRecord]] = {}
     current_counts: dict[str, int] = {}
-    for name, length in base:
-        base_by_name.setdefault(name, []).append(length)
-    for name, _length in current:
+    for record in base:
+        base_by_name.setdefault(record.qualified_name, []).append(record)
+    for record in current:
+        name = record.qualified_name
         current_counts[name] = current_counts.get(name, 0) + 1
 
     seen: dict[str, int] = {}
     violations: list[str] = []
-    for name, length in current:
+    available = {name: list(records) for name, records in base_by_name.items()}
+    for record in current:
+        name = record.qualified_name
         occurrence = seen.get(name, 0)
         seen[name] = occurrence + 1
-        protected = (
-            base_by_name.get(name, [])
-            if current_counts[name] == 1 and len(base_by_name.get(name, [])) == 1
-            else []
-        )
-        allowed = max(cap, protected[occurrence] if occurrence < len(protected) else 0)
-        if length > allowed:
+        candidates = available.get(name, [])
+        protected = 0
+        if current_counts[name] == 1 and len(candidates) == 1:
+            protected = candidates.pop().length
+        else:
+            match = next(
+                (
+                    index
+                    for index, candidate in enumerate(candidates)
+                    if candidate.fingerprint == record.fingerprint
+                ),
+                None,
+            )
+            if match is not None:
+                protected = candidates.pop(match).length
+        allowed = max(cap, protected)
+        if record.length > allowed:
             suffix = f"#{occurrence + 1}" if current_counts[name] > 1 else ""
             violations.append(
-                f"{path}:{name}{suffix}: {length} lines exceeds protected allowance {allowed}"
+                f"{path}:{name}{suffix}: {record.length} lines exceeds "
+                f"protected allowance {allowed}"
             )
     return violations
 

@@ -99,10 +99,30 @@ def test_new_duplicate_function_does_not_reuse_legacy_allowance() -> None:
         {"src/blackbread/example.py": base},
         {"src/blackbread/example.py": head},
         caps,
-    ) == [
-        "src/blackbread/example.py:repeated#1: 4 lines exceeds protected allowance 3",
-        "src/blackbread/example.py:repeated#2: 4 lines exceeds protected allowance 3",
-    ]
+    ) == ["src/blackbread/example.py:repeated#2: 4 lines exceeds protected allowance 3"]
+
+
+def test_unchanged_legacy_duplicate_functions_keep_distinct_allowances() -> None:
+    caps = QualityCaps(production_module=400, function=3, test_module=500)
+    source = (
+        "def repeated():\n    one = 1\n    two = 2\n    return one + two\n"
+        "\n\ndef repeated():\n    three = 3\n    four = 4\n    return three + four\n"
+    )
+    files = {"src/blackbread/example.py": source}
+
+    assert evaluate_size_budget(files, files, caps) == []
+
+
+def test_unrelated_duplicate_cannot_take_original_allowance() -> None:
+    caps = QualityCaps(production_module=400, function=3, test_module=500)
+    base = "def repeated():\n    one = 1\n    two = 2\n    return one + two\n"
+    head = f"def repeated():\n    wrong = 1\n    code = 2\n    return wrong - code\n\n\n{base}"
+
+    assert evaluate_size_budget(
+        {"src/blackbread/example.py": base},
+        {"src/blackbread/example.py": head},
+        caps,
+    ) == ["src/blackbread/example.py:repeated#1: 4 lines exceeds protected allowance 3"]
 
 
 def test_legacy_function_allowance_does_not_move_between_scopes() -> None:
