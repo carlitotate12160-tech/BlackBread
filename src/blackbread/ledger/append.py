@@ -15,9 +15,21 @@ from blackbread.ledger.hashing import (
     compute_payload_hash,
 )
 from blackbread.models.core import Engagement
+from blackbread.tenancy import TenantContext, bind_tenant_context
+from blackbread.tenancy.errors import TenantContextError
 
 
-async def append_event(session: AsyncSession, draft: EventDraft) -> AgentEvent:
+async def _establish_tenant_context(
+    session: AsyncSession,
+    draft: EventDraft,
+    tenant_context: TenantContext,
+) -> None:
+    if tenant_context.tenant_id != draft.tenant_id:
+        raise TenantContextError("tenant context does not match the event draft tenant")
+    await bind_tenant_context(session, tenant_context)
+
+
+async def _lock_engagement(session: AsyncSession, draft: EventDraft) -> Engagement:
     engagement = (
         await session.execute(
             select(Engagement)
@@ -30,8 +42,11 @@ async def append_event(session: AsyncSession, draft: EventDraft) -> AgentEvent:
     ).scalar_one_or_none()
     if engagement is None:
         raise LedgerAccessError("engagement is unavailable for the requested tenant")
+    return engagement
 
-    last = (
+
+async def _last_event(session: AsyncSession, draft: EventDraft) -> AgentEvent | None:
+    return (
         await session.execute(
             select(AgentEvent)
             .where(
@@ -43,9 +58,9 @@ async def append_event(session: AsyncSession, draft: EventDraft) -> AgentEvent:
         )
     ).scalar_one_or_none()
 
+
+def _build_event(draft: EventDraft, sequence: int, prev_event_hash: str) -> AgentEvent:
     payload = draft.materialize_payload()
-    sequence = 1 if last is None else last.sequence + 1
-    prev_event_hash = GENESIS_PREV_HASH if last is None else last.event_hash
     event = AgentEvent(
         id=uuid.uuid4(),
         engagement_id=draft.engagement_id,
@@ -68,6 +83,21 @@ async def append_event(session: AsyncSession, draft: EventDraft) -> AgentEvent:
         redaction_refs=list(draft.redaction_refs),
     )
     event.event_hash = compute_event_hash(event)
+    return event
+
+
+async def append_event(
+    session: AsyncSession,
+    draft: EventDraft,
+    *,
+    tenant_context: TenantContext,
+) -> AgentEvent:
+    await _establish_tenant_context(session, draft, tenant_context)
+    engagement = await _lock_engagement(session, draft)
+    last = await _last_event(session, draft)
+    sequence = 1 if last is None else last.sequence + 1
+    prev_event_hash = GENESIS_PREV_HASH if last is None else last.event_hash
+    event = _build_event(draft, sequence, prev_event_hash)
     session.add(event)
     await session.flush()
     await session.refresh(engagement)

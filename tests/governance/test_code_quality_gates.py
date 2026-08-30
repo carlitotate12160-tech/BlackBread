@@ -19,8 +19,34 @@ ROOT = Path(__file__).parents[2]
 SRC = ROOT / "src" / "blackbread"
 TESTS = ROOT / "tests"
 
+PRODUCTION_MODULE_MAX_LINES = 400
 PRODUCTION_MODULE_WARNING_LINES = 320
+FUNCTION_MAX_LINES = 50
+TEST_MODULE_MAX_LINES = 500
+
+KNOWN_FUNCTION_OVERSIZES: dict[str, tuple[str, int]] = {
+    "append_event": ("src/blackbread/ledger/append.py", 55),
+}
+KNOWN_TEST_MODULE_OVERSIZES: dict[str, int] = {
+    "tests/governance/test_governance_contract.py": 537,
+    "tests/ledger/test_ledger.py": 567,
+}
 ACTIVE_CAPABILITY_LIFECYCLES = ("IMPLEMENTED", "VERIFIED", "RELEASED")
+
+
+def _count_lines(path: Path) -> int:
+    return sum(1 for _line in path.read_text(encoding="utf-8").splitlines())
+
+
+def _function_lengths(path: Path) -> list[tuple[str, int]]:
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    results: list[tuple[str, int]] = []
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            end_line = getattr(node, "end_lineno", node.lineno)
+            length = end_line - node.lineno + 1
+            results.append((node.name, length))
+    return results
 
 
 def _iter_python_files(base: Path) -> list[Path]:
@@ -88,6 +114,53 @@ def _iter_test_functions(base: Path) -> Iterator[tuple[str, str]]:
                 "test_"
             ):
                 yield (node.name, rel)
+
+
+def test_production_modules_under_line_limit() -> None:
+    """Production modules must stay under 400 lines or carry a documented exception."""
+    offenders: list[tuple[str, int]] = []
+    for path in _iter_python_files(SRC):
+        if "__pycache__" in path.parts:
+            continue
+        lines = _count_lines(path)
+        if lines > PRODUCTION_MODULE_MAX_LINES:
+            rel = path.relative_to(ROOT).as_posix()
+            offenders.append((rel, lines))
+    assert not offenders, (
+        f"Production modules exceed {PRODUCTION_MODULE_MAX_LINES} lines: {offenders}"
+    )
+
+
+def test_functions_under_line_limit() -> None:
+    """Functions must stay under 50 lines per AGENTS.md anti-god-object controls."""
+    offenders: list[tuple[str, str, int]] = []
+    for path in _iter_python_files(SRC):
+        if "__pycache__" in path.parts:
+            continue
+        for name, length in _function_lengths(path):
+            if length > FUNCTION_MAX_LINES:
+                rel = path.relative_to(ROOT).as_posix()
+                known = KNOWN_FUNCTION_OVERSIZES.get(name)
+                if known and known[0] == rel and known[1] >= length:
+                    continue
+                offenders.append((rel, name, length))
+    assert not offenders, f"Functions exceed {FUNCTION_MAX_LINES} lines: {offenders}"
+
+
+def test_test_modules_under_line_limit() -> None:
+    """Test modules must stay under 500 lines to prevent oversized test files."""
+    offenders: list[tuple[str, int]] = []
+    for path in _iter_python_files(TESTS):
+        if "__pycache__" in path.parts or path.name == "conftest.py":
+            continue
+        lines = _count_lines(path)
+        if lines > TEST_MODULE_MAX_LINES:
+            rel = path.relative_to(ROOT).as_posix()
+            known = KNOWN_TEST_MODULE_OVERSIZES.get(rel)
+            if known and known >= lines:
+                continue
+            offenders.append((rel, lines))
+    assert not offenders, f"Test modules exceed {TEST_MODULE_MAX_LINES} lines: {offenders}"
 
 
 def test_no_duplicate_test_names() -> None:

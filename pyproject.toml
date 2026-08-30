@@ -78,6 +78,7 @@ include = [
   "blackbread.identity.*",
   "blackbread.ledger.*",
   "blackbread.security.*",
+  "blackbread.tenancy.*",
 ]
 
 [tool.bandit]
