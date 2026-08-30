@@ -8,8 +8,8 @@ and never overrides live GitHub, accepted architecture, delivery policy, tests, 
 * **State:** ACTIVE
 * **Current milestone:** M1 — Trust Spine
 * **Last verified:** 2026-08-30 UTC
-* **Protected main baseline:** `38a6982b98dd44afcae47aa7354ae3907b127977`
-* **Last merged PR:** `#27` (governance: remove repository-owned AI review gate)
+* **Protected main baseline:** `beb7edfac6558f2d776664cd20eda8df8030b0fe`
+* **Last merged PR:** `#30` (governance: add anti-spaghetti and supply-chain gates)
 * **Active ruleset:** `main-branch-protection` (`21644438`)
 * **Contractual gate:** first-party CI (`quality`, `tests`, `security`, `governance`) +
   `GitGuardian Security Checks` + review-thread resolution + branch currency (live ruleset
@@ -19,85 +19,56 @@ These values are checkpoints to verify, not facts to trust without querying live
 
 ## Current decision
 
-PR #27 has been squash-merged into protected `main`. The repository-owned AI review gate
-apparatus (its workflow, its evaluator, `docs/AI-REVIEW-SETUP.md`, `tests/governance/test_ai_review_gate.py`,
-and the four activation sub-gaps) is removed. For a solo-developer repository the gate enforced
-nothing and produced a persistent failing check plus cascading `issue_comment` runs — pure noise.
-Qodo and CodeRabbit remain active advisory reviewers whose actionable comments must still be
-dispositioned before merge. Enforcement is the four first-party CI checks, `GitGuardian Security
-Checks`, and protected-main review-thread resolution.
+PR #30 introduced deterministic size gates, but legacy oversized files are admitted through
+editable numeric exceptions. PR #31 then demonstrated that an agent can increase an exception in
+the same pull request. The repository owner selected one corrective governance slice before
+resuming M1: derive legacy allowances from the protected base and make cap increases fail closed.
 
-This was a governance-only slice; it did not touch M1 trust-spine code.
+The source workflow is only bootstrap evidence until the live ruleset requires its
+`quality-budget` check. No session may claim the size policy is unbypassable before that live
+activation and machine-contract synchronization are verified.
 
 ## Next selected slice
 
-* **ID:** PR-M1.2
-* **Title:** PostgreSQL Tenant Isolation Foundation
-* **State:** READY
-* **Owner:** trust-spine
-* **Purpose:** establish explicit, transaction-bound, fail-closed PostgreSQL tenant context and RLS
-  for the existing engagements and agent-events paths before adding further tenant-bearing tables.
+* **ID:** PR-Q1
+* **Title:** Protected Quality Budget Foundation
+* **State:** IN PROGRESS
+* **Owner:** governance
+* **Purpose:** replace editable size exceptions with protected-base allowances and install a
+  base-controlled evaluator that never executes pull-request code.
 
 ### Required scope
 
-* validated explicit tenant context;
-* transaction-local binding;
-* PostgreSQL RLS for existing protected tenant tables (engagements, agent_events, clients);
-* client tenancy model definition (clients currently lack a tenant discriminator; PR-M1.2 must
-  decide whether clients are tenant-owned or shared across tenants, then apply RLS accordingly);
-* missing-context denial;
-* cross-tenant read and write denial;
-* pooled-connection context cleanup;
-* commit, rollback, exception, and cancellation cleanup;
-* runtime-role inability to disable or bypass RLS;
-* explicit separate administrative and migration authority;
-* compatibility with ledger append and independently owned committed-snapshot verification;
-* real PostgreSQL integration and privilege tests.
+* fixed caps of 400 production-module lines, 50 function lines, and 500 test-module lines;
+* no editable legacy oversize list;
+* protected-base non-growth for existing oversized modules and functions;
+* renamed oversized files treated as new files;
+* cap decreases allowed and cap increases denied;
+* a read-only `pull_request_target` evaluator that checks Git objects as data and never executes
+  pull-request code;
+* focused negative tests for cap increases and legacy-size growth.
 
 ### Architecture boundaries
 
-Separate:
-
-* tenant identifier validation;
-* SQLAlchemy transaction/connection binding;
-* Alembic policies and grants;
-* ledger append behavior;
-* ledger verification behavior;
-* PostgreSQL integration tests.
-
-Do not create a generic tenant manager, database manager, trust-spine service, utility dumping ground,
-hidden global context, implicit session listener, circular dependency, or mixed-responsibility
-orchestrator.
-
-Production modules at 320 lines require architecture review. Modules above approximately 400 lines
-or functions above approximately 50 lines require cohesive justification or extraction. McCabe
-complexity above 10 blocks merge.
+Keep the pure size policy separate from Git/ref access and workflow orchestration. Do not create a
+generic governance manager, quality service, scanner registry, or shared utility dumping ground.
 
 ### Non-goals
 
-PR-M1.2 does not implement:
+PR-Q1 does not add subjective AI-slop word lists, test anti-pattern scanners, CI aggregation,
+CodeRabbit PAT automation, production capabilities, or a live ruleset mutation. It must not claim
+the quality budget is required until the live ruleset and machine contract are synchronized.
 
-* graph projection or NetworkX rebuild;
-* Conductor;
-* Policy Kernel;
-* execution leases;
-* kill-switch;
-* capability execution;
-* branch-protection changes;
-* unrelated refactoring.
-
-It must not claim authenticated non-spoofable tenant isolation, LEDGER-GAP-001, M1, R0, or any
-governance gap closed without the exact required live evidence.
-
-## Planned sequence after PR-M1.2
+## Planned sequence after PR-Q1
 
 Subject to live evidence and a fresh owner decision:
 
-1. PR-M1.3 — Deterministic Graph Projection and NetworkX Rebuild
-2. PR-M1.4 — Policy Kernel v1
-3. PR-M1.5 — Execution Lease and Deterministic Conductor Path
-4. PR-M1.6 — Dual Kill Switch
-5. R0 conformance review
+1. Activate and verify the `quality-budget` required check, then synchronize the machine contract.
+2. Resume PR-M1.2 — PostgreSQL Tenant Isolation Foundation.
+3. PR-M1.3 — Deterministic Graph Projection and NetworkX Rebuild.
+4. PR-M1.4 — Policy Kernel v1.
+5. PR-M1.5 — Execution Lease and Deterministic Conductor Path.
+6. PR-M1.6 — Dual Kill Switch.
 
 This sequence is planning authority only. Each slice must be revalidated against live architecture,
 implementation, tests, risks, and open gaps before work begins.

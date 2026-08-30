@@ -16,23 +16,23 @@ admission blockers are recorded with their owner, milestone, and release in
   history, pull_request with zero approving reviews (solo-developer mode:
   `require_code_owner_review: false`, `require_last_push_approval: false`,
   `require_extra_approval_for_unattributed_changes: false`), review-thread resolution, source-pinned
-  required_status_checks (`ci-ok` aggregator, `GitGuardian Security Checks`), CodeQL code scanning
-  (`high_or_higher` security alerts and `errors` tool/analysis alerts), and strict branch currency.
-  The legacy `main-approval-required` ruleset (`21698082`) is disabled and retained only as rollback
-  evidence; it has no enforcement effect and provides no active bypass. Whether the live GitHub
-  ruleset actually matches `.github/agent-delivery.json` and `.github/BRANCH-PROTECTION.md` cannot
-  be proven from source and is not yet independently verified.
+  required_status_checks (`quality`, `tests`, `security`, `governance`, `GitGuardian Security
+  Checks`), CodeQL code scanning (`high_or_higher` security alerts and `errors` tool/analysis
+  alerts), and strict branch currency. The legacy
+  `main-approval-required` ruleset (`21698082`) is disabled and retained only as rollback evidence; it
+  has no enforcement effect and provides no active bypass. Whether the live GitHub ruleset actually
+  matches `.github/agent-delivery.json` and
+  `.github/BRANCH-PROTECTION.md` cannot be proven from source and is not yet independently verified.
 - **Required closure:** read the live `main-branch-protection` ruleset from GitHub and confirm it
-  matches the machine contract and prose exactly — the `ci-ok` aggregator check, `GitGuardian
-  Security Checks`, CodeQL code scanning, review-thread resolution, branch currency, and the
-  solo-developer zero-approval policy — with no unexpected required check, bypass actor, or missing
-  control. Record the verified ruleset snapshot.
+  matches the machine contract and prose exactly — the four source-pinned first-party checks,
+  `GitGuardian Security Checks`, CodeQL code scanning, review-thread resolution, branch currency, and
+  the solo-developer zero-approval policy — with no unexpected required check, bypass actor, or
+  missing control. Record the verified ruleset snapshot.
 - **Verification:** a captured live ruleset read that matches the machine contract, referenced from
   the R0 conformance record.
-- **Compensating control:** fail closed. The `ci-ok` aggregator (which depends on `quality`,
-  `tests`, `security`, and `governance`), `GitGuardian Security Checks`, and review-thread
-  resolution are required by the machine contract; no target-facing release proceeds while ruleset
-  conformance is unverified.
+- **Compensating control:** fail closed. The four mandatory first-party CI checks, `GitGuardian
+  Security Checks`, and review-thread resolution are required by the machine contract; no
+  target-facing release proceeds while ruleset conformance is unverified.
 
 ## GOV-GAP-002 through GOV-GAP-005 — ai-review-gate activation (WITHDRAWN)
 

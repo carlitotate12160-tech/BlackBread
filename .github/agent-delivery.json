@@ -17,8 +17,11 @@
     "require_ai_bot_comment_disposition": true,
     "require_branch_up_to_date": true,
     "required_status_checks": [
-      "ci-ok",
-      "GitGuardian Security Checks"
+      "governance",
+      "GitGuardian Security Checks",
+      "quality",
+      "security",
+      "tests"
     ],
     "allow_blocking_debt": false,
     "ruleset_id": 21644438

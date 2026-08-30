@@ -78,31 +78,8 @@ jobs:
           fetch-depth: 0
       - uses: ./.github/actions/setup-uv
       - run: uv lock --check
-      - run: uv run pytest tests/governance --no-cov
-
-  # Single required status check. Branch protection should require ONLY this
-  # job. It aggregates the four first-party CI lanes above via its `needs`
-  # list. When adding a new required CI job, also add it to `needs` below and
-  # to REQUIRED_CI_COMMANDS in test_governance_contract.py — the governance
-  # test enforces that every required job appears in ci-ok.needs.
-  #
-  # Semantics: every needed job must report `success`. `failure`,
-  # `cancelled`, and `skipped` are all FAILs — no current job is path-gated,
-  # so a skip indicates a misconfiguration, not an intentional pass.
-  ci-ok:
-    name: ci-ok
-    if: always()
-    needs: [quality, tests, security, governance]
-    runs-on: ubuntu-latest
-    timeout-minutes: 3
-    steps:
-      - name: Verify every needed job succeeded
+      - name: Enforce protected size budget
         env:
-          RESULTS: ${{ toJSON(needs) }}
-        run: |
-          echo "$RESULTS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
-          bad=$(echo "$RESULTS" | jq -r '[to_entries[] | select(.value.result != "success")] | length')
-          if [ "$bad" != "0" ]; then
-            echo "::error::$bad required job(s) did not succeed (failed, cancelled, or skipped)."
-            exit 1
-          fi
+          BLACKBREAD_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: uv run python scripts/check_size_budget.py
+      - run: uv run pytest tests/governance --no-cov
