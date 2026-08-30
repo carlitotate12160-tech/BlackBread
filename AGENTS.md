@@ -16,6 +16,48 @@ prior-chat summaries or prose claims about implementation status.
 Check the working tree before editing. Preserve unrelated user changes and never work from a stale
 baseline.
 
+## Cross-session continuity and current-work authority
+
+Conversation memory, session summaries, copied prompts, and handoff prose are never implementation
+authority. Use these sources for distinct purposes:
+
+1. Live GitHub is the authority for protected main SHA, pull requests, current heads, CI, reviews,
+   comments, review threads, rulesets, and merge state.
+2. Accepted ADRs, PRD.md, repository rules, machine contracts, schemas, and GAP-REGISTER.md govern
+   architecture, product behavior, delivery policy, and blockers.
+3. ENGINEERING-STATE.md records the repository owner's currently selected bounded slice and its
+   sequencing prerequisites.
+4. Tests, migrations, runtime behavior, and release evidence prove implementation. A state document
+   cannot prove that a feature, gap, milestone, or release is complete.
+
+At the start of every session:
+
+1. Read this AGENTS.md completely.
+2. Verify live GitHub state independently.
+3. Read ENGINEERING-STATE.md.
+4. Compare its expected checkpoint with live GitHub.
+5. Read the authority and implementation files required by the selected slice.
+6. Report the verified baseline before editing.
+
+ENGINEERING-STATE.md is a coordination pointer, not a substitute for live verification. If its
+checkpoint differs from live GitHub, do not silently continue from either version. Reconstruct what
+changed, determine whether the selected slice remains valid, and report the discrepancy before
+editing.
+
+An explicit new repository-owner instruction may replace the selected next slice, but it may not
+weaken law, authorization, accepted architecture, safety invariants, required delivery gates, or
+blocking-gap honesty. Record the replacement in ENGINEERING-STATE.md so later sessions do not depend
+on conversational memory.
+
+At most one implementation slice may be active. One agent owns writes to its branch. Other agents
+may perform independent read-only review but must not edit the implementation branch.
+
+AI review infrastructure and AI findings are different concerns. Do not modify or activate
+ai-review-gate unless explicitly assigned as a governance-only slice. However, every AI/bot comment
+that exists on a pull request must be inspected and dispositioned before merge. Reproduce findings
+with code, tests, SQL, runtime behavior, or repository evidence. Fix valid findings minimally and
+record why stale or false-positive findings are not actionable.
+
 ## Authority order
 
 Obey repository authority in this order:
@@ -24,9 +66,10 @@ Obey repository authority in this order:
 2. accepted decisions in ADR-FINAL-002.md;
 3. PRD.md;
 4. .devin/rules/blackbread.md;
-5. config/capability-registry.json and schemas;
-6. applicable repository skills, including .devin/skills/build-blackbread-agent/SKILL.md;
-7. tests, readmes, derived summaries, and history.
+5. GAP-REGISTER.md (blocker status and closure evidence);
+6. config/capability-registry.json and schemas;
+7. applicable repository skills, including .devin/skills/build-blackbread-agent/SKILL.md;
+8. tests, readmes, derived summaries, and history.
 
 Load .github/agent-delivery.json before any branch, push, pull request, or merge operation. Lower
 authority may strengthen but never weaken higher authority. If authorities or live GitHub rules
@@ -146,4 +189,15 @@ A second agent may perform a read-only adversarial review of the completed diff.
 Parallelize read-heavy exploration only when tasks are independent. Serialize overlapping writes.
 
 Handoffs must state the verified baseline SHA, scope, non-goals, mandatory invariants, failing tests,
-acceptance criteria, and delivery gates.
+acceptance criteria, and delivery gates. Every implementation handoff and pull-request body must
+include:
+
+* verified protected main SHA;
+* exact current PR head SHA;
+* bounded scope and non-goals;
+* RED and GREEN evidence;
+* tests and repository gates executed;
+* current CI, reviews, AI/bot-comment dispositions, and unresolved threads;
+* open gaps and claims explicitly not made;
+* blockers or limitations;
+* the next owner-selected slice, if one has been decided.
