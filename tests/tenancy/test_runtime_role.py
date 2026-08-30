@@ -53,6 +53,24 @@ async def test_isolatable_runtime_role_passes(admin_session: AsyncSession) -> No
         await admin_session.rollback()
 
 
+async def test_runtime_role_with_privileged_parent_is_rejected(
+    admin_session: AsyncSession,
+) -> None:
+    suffix = uuid.uuid4().hex[:8]
+    parent = f"probe_parent_{suffix}"
+    child = f"probe_child_{suffix}"
+    await admin_session.execute(text(f"CREATE ROLE {parent} BYPASSRLS NOLOGIN"))
+    await admin_session.execute(
+        text(f"CREATE ROLE {child} NOLOGIN NOSUPERUSER NOBYPASSRLS IN ROLE {parent}")
+    )
+    connection = await admin_session.connection()
+    try:
+        with pytest.raises(RuntimeError, match="inherit or assume"):
+            await connection.run_sync(_check, child)
+    finally:
+        await admin_session.rollback()
+
+
 async def test_runtime_login_is_not_superuser_and_lacks_bypassrls(session: AsyncSession) -> None:
     row = (
         await session.execute(
