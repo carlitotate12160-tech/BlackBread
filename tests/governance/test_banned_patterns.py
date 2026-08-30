@@ -298,15 +298,40 @@ def test_no_speculative_kwargs_in_production() -> None:
 
 
 def _get_diff_numstat() -> str:
-    """Return `git diff --numstat` output, or raise on failure (fail-closed)."""
+    """Return `git diff --numstat` output, or raise on failure (fail-closed).
+
+    In CI (actions/checkout), `origin/main` may not exist as a remote ref.
+    Fall back to the merge-base of HEAD and main, or GITHUB_BASE_REF.
+    """
+    base_ref = "origin/main"
     result = subprocess.run(
-        ["git", "diff", "--numstat", "origin/main...HEAD"],
+        ["git", "diff", "--numstat", f"{base_ref}...HEAD"],
         capture_output=True,
         text=True,
         cwd=ROOT,
         timeout=10,
         check=False,
     )
+    if result.returncode != 0:
+        # Try merge-base of HEAD and main branch
+        mb = subprocess.run(
+            ["git", "merge-base", "HEAD", "main"],
+            capture_output=True,
+            text=True,
+            cwd=ROOT,
+            timeout=10,
+            check=False,
+        )
+        if mb.returncode == 0 and mb.stdout.strip():
+            base_ref = mb.stdout.strip()
+            result = subprocess.run(
+                ["git", "diff", "--numstat", f"{base_ref}...HEAD"],
+                capture_output=True,
+                text=True,
+                cwd=ROOT,
+                timeout=10,
+                check=False,
+            )
     if result.returncode != 0:
         raise RuntimeError(
             f"git diff --numstat failed (exit {result.returncode}): {result.stderr.strip()}"
