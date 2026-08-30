@@ -47,3 +47,8 @@ def test_non_string_tenant_id_is_rejected(value: object) -> None:
 def test_boundary_length_tenant_id_is_accepted() -> None:
     value = "t" * 100
     assert TenantContext(value).tenant_id == value
+
+
+def test_surrogate_tenant_id_is_rejected() -> None:
+    with pytest.raises(TenantContextError):
+        TenantContext("tenant-\ud800")

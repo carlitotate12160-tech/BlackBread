@@ -22,8 +22,8 @@ os.environ.setdefault(
     base64.urlsafe_b64encode(bytes(range(32))).decode("ascii"),
 )
 
-from blackbread.models.core import Client, Engagement  # noqa: E402
-from blackbread.tenancy import TenantContext, bind_tenant_context  # noqa: E402
+from blackbread.models.core import Client, Engagement
+from blackbread.tenancy import TenantContext, bind_tenant_context
 
 ROOT = Path(__file__).parents[1]
 TEST_DATABASE_NAME = "blackbread_test"

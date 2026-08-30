@@ -24,6 +24,11 @@ from blackbread.ledger.schema import (
     to_draft,
 )
 from blackbread.models.core import Engagement
+from blackbread.tenancy import TenantContext, bind_tenant_context
+
+
+async def _bind(binder: AsyncSession, tenant_id: str) -> None:
+    await bind_tenant_context(binder, TenantContext(tenant_id))
 
 
 class _ThingV1(EventPayload):
@@ -450,6 +455,7 @@ async def test_typed_attestation_appends_parses_and_verifies(
 ) -> None:
     registry = default_registry()
     draft = to_draft(_attestation(), _envelope(engagement), registry=registry)
+    await _bind(session, engagement.tenant_id)
     event = await append_event(session, draft)
     await session.commit()
 
@@ -476,6 +482,7 @@ async def test_typed_stop_appends_and_verifies(
         disposition="graceful_stop",
     )
     draft = to_draft(payload, _envelope(engagement), registry=default_registry())
+    await _bind(session, engagement.tenant_id)
     event = await append_event(session, draft)
     await session.commit()
     result = await verify_chain(

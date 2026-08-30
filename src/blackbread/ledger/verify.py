@@ -14,6 +14,7 @@ from blackbread.ledger.hashing import (
     compute_payload_hash,
 )
 from blackbread.models.core import Engagement
+from blackbread.tenancy import TenantContext, bind_tenant_context
 
 
 @dataclass(frozen=True, slots=True)
@@ -234,6 +235,7 @@ async def verify_chain(
         connection = await acquired.execution_options(isolation_level="REPEATABLE READ")
         async with connection.begin():
             await connection.execute(text("SET TRANSACTION READ ONLY"))
+            await bind_tenant_context(connection, TenantContext(tenant_id))
             return await _verify_in_snapshot(
                 connection,
                 tenant_id=tenant_id,

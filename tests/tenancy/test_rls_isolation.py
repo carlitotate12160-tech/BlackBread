@@ -17,9 +17,7 @@ from blackbread.tenancy import TenantContext, bind_tenant_context, tenant_transa
 TENANT_SETTING = text("SELECT current_setting('blackbread.tenant_id', true)")
 
 
-async def _new_engagement(
-    factory: async_sessionmaker[AsyncSession], tenant_id: str
-) -> Engagement:
+async def _new_engagement(factory: async_sessionmaker[AsyncSession], tenant_id: str) -> Engagement:
     async with factory() as session:
         client = Client(name="acme")
         session.add(client)
@@ -227,9 +225,11 @@ async def test_tenant_transaction_binds_and_commits(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     engagement = await _new_engagement(session_factory, "tenant-a")
-    async with session_factory() as session:
-        async with tenant_transaction(session, TenantContext("tenant-a")) as bound:
-            await append_event(bound, _draft(engagement, "tx"))
+    async with (
+        session_factory() as session,
+        tenant_transaction(session, TenantContext("tenant-a")) as bound,
+    ):
+        await append_event(bound, _draft(engagement, "tx"))
     async with session_factory() as session:
         await bind_tenant_context(session, TenantContext("tenant-a"))
         count = (await session.execute(text("SELECT count(*) FROM agent_events"))).scalar_one()

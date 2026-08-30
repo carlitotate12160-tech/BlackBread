@@ -11,6 +11,12 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from blackbread.ledger import EventDraft, LedgerAccessError, append_event, verify_chain
 from blackbread.ledger.event import GENESIS_PREV_HASH, AgentEvent
 from blackbread.models.core import Client, Engagement
+from blackbread.tenancy import TenantContext, bind_tenant_context
+
+
+async def _bind(binder: AsyncSession, tenant_id: str) -> None:
+    await bind_tenant_context(binder, TenantContext(tenant_id))
+
 
 DISABLE_MUTATION_TRIGGER = text(
     "ALTER TABLE agent_events DISABLE TRIGGER agent_events_reject_mutation"
@@ -39,6 +45,7 @@ def _draft(engagement: Engagement, marker: str) -> EventDraft:
 
 
 async def _append(session: AsyncSession, engagement: Engagement, marker: str) -> AgentEvent:
+    await _bind(session, engagement.tenant_id)
     return await append_event(session, _draft(engagement, marker))
 
 
@@ -64,6 +71,7 @@ async def test_append_builds_genesis_linked_chain(
     assert third.prev_event_hash == second.event_hash
     assert first.tenant_id == engagement.tenant_id
     assert len({first.event_hash, second.event_hash, third.event_hash}) == 3
+    await _bind(session, engagement.tenant_id)
     await session.refresh(engagement)
     assert engagement.ledger_event_count == 3
     assert engagement.ledger_head_hash == third.event_hash
@@ -85,6 +93,7 @@ async def test_mutated_source_payload_cannot_bypass_validated_snapshot(
     )
     source["oversized"] = "x" * 1_048_577
 
+    await _bind(session, engagement.tenant_id)
     event = await append_event(session, draft)
     await session.commit()
 
@@ -106,11 +115,13 @@ async def test_mapping_and_stable_float_round_trip_through_jsonb(
         payload=MappingProxyType({"score": 1.5, "nested": MappingProxyType({"marker": "x"})}),
         occurred_at=datetime.now(UTC),
     )
+    await _bind(session, engagement.tenant_id)
     event = await append_event(session, draft)
     event_id = event.id
     await session.commit()
     session.expunge_all()
 
+    await _bind(session, engagement.tenant_id)
     reloaded = (
         await session.execute(select(AgentEvent).where(AgentEvent.id == event_id))
     ).scalar_one()
@@ -243,17 +254,23 @@ async def test_two_engagements_have_independent_chains(
         client = Client(name="acme")
         setup.add(client)
         await setup.flush()
+        await _bind(setup, "tenant-a")
         eng_a = Engagement(client_id=client.id, tenant_id="tenant-a")
+        setup.add(eng_a)
+        await setup.flush()
+        await _bind(setup, "tenant-b")
         eng_b = Engagement(client_id=client.id, tenant_id="tenant-b")
-        setup.add_all([eng_a, eng_b])
+        setup.add(eng_b)
         await setup.commit()
 
     async with session_factory() as active:
+        await _bind(active, "tenant-a")
         for marker in ("a1", "a2"):
             await append_event(active, _draft(eng_a, marker))
         await active.commit()
 
     async with session_factory() as active:
+        await _bind(active, "tenant-b")
         first_b = await append_event(active, _draft(eng_b, "b1"))
         await active.commit()
         assert first_b.sequence == 1
@@ -282,18 +299,21 @@ async def test_concurrent_appends_serialize_without_gaps(
         client = Client(name="acme")
         setup.add(client)
         await setup.flush()
+        await _bind(setup, "tenant-c")
         engagement = Engagement(client_id=client.id, tenant_id="tenant-c")
         setup.add(engagement)
         await setup.commit()
 
     async def append_one(marker: str) -> None:
         async with session_factory() as active:
+            await _bind(active, "tenant-c")
             await append_event(active, _draft(engagement, marker))
             await active.commit()
 
     await asyncio.gather(*(append_one(f"m{index}") for index in range(10)))
 
     async with session_factory() as active:
+        await _bind(active, "tenant-c")
         rows = (
             (
                 await active.execute(
@@ -420,6 +440,7 @@ async def test_runtime_role_cannot_change_engagement_lock_sentinel(
     session: AsyncSession,
     engagement: Engagement,
 ) -> None:
+    await _bind(session, engagement.tenant_id)
     with pytest.raises(IntegrityError, match="ck_engagements_ledger_lock_token"):
         await session.execute(
             Engagement.__table__.update()
