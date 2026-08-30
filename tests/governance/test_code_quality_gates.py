@@ -28,7 +28,7 @@ KNOWN_FUNCTION_OVERSIZES: dict[str, tuple[str, int]] = {
     "append_event": ("src/blackbread/ledger/append.py", 55),
 }
 KNOWN_TEST_MODULE_OVERSIZES: dict[str, int] = {
-    "tests/governance/test_governance_contract.py": 537,
+    "tests/governance/test_governance_contract.py": 535,
     "tests/ledger/test_ledger.py": 567,
 }
 ACTIVE_CAPABILITY_LIFECYCLES = ("IMPLEMENTED", "VERIFIED", "RELEASED")
@@ -260,7 +260,13 @@ def test_capability_registry_tools_have_supply_chain_pins() -> None:
 
 
 def test_ci_jobs_have_no_skip_or_continue_on_error() -> None:
-    """CI jobs must not use if-conditions or continue-on-error to skip required gates."""
+    """CI jobs must not use if-conditions or continue-on-error to skip required gates.
+
+    Exception: the ci-ok aggregator job is permitted to use `if: always()`
+    (required for the aggregator pattern). All other `if` conditions and any
+    `continue-on-error` at job or step level remain banned for every job,
+    including ci-ok.
+    """
     ci_path = ROOT / ".github" / "workflows" / "ci.yml"
     if not ci_path.exists():
         return
@@ -270,7 +276,10 @@ def test_ci_jobs_have_no_skip_or_continue_on_error() -> None:
     jobs = workflow.get("jobs", {})
     offenders: list[str] = []
     for name, job in jobs.items():
-        if "if" in job:
+        if name == "ci-ok":
+            if job.get("if") != "always()":
+                offenders.append(f"{name}: has non-aggregator 'if' condition")
+        elif "if" in job:
             offenders.append(f"{name}: has 'if' condition")
         if "continue-on-error" in job:
             offenders.append(f"{name}: has continue-on-error")

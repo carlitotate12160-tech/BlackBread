@@ -260,7 +260,7 @@ def test_pyproject_enforces_documented_quality_gates() -> None:
     assert "extend-ignore" not in ruff_lint
     assert "extend-per-file-ignores" not in ruff_lint
     assert ruff_lint["per-file-ignores"] == {
-        "tests/**": ["S101", "PLR2004"],
+        "tests/**": ["S101", "PLR2004", "S603", "S607"],
         "migrations/**": ["E501"],
         "scripts/**": ["S603", "S607"],
     }
@@ -420,11 +420,8 @@ def test_agent_delivery_authority_is_explicit_and_fail_closed() -> None:
         "require_ai_bot_comment_disposition": True,
         "require_branch_up_to_date": True,
         "required_status_checks": [
-            "governance",
+            "ci-ok",
             "GitGuardian Security Checks",
-            "quality",
-            "security",
-            "tests",
         ],
         "allow_blocking_debt": False,
         "ruleset_id": 21644438,
@@ -434,7 +431,8 @@ def test_agent_delivery_authority_is_explicit_and_fail_closed() -> None:
     assert delivery == expected
 
     required_checks = set(delivery["required_status_checks"])
-    assert {"governance", "quality", "security", "tests"} <= required_checks
+    assert "ci-ok" in required_checks
+    assert "GitGuardian Security Checks" in required_checks
     assert "ai-review-gate" not in required_checks
     assert "Sourcery review" not in required_checks
     assert "pending_required_status_checks" not in delivery
