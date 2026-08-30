@@ -85,9 +85,10 @@ jobs:
       - run: uv run pytest tests/governance --no-cov
 
   # Single required status check. Branch protection should require ONLY this
-  # job. It aggregates every job above, so adding a new job to this workflow
-  # automatically makes it merge-blocking — no ruleset edit, no silently
-  # unprotected lanes.
+  # job. It aggregates the four first-party CI lanes above via its `needs`
+  # list. When adding a new required CI job, also add it to `needs` below and
+  # to REQUIRED_CI_COMMANDS in test_governance_contract.py — the governance
+  # test enforces that every required job appears in ci-ok.needs.
   #
   # Semantics: `skipped` is a PASS (path-gated lanes legitimately skip);
   # `failure` and `cancelled` are FAILs.

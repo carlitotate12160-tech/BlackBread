@@ -18,7 +18,26 @@ TESTS = ROOT / "tests"
 
 RUNTIME_CODE_MAX_LINES = 400
 RUNTIME_CODE_MAX_FILES = 10
-RUNTIME_EXCLUDE_PATTERNS = {"docs/", "tests/", ".github/", "migrations/", "scripts/"}
+RUNTIME_EXCLUDE_PATTERNS = {
+    "docs/",
+    "tests/",
+    ".github/",
+    "migrations/",
+    "scripts/",
+    "config/",
+    "assets/",
+}
+RUNTIME_EXCLUDE_SUFFIXES = {
+    ".md",
+    ".yml",
+    ".yaml",
+    ".toml",
+    ".json",
+    ".cfg",
+    ".ini",
+    ".txt",
+    ".lock",
+}
 
 VAGUE_NAMES = frozenset({"data", "info", "obj", "item", "stuff", "thing"})
 FLAG_WORDS = frozenset(
@@ -48,7 +67,9 @@ def _iter_python_files(base: Path) -> list[Path]:
 
 
 def _is_runtime_path(rel: str) -> bool:
-    return not any(rel.startswith(p) for p in RUNTIME_EXCLUDE_PATTERNS)
+    if any(rel.startswith(p) for p in RUNTIME_EXCLUDE_PATTERNS):
+        return False
+    return not any(rel.endswith(s) for s in RUNTIME_EXCLUDE_SUFFIXES)
 
 
 # ---------------------------------------------------------------------------
@@ -103,37 +124,19 @@ def test_no_type_ignore_without_code() -> None:
 
 
 def test_no_noqa_without_code() -> None:
-    """`# noqa` without a rule code is banned."""
-    noqa_prefixes = (
-        "(",
-        "E",
-        "W",
-        "F",
-        "B",
-        "S",
-        "C",
-        "N",
-        "U",
-        "A",
-        "R",
-        "P",
-        "I",
-        "T",
-        "D",
-        "SIM",
-        "RET",
-        "PL",
-        "RUF",
-        "ASYNC",
-        "UP",
-    )
+    """`# noqa` without a rule code is banned.
+
+    Accepted forms: `# noqa: F401`, `# noqa: F401,E501`, `# noqa(F401)`.
+    Rejected: `# noqa` (bare), `# noqa: ` (no code after colon).
+    """
+    code_pattern = re.compile(r"^\s*[:\(]\s*\w+")
     offenders: list[tuple[str, int]] = []
     for path in _iter_python_files(SRC):
         for i, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
             stripped = line.split("# noqa", 1)
             if len(stripped) == 2:
                 after = stripped[1]
-                if not after.strip().startswith(noqa_prefixes):
+                if not code_pattern.match(after):
                     rel = path.relative_to(ROOT).as_posix()
                     offenders.append((rel, i))
     assert not offenders, f"Bare `# noqa` without code: {offenders}"
@@ -174,17 +177,17 @@ def test_no_suppressed_return_values() -> None:
 
 
 def test_no_not_implemented_in_delivered_code() -> None:
-    """`raise NotImplementedError` in production code is banned."""
+    """`raise NotImplementedError` in production code is banned (both call and bare form)."""
     offenders: list[tuple[str, int]] = []
     for path in _iter_python_files(SRC):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         for node in ast.walk(tree):
-            if (
-                isinstance(node, ast.Raise)
-                and isinstance(node.exc, ast.Call)
-                and isinstance(node.exc.func, ast.Name)
-                and node.exc.func.id == "NotImplementedError"
-            ):
+            if not isinstance(node, ast.Raise) or node.exc is None:
+                continue
+            exc = node.exc
+            if isinstance(exc, ast.Call):
+                exc = exc.func
+            if isinstance(exc, ast.Name) and exc.id == "NotImplementedError":
                 rel = path.relative_to(ROOT).as_posix()
                 offenders.append((rel, node.lineno))
     assert not offenders, f"`raise NotImplementedError` in production: {offenders}"
@@ -285,47 +288,47 @@ def test_no_speculative_kwargs_in_production() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _get_diff_stat() -> str:
-    try:
-        result = subprocess.run(
-            ["git", "diff", "--stat", "origin/main...HEAD"],
-            capture_output=True,
-            text=True,
-            cwd=ROOT,
-            timeout=10,
-            check=False,
+def _get_diff_numstat() -> str:
+    """Return `git diff --numstat` output, or raise on failure (fail-closed)."""
+    result = subprocess.run(
+        ["git", "diff", "--numstat", "origin/main...HEAD"],
+        capture_output=True,
+        text=True,
+        cwd=ROOT,
+        timeout=10,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"git diff --numstat failed (exit {result.returncode}): {result.stderr.strip()}"
         )
-        if result.returncode != 0:
-            return ""
-        return result.stdout
-    except (subprocess.SubprocessError, FileNotFoundError):
-        return ""
+    return result.stdout
 
 
 def test_diff_budget_runtime_code_under_limit() -> None:
-    """PR runtime-code diff must stay under 400 lines and 10 files."""
-    diff = _get_diff_stat()
-    if not diff.strip():
-        return
+    """PR runtime-code diff must stay under 400 lines and 10 files.
+
+    Uses `git diff --numstat` for authoritative insertion/deletion counts.
+    Fails closed if git is unavailable or returns nonzero.
+    """
+    try:
+        diff = _get_diff_numstat()
+    except (subprocess.SubprocessError, FileNotFoundError, RuntimeError) as exc:
+        raise AssertionError(f"Cannot evaluate diff budget: {exc}") from exc
     runtime_files = 0
     runtime_lines = 0
     for line in diff.strip().splitlines():
-        if "|" not in line:
+        if not line.strip():
             continue
-        parts = line.split("|")
-        if len(parts) < 2:
+        parts = line.split("\t")
+        if len(parts) < 3:
+            raise AssertionError(f"Malformed numstat line: {line!r}")
+        insertions_str, deletions_str, filename = parts[0], parts[1], parts[2]
+        if insertions_str == "-" or deletions_str == "-":
             continue
-        filename = parts[0].strip()
         if not _is_runtime_path(filename):
             continue
-        insertions = 0
-        deletions = 0
-        for token in parts[1].split():
-            if token.startswith("+"):
-                insertions += int(token.count("+"))
-            elif token.startswith("-"):
-                deletions += int(token.count("-"))
-        runtime_lines += insertions + deletions
+        runtime_lines += int(insertions_str) + int(deletions_str)
         runtime_files += 1
     assert runtime_files <= RUNTIME_CODE_MAX_FILES, (
         f"PR touches {runtime_files} runtime files (max {RUNTIME_CODE_MAX_FILES})"
