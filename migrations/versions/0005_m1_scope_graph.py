@@ -41,6 +41,11 @@ def upgrade() -> None:
             "schema_version",
         ],
     )
+    op.create_unique_constraint(
+        "uq_agent_events_projection_anchor",
+        "agent_events",
+        ["tenant_id", "engagement_id", "sequence", "event_hash"],
+    )
     op.create_table(
         "graph_projection_snapshots",
         sa.Column("tenant_id", sa.String(length=100), nullable=False),
@@ -63,6 +68,17 @@ def upgrade() -> None:
             ["engagement_id", "tenant_id"],
             ["engagements.id", "engagements.tenant_id"],
             name="fk_graph_projection_snapshot_engagement",
+            ondelete="RESTRICT",
+        ),
+        sa.ForeignKeyConstraint(
+            ["tenant_id", "engagement_id", "verified_event_count", "verified_head_hash"],
+            [
+                "agent_events.tenant_id",
+                "agent_events.engagement_id",
+                "agent_events.sequence",
+                "agent_events.event_hash",
+            ],
+            name="fk_graph_projection_snapshot_anchor",
             ondelete="RESTRICT",
         ),
         sa.CheckConstraint(
@@ -207,4 +223,5 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_table("graph_nodes")
     op.drop_table("graph_projection_snapshots")
+    op.drop_constraint("uq_agent_events_projection_anchor", "agent_events", type_="unique")
     op.drop_constraint("uq_agent_events_projection_source", "agent_events", type_="unique")

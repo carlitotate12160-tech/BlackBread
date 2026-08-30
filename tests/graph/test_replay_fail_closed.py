@@ -276,7 +276,7 @@ async def test_publication_rejects_head_hash_not_bound_to_verified_sequence(
         verified_head_hash="f" * 64,
     )
 
-    with pytest.raises(GraphProjectionError, match="ledger anchor"):
+    with pytest.raises(IntegrityError, match="fk_graph_projection_snapshot_anchor"):
         await publish_scope_projection(engine, forged)
 
     stored = await load_scope_projection(
@@ -302,7 +302,7 @@ async def test_publication_rejects_anchor_ahead_of_committed_ledger(
         verified_head_hash=event.event_hash,
     )
 
-    with pytest.raises(GraphProjectionError, match="ledger anchor"):
+    with pytest.raises(IntegrityError, match="fk_graph_projection_snapshot_anchor"):
         await publish_scope_projection(engine, forged)
 
     stored = await load_scope_projection(

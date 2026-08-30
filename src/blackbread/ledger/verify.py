@@ -226,26 +226,7 @@ async def _verify_in_snapshot(
     )
 
 
-async def verify_snapshot(
-    connection: AsyncConnection,
-    *,
-    tenant_id: str,
-    engagement_id: UUID,
-    consumer: Callable[[AgentEvent], None] | None = None,
-) -> ChainVerification:
-    """Verify the ledger inside a caller-owned committed snapshot.
-
-    The connection must have an open REPEATABLE READ, READ ONLY transaction with
-    the tenant context already bound. The consumer receives events in sequence only
-    after each event passes its chain invariants; callers must still require ``ok``
-    before trusting any derived state.
-    """
-    return await _verify_in_snapshot(
-        connection,
-        tenant_id=tenant_id,
-        engagement_id=engagement_id,
-        consumer=consumer,
-    )
+verify_snapshot = _verify_in_snapshot
 
 
 async def verify_chain(
