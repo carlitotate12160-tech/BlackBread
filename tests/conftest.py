@@ -131,7 +131,12 @@ async def engine(migrated_database: None) -> AsyncIterator[AsyncEngine]:
             await connection.execute(
                 text("ALTER TABLE agent_events DISABLE TRIGGER agent_events_reject_truncate")
             )
-            await connection.execute(text("TRUNCATE agent_events, engagements, clients"))
+            await connection.execute(
+                text(
+                    "TRUNCATE graph_nodes, graph_projection_snapshots, "
+                    "agent_events, engagements, clients"
+                )
+            )
             await connection.execute(
                 text("ALTER TABLE agent_events ENABLE TRIGGER agent_events_reject_mutation")
             )

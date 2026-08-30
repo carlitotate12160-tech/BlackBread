@@ -8,8 +8,8 @@ and never overrides live GitHub, accepted architecture, delivery policy, tests, 
 * **State:** ACTIVE
 * **Current milestone:** M1 — Trust Spine
 * **Last verified:** 2026-08-30 UTC
-* **Protected main baseline:** `0ac702b` (governance: restore ci-ok aggregator, CodeRabbit trigger, banned patterns, AI-slop detection)
-* **Last merged PR:** `#32` (governance: restore ci-ok aggregator, CodeRabbit trigger, banned patterns, AI-slop detection)
+* **Protected main baseline:** `4bf2942` (coordination update after PR #31 and PR #32)
+* **Last merged PR:** `#33` (chore: update ENGINEERING-STATE.md after PR #31 and PR #32 merge)
 * **Active ruleset:** `main-branch-protection` (`21644438`)
 * **Contractual gate:** first-party CI (`quality`, `tests`, `security`, `governance`) +
   `GitGuardian Security Checks` + review-thread resolution + branch currency (live ruleset
@@ -82,43 +82,26 @@ CodeRabbit auto-trigger.
 * Self-review checklist — NOT yet in PR template
 * End-to-end verification statement — deferred until runtime exists
 
-## Next selected slice
+## Active selected slice
 
-* **ID:** PR-Q2
-* **Title:** Activate ci-ok as required status check + live ruleset sync
-* **State:** PENDING (awaiting owner decision)
-* **Owner:** governance
-* **Purpose:** replace the four individual required checks (`quality`, `tests`, `security`,
-  `governance`) with the single `ci-ok` aggregator in the live GitHub ruleset, then synchronize
-  `.github/agent-delivery.json` and `.github/BRANCH-PROTECTION.md` to match.
+* **ID:** PR-M1.3a
+* **Title:** Deterministic ScopeRoot Graph Projection + Replay/Rebuild Spine
+* **State:** ACTIVE
+* **Owner:** trust-spine
+* **Purpose:** prove the ledger-derived graph architecture for `engagement.attested` through one
+  independently verified committed snapshot, deterministic durable `ScopeRoot` projection,
+  NetworkX rebuild, and versioned state root.
+* **Selection:** the repository owner selected this slice ahead of PR-Q2/Q3. That sequencing change
+  does not waive governance, architecture, isolation, evidence, or release blockers.
 
-### Required scope
+### Bounded scope and non-goals
 
-* live ruleset mutation: required_status_checks = `ci-ok` + `GitGuardian Security Checks`
-* machine contract sync: `.github/agent-delivery.json` already updated (PR #32)
-* documentation sync: `.github/BRANCH-PROTECTION.md` already updated (PR #32)
-* governance test update: `test_governance_contract.py` must verify live ruleset requires `ci-ok`
-* GOV-GAP-001 closure evidence: live ruleset read matches machine contract
+This slice admits only positive attested scope as authoritative `ScopeRoot` nodes. It does not create
+observed assets or edges, implement the broader Attack Graph, resume target-facing capabilities,
+implement Q2/Q3/Q4, close `GOV-GAP-001` or `LEDGER-GAP-001`, or advance M1/R0.
 
-### Non-goals
-
-PR-Q2 does not add test quality bar patterns, self-review checklist, production capabilities, or
-resume M1. It must not weaken any existing gate.
-
-## Planned sequence after PR-Q2
-
-Subject to live evidence and a fresh owner decision:
-
-1. PR-Q3 — Test quality bar (mock SUT, tautological, vague names, skip/flaky/pragma detection)
-2. PR-Q4 — Self-review checklist in PR template
-3. Resume PR-M1.2 — PostgreSQL Tenant Isolation Foundation (already merged via PR #29)
-4. PR-M1.3 — Deterministic Graph Projection and NetworkX Rebuild
-5. PR-M1.4 — Policy Kernel v1
-6. PR-M1.5 — Execution Lease and Deterministic Conductor Path
-7. PR-M1.6 — Dual Kill Switch
-
-This sequence is planning authority only. Each slice must be revalidated against live architecture,
-implementation, tests, risks, and open gaps before work begins.
+No following implementation slice is selected. A fresh owner decision and live revalidation are
+required after PR-M1.3a.
 
 ## Open blockers
 

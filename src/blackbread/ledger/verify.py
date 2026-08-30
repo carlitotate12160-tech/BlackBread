@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from dataclasses import dataclass
 from uuid import UUID
 
@@ -112,6 +113,7 @@ async def _scan_chain(
     *,
     tenant_id: str,
     engagement_id: UUID,
+    consumer: Callable[[AgentEvent], None] | None = None,
 ) -> _ChainScan:
     statement = (
         select(AgentEvent.__table__)
@@ -143,6 +145,8 @@ async def _scan_chain(
                     broken_at_sequence=event.sequence,
                     reason=failure,
                 )
+            if consumer is not None:
+                consumer(event)
             expected_prev = event.event_hash
             expected_sequence += 1
     finally:
@@ -201,6 +205,7 @@ async def _verify_in_snapshot(
     *,
     tenant_id: str,
     engagement_id: UUID,
+    consumer: Callable[[AgentEvent], None] | None = None,
 ) -> ChainVerification:
     anchor = await _load_anchor(
         connection,
@@ -211,6 +216,7 @@ async def _verify_in_snapshot(
         connection,
         tenant_id=tenant_id,
         engagement_id=engagement_id,
+        consumer=consumer,
     )
     return _snapshot_result(
         scan,
@@ -218,6 +224,9 @@ async def _verify_in_snapshot(
         tenant_id=tenant_id,
         engagement_id=engagement_id,
     )
+
+
+verify_snapshot = _verify_in_snapshot
 
 
 async def verify_chain(
