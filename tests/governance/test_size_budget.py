@@ -99,7 +99,28 @@ def test_new_duplicate_function_does_not_reuse_legacy_allowance() -> None:
         {"src/blackbread/example.py": base},
         {"src/blackbread/example.py": head},
         caps,
-    ) == ["src/blackbread/example.py:repeated#2: 4 lines exceeds protected allowance 3"]
+    ) == [
+        "src/blackbread/example.py:repeated#1: 4 lines exceeds protected allowance 3",
+        "src/blackbread/example.py:repeated#2: 4 lines exceeds protected allowance 3",
+    ]
+
+
+def test_legacy_function_allowance_does_not_move_between_scopes() -> None:
+    caps = QualityCaps(production_module=400, function=3, test_module=500)
+    base = "def repeated():\n    one = 1\n    two = 2\n    return one + two\n"
+    head = (
+        "class Container:\n"
+        "    def repeated():\n"
+        "        one = 1\n"
+        "        two = 2\n"
+        "        return one + two\n"
+    )
+
+    assert evaluate_size_budget(
+        {"src/blackbread/example.py": base},
+        {"src/blackbread/example.py": head},
+        caps,
+    ) == ["src/blackbread/example.py:Container.repeated: 4 lines exceeds protected allowance 3"]
 
 
 def _workflow(path: str) -> dict[str, object]:

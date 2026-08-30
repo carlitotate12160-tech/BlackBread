@@ -48,14 +48,36 @@ def _line_count(source: str) -> int:
     return len(source.splitlines())
 
 
+class _FunctionCollector(ast.NodeVisitor):
+    def __init__(self) -> None:
+        self._scope: list[str] = []
+        self.lengths: list[tuple[str, int]] = []
+
+    def _visit_function(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
+        end_line = node.end_lineno or node.lineno
+        qualified_name = ".".join([*self._scope, node.name])
+        self.lengths.append((qualified_name, end_line - node.lineno + 1))
+        self._scope.append(node.name)
+        self.generic_visit(node)
+        self._scope.pop()
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        self._visit_function(node)
+
+    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+        self._visit_function(node)
+
+    def visit_ClassDef(self, node: ast.ClassDef) -> None:
+        self._scope.append(node.name)
+        self.generic_visit(node)
+        self._scope.pop()
+
+
 def _function_lengths(source: str, path: str) -> list[tuple[str, int]]:
     tree = ast.parse(source, filename=path)
-    lengths: list[tuple[str, int]] = []
-    for node in ast.walk(tree):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            end_line = node.end_lineno or node.lineno
-            lengths.append((node.name, end_line - node.lineno + 1))
-    return lengths
+    collector = _FunctionCollector()
+    collector.visit(tree)
+    return collector.lengths
 
 
 def _module_violation(
@@ -92,7 +114,11 @@ def _function_violations(
     for name, length in current:
         occurrence = seen.get(name, 0)
         seen[name] = occurrence + 1
-        protected = base_by_name.get(name, [])
+        protected = (
+            base_by_name.get(name, [])
+            if current_counts[name] == 1 and len(base_by_name.get(name, [])) == 1
+            else []
+        )
         allowed = max(cap, protected[occurrence] if occurrence < len(protected) else 0)
         if length > allowed:
             suffix = f"#{occurrence + 1}" if current_counts[name] > 1 else ""
