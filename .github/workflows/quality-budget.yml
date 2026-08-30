@@ -1,0 +1,32 @@
+name: Protected quality budget
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  quality-budget:
+    name: quality-budget
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 0
+      - name: Evaluate pull request without executing its code
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PYTHONPATH: src
+        run: |
+          git fetch --no-tags origin "pull/${PR_NUMBER}/head:refs/remotes/origin/pr-head"
+          test "$(git rev-parse refs/remotes/origin/pr-head)" = "$HEAD_SHA"
+          python scripts/check_size_budget.py \
+            --base-ref "$BASE_SHA" \
+            --head-ref refs/remotes/origin/pr-head

@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "production_module_max_lines": 400,
+  "function_max_lines": 50,
+  "test_module_max_lines": 500
+}

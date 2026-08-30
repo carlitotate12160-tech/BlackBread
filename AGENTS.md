@@ -140,6 +140,11 @@ orchestrators thin and state ownership explicit.
 Do not add new scenarios to an oversized test module without first splitting it by behavior,
 except for an urgent minimal regression fix. Test structure should mirror production contracts.
 
+Size caps are defined in `config/quality-budgets.json`. Agents may reduce those caps but must never
+increase them, add an oversize exception, or reset a protected-base allowance. A relaxation requires
+an explicit repository-owner instruction and a separate governance decision; it may not be bundled
+with feature, fix, refactor, migration, or test work.
+
 Reject circular imports and hidden global mutable state. Prefer composition over inheritance.
 
 Do not split immutable migrations or generated artifacts solely to satisfy a line count; review

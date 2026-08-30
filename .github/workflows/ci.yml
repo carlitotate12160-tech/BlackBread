@@ -74,6 +74,12 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          fetch-depth: 0
       - uses: ./.github/actions/setup-uv
       - run: uv lock --check
+      - name: Enforce protected size budget
+        env:
+          BLACKBREAD_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: uv run python scripts/check_size_budget.py
       - run: uv run pytest tests/governance --no-cov
