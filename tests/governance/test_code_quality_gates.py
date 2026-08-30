@@ -116,6 +116,32 @@ def _iter_test_functions(base: Path) -> Iterator[tuple[str, str]]:
                 yield (node.name, rel)
 
 
+VAGUE_TEST_NAMES = frozenset(
+    {
+        "test_works",
+        "test_it_works",
+        "test_happy_path",
+        "test_function",
+        "test_case",
+        "test_success",
+        "test_basic",
+        "test_simple",
+        "test_default",
+        "test_main",
+        "test_run",
+        "test_example",
+    }
+)
+
+
+def _is_vague_test_name(name: str) -> bool:
+    if name in VAGUE_TEST_NAMES:
+        return True
+    if name.endswith("_works"):
+        return True
+    return "happy_path" in name
+
+
 def test_production_modules_under_line_limit() -> None:
     """Production modules must stay under 400 lines or carry a documented exception."""
     offenders: list[tuple[str, int]] = []
@@ -173,6 +199,27 @@ def test_no_duplicate_test_names() -> None:
         else:
             seen[name] = rel
     assert not duplicates, f"Duplicate test names found: {duplicates}"
+
+
+def test_no_vague_test_names() -> None:
+    """Test names must describe the asserted behavior, not restate that a test exists."""
+    offenders: list[tuple[str, str]] = []
+    for name, rel in _iter_test_functions(TESTS):
+        if _is_vague_test_name(name):
+            offenders.append((rel, name))
+    assert not offenders, (
+        f"Vague test names (rename to describe the asserted behavior): {offenders}"
+    )
+
+
+def test_vague_test_name_detector_flags_slop_and_passes_descriptive() -> None:
+    """Unit contract for the vague-name predicate: the RED-first anchor for the gate."""
+    assert _is_vague_test_name("test_works")
+    assert _is_vague_test_name("test_happy_path")
+    assert _is_vague_test_name("test_login_works")
+    assert _is_vague_test_name("test_function")
+    assert not _is_vague_test_name("test_rejects_expired_manifest")
+    assert not _is_vague_test_name("test_ledger_append_is_hash_chained")
 
 
 def test_no_circular_imports_in_production_code() -> None:
