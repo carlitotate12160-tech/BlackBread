@@ -72,10 +72,12 @@ timeouts, missing evidence, and policy evaluation errors fail closed.
 
 The workflow uses supported `pull_request_target`, `pull_request_review`, and `issue_comment`
 triggers and checks out protected `main`, never candidate PR code. An issue-comment create/edit event
-is only a PR-scoped wake-up signal from human commenters: the job condition filters out bot-authored
-issue comments to prevent cascading gate runs when AI reviewers post evidence comments. The trusted
-evaluator ignores event comment content and re-fetches the PR head and evidence through GitHub APIs
-before re-verifying the head.
+from a human commenter is a PR-scoped wake-up signal. Bot-authored issue comments are filtered on
+`created` and `edited` events to prevent cascading gate runs when AI reviewers post evidence comments.
+Bot-authored `deleted` events are not filtered so that removal of evidence comments triggers
+fail-closed re-evaluation, preventing a stale success from persisting after its evidence is deleted.
+The trusted evaluator ignores event comment content and re-fetches the PR head and evidence through
+GitHub APIs before re-verifying the head.
 
 The controller job is named `ai-review-gate-controller` to avoid confusing its automatic Actions
 check-run with the policy status context. The repository policy context remains exactly

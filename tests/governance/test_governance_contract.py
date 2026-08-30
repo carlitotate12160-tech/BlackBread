@@ -512,7 +512,8 @@ def test_ai_review_gate_issue_comment_wakeup_is_pr_scoped_and_filters_bots() -> 
     assert ai_review_job["if"] == (
         "github.event_name != 'issue_comment' || "
         "(github.event.issue.pull_request != null && "
-        "github.event.comment.user.type != 'Bot')"
+        "(github.event.comment.user.type != 'Bot' || "
+        "github.event.action == 'deleted'))"
     )
     assert workflow["permissions"] == {
         "contents": "read",
