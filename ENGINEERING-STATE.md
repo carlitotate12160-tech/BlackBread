@@ -8,8 +8,8 @@ and never overrides live GitHub, accepted architecture, delivery policy, tests, 
 * **State:** ACTIVE
 * **Current milestone:** M1 — Trust Spine
 * **Last verified:** 2026-08-30 UTC
-* **Protected main baseline:** `beb7edfac6558f2d776664cd20eda8df8030b0fe`
-* **Last merged PR:** `#30` (governance: add anti-spaghetti and supply-chain gates)
+* **Protected main baseline:** `0ac702b` (governance: restore ci-ok aggregator, CodeRabbit trigger, banned patterns, AI-slop detection)
+* **Last merged PR:** `#32` (governance: restore ci-ok aggregator, CodeRabbit trigger, banned patterns, AI-slop detection)
 * **Active ruleset:** `main-branch-protection` (`21644438`)
 * **Contractual gate:** first-party CI (`quality`, `tests`, `security`, `governance`) +
   `GitGuardian Security Checks` + review-thread resolution + branch currency (live ruleset
@@ -19,56 +19,103 @@ These values are checkpoints to verify, not facts to trust without querying live
 
 ## Current decision
 
-PR #30 introduced deterministic size gates, but legacy oversized files are admitted through
-editable numeric exceptions. PR #31 then demonstrated that an agent can increase an exception in
-the same pull request. The repository owner selected one corrective governance slice before
-resuming M1: derive legacy allowances from the protected base and make cap increases fail closed.
+Two governance PRs merged in sequence:
 
-The source workflow is only bootstrap evidence until the live ruleset requires its
-`quality-budget` check. No session may claim the size policy is unbypassable before that live
-activation and machine-contract synchronization are verified.
+* **PR #31** (Alpha): protected-base size budgets — `quality-budget` workflow, `size_budget.py`
+  module, `check_size_budget.py` script, `quality-budgets.json` config. Legacy oversize exceptions
+  derived from protected base; cap increases fail closed.
+* **PR #32** (Devin): restored ci-ok aggregator, CodeRabbit auto-trigger, banned patterns (13
+  tests), AI-slop detection (5 tests), diff budget, advisory AI review policy with safety-critical
+  binding, GAP-REGISTER sync, ci-ok governance tests (3 tests in `test_ci_ok_aggregator.py`).
+
+The repository now has both the protected-base size budget system (PR #31) and the Decepticon-style
+quality gates (PR #32): banned patterns, AI-slop signatures, diff budget, ci-ok aggregator, and
+CodeRabbit auto-trigger.
+
+## What is now live on main
+
+### From PR #30 (anti-spaghetti + supply-chain gates)
+
+* Production module ≤400 lines, function ≤50 lines, McCabe ≤10
+* Test module ≤500 lines with shrink-only exceptions
+* No circular imports, no duplicate test names
+* Docker images digest-pinned, GitHub Actions SHA-pinned
+* No floating version constraints
+* Active capabilities must have supply-chain pins
+
+### From PR #31 (protected-base size budgets)
+
+* `quality-budget` workflow (`pull_request_target`, read-only, base-controlled)
+* `src/blackbread/governance/size_budget.py` — pure policy module
+* `scripts/check_size_budget.py` — CLI evaluator
+* `config/quality-budgets.json` — caps config
+* Legacy oversize exceptions derived from protected base SHA
+* Cap decreases allowed; cap increases denied
+
+### From PR #32 (ci-ok + quality gates)
+
+* `ci-ok` aggregator job in `ci.yml` (aggregates quality, tests, security, governance)
+* `ci-ok` fails on any non-success result (failure, cancelled, skipped)
+* `coderabbit-trigger.yml` — auto-trigger CodeRabbit via PAT comment (advisory, non-blocking)
+* `test_banned_patterns.py` — 13 tests: bare except, except-pass, type-ignore, noqa, print,
+  suppressed returns, NotImplementedError, TODO, if-true-else-false, vague names, flag words,
+  speculative kwargs, diff budget
+* `test_ci_ok_aggregator.py` — 3 tests: ci-ok exists with `if: always()`, needs all required jobs,
+  fails on non-success
+* Diff budget: ≤400 runtime lines, ≤10 runtime files (excludes docs/config)
+* Advisory AI review policy with safety-critical binding (CodeRabbit FULL required for
+  safety-critical paths; Qodo fallback for non-safety-critical only)
+* `GAP-REGISTER.md` updated to reference ci-ok aggregator
+* `.github/agent-delivery.json` updated: required_status_checks = ci-ok + GitGuardian
+
+### What is NOT yet live
+
+* `quality-budget` is NOT a required status check in the live ruleset (only `quality`, `tests`,
+  `security`, `governance`, `GitGuardian Security Checks` are required)
+* `ci-ok` is NOT yet a required status check in the live ruleset (same four individual checks
+  remain required)
+* CodeRabbit auto-trigger workflow has not been verified end-to-end (PAT scope issue: needs
+  `pull-requests: write` for `gh pr comment`)
+* CodeRabbit skips auto-review for repos with fewer than 10 stars (manual trigger required)
+* Test quality bar (mock SUT, tautological tests, vague test names, skip/flaky/pragma) — NOT yet
+  implemented
+* Self-review checklist — NOT yet in PR template
+* End-to-end verification statement — deferred until runtime exists
 
 ## Next selected slice
 
-* **ID:** PR-Q1
-* **Title:** Protected Quality Budget Foundation
-* **State:** IN PROGRESS
+* **ID:** PR-Q2
+* **Title:** Activate ci-ok as required status check + live ruleset sync
+* **State:** PENDING (awaiting owner decision)
 * **Owner:** governance
-* **Purpose:** replace editable size exceptions with protected-base allowances and install a
-  base-controlled evaluator that never executes pull-request code.
+* **Purpose:** replace the four individual required checks (`quality`, `tests`, `security`,
+  `governance`) with the single `ci-ok` aggregator in the live GitHub ruleset, then synchronize
+  `.github/agent-delivery.json` and `.github/BRANCH-PROTECTION.md` to match.
 
 ### Required scope
 
-* fixed caps of 400 production-module lines, 50 function lines, and 500 test-module lines;
-* no editable legacy oversize list;
-* protected-base non-growth for existing oversized modules and functions;
-* renamed oversized files treated as new files;
-* cap decreases allowed and cap increases denied;
-* a read-only `pull_request_target` evaluator that checks Git objects as data and never executes
-  pull-request code;
-* focused negative tests for cap increases and legacy-size growth.
-
-### Architecture boundaries
-
-Keep the pure size policy separate from Git/ref access and workflow orchestration. Do not create a
-generic governance manager, quality service, scanner registry, or shared utility dumping ground.
+* live ruleset mutation: required_status_checks = `ci-ok` + `GitGuardian Security Checks`
+* machine contract sync: `.github/agent-delivery.json` already updated (PR #32)
+* documentation sync: `.github/BRANCH-PROTECTION.md` already updated (PR #32)
+* governance test update: `test_governance_contract.py` must verify live ruleset requires `ci-ok`
+* GOV-GAP-001 closure evidence: live ruleset read matches machine contract
 
 ### Non-goals
 
-PR-Q1 does not add subjective AI-slop word lists, test anti-pattern scanners, CI aggregation,
-CodeRabbit PAT automation, production capabilities, or a live ruleset mutation. It must not claim
-the quality budget is required until the live ruleset and machine contract are synchronized.
+PR-Q2 does not add test quality bar patterns, self-review checklist, production capabilities, or
+resume M1. It must not weaken any existing gate.
 
-## Planned sequence after PR-Q1
+## Planned sequence after PR-Q2
 
 Subject to live evidence and a fresh owner decision:
 
-1. Activate and verify the `quality-budget` required check, then synchronize the machine contract.
-2. Resume PR-M1.2 — PostgreSQL Tenant Isolation Foundation.
-3. PR-M1.3 — Deterministic Graph Projection and NetworkX Rebuild.
-4. PR-M1.4 — Policy Kernel v1.
-5. PR-M1.5 — Execution Lease and Deterministic Conductor Path.
-6. PR-M1.6 — Dual Kill Switch.
+1. PR-Q3 — Test quality bar (mock SUT, tautological, vague names, skip/flaky/pragma detection)
+2. PR-Q4 — Self-review checklist in PR template
+3. Resume PR-M1.2 — PostgreSQL Tenant Isolation Foundation (already merged via PR #29)
+4. PR-M1.3 — Deterministic Graph Projection and NetworkX Rebuild
+5. PR-M1.4 — Policy Kernel v1
+6. PR-M1.5 — Execution Lease and Deterministic Conductor Path
+7. PR-M1.6 — Dual Kill Switch
 
 This sequence is planning authority only. Each slice must be revalidated against live architecture,
 implementation, tests, risks, and open gaps before work begins.
@@ -77,7 +124,8 @@ implementation, tests, risks, and open gaps before work begins.
 
 The following remain OPEN unless live closure evidence proves otherwise:
 
-* GOV-GAP-001 (live ruleset conformance is not yet verified against the machine contract)
+* GOV-GAP-001 (live ruleset conformance is not yet verified against the machine contract —
+  `ci-ok` not yet required in live ruleset)
 * LEDGER-GAP-001 (R0 trust-spine integration remains incomplete)
 
 Former GOV-GAP-002 through GOV-GAP-005 are CLOSED (WITHDRAWN) with the AI-review gate removal; see
