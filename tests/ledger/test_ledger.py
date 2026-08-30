@@ -6,7 +6,7 @@ from types import MappingProxyType
 import pytest
 from sqlalchemy import select, text
 from sqlalchemy.exc import DBAPIError, IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from blackbread.ledger import EventDraft, LedgerAccessError, append_event, verify_chain
 from blackbread.ledger.event import GENESIS_PREV_HASH, AgentEvent
@@ -93,6 +93,7 @@ async def test_mutated_source_payload_cannot_bypass_validated_snapshot(
 
 
 async def test_mapping_and_stable_float_round_trip_through_jsonb(
+    engine: AsyncEngine,
     session: AsyncSession,
     engagement: Engagement,
 ) -> None:
@@ -114,7 +115,7 @@ async def test_mapping_and_stable_float_round_trip_through_jsonb(
         await session.execute(select(AgentEvent).where(AgentEvent.id == event_id))
     ).scalar_one()
     result = await verify_chain(
-        session,
+        engine,
         tenant_id=engagement.tenant_id,
         engagement_id=engagement.id,
     )
@@ -125,6 +126,7 @@ async def test_mapping_and_stable_float_round_trip_through_jsonb(
 
 
 async def test_verify_passes_for_untampered_chain(
+    engine: AsyncEngine,
     session: AsyncSession,
     engagement: Engagement,
 ) -> None:
@@ -133,7 +135,7 @@ async def test_verify_passes_for_untampered_chain(
     await session.commit()
 
     result = await verify_chain(
-        session,
+        engine,
         tenant_id=engagement.tenant_id,
         engagement_id=engagement.id,
     )
@@ -154,6 +156,7 @@ async def test_verify_passes_for_untampered_chain(
     ],
 )
 async def test_verify_detects_tamper(
+    engine: AsyncEngine,
     session: AsyncSession,
     admin_session: AsyncSession,
     engagement: Engagement,
@@ -170,7 +173,7 @@ async def test_verify_detects_tamper(
         AgentEvent.__table__.update().where(AgentEvent.id == target.id).values({column: value}),
     )
     result = await verify_chain(
-        session,
+        engine,
         tenant_id=engagement.tenant_id,
         engagement_id=engagement.id,
     )
@@ -181,6 +184,7 @@ async def test_verify_detects_tamper(
 
 
 async def test_append_and_verify_fail_closed_for_wrong_tenant(
+    engine: AsyncEngine,
     session: AsyncSession,
     engagement: Engagement,
 ) -> None:
@@ -199,13 +203,16 @@ async def test_append_and_verify_fail_closed_for_wrong_tenant(
         await append_event(session, wrong)
     with pytest.raises(LedgerAccessError):
         await verify_chain(
-            session,
+            engine,
             tenant_id="tenant-other",
             engagement_id=engagement.id,
         )
 
 
-async def test_missing_engagement_fails_closed(session: AsyncSession) -> None:
+async def test_missing_engagement_fails_closed(
+    engine: AsyncEngine,
+    session: AsyncSession,
+) -> None:
     engagement_id = uuid.uuid4()
     with pytest.raises(LedgerAccessError):
         await append_event(
@@ -222,13 +229,14 @@ async def test_missing_engagement_fails_closed(session: AsyncSession) -> None:
         )
     with pytest.raises(LedgerAccessError):
         await verify_chain(
-            session,
+            engine,
             tenant_id="tenant-a",
             engagement_id=engagement_id,
         )
 
 
 async def test_two_engagements_have_independent_chains(
+    engine: AsyncEngine,
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     async with session_factory() as setup:
@@ -253,12 +261,12 @@ async def test_two_engagements_have_independent_chains(
 
     async with session_factory() as active:
         result_a = await verify_chain(
-            active,
+            engine,
             tenant_id=eng_a.tenant_id,
             engagement_id=eng_a.id,
         )
         result_b = await verify_chain(
-            active,
+            engine,
             tenant_id=eng_b.tenant_id,
             engagement_id=eng_b.id,
         )
@@ -267,6 +275,7 @@ async def test_two_engagements_have_independent_chains(
 
 
 async def test_concurrent_appends_serialize_without_gaps(
+    engine: AsyncEngine,
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     async with session_factory() as setup:
@@ -301,7 +310,7 @@ async def test_concurrent_appends_serialize_without_gaps(
         )
         assert [row.sequence for row in rows] == list(range(1, 11))
         result = await verify_chain(
-            active,
+            engine,
             tenant_id=engagement.tenant_id,
             engagement_id=engagement.id,
         )
@@ -309,6 +318,7 @@ async def test_concurrent_appends_serialize_without_gaps(
 
 
 async def test_verify_detects_deleted_middle_event(
+    engine: AsyncEngine,
     session: AsyncSession,
     admin_session: AsyncSession,
     engagement: Engagement,
@@ -324,7 +334,7 @@ async def test_verify_detects_deleted_middle_event(
     await admin_session.commit()
 
     result = await verify_chain(
-        session,
+        engine,
         tenant_id=engagement.tenant_id,
         engagement_id=engagement.id,
     )
@@ -334,6 +344,7 @@ async def test_verify_detects_deleted_middle_event(
 
 
 async def test_verify_detects_deleted_tail_event(
+    engine: AsyncEngine,
     session: AsyncSession,
     admin_session: AsyncSession,
     engagement: Engagement,
@@ -348,7 +359,7 @@ async def test_verify_detects_deleted_tail_event(
         AgentEvent.__table__.delete().where(AgentEvent.id == last.id),
     )
     result = await verify_chain(
-        session,
+        engine,
         tenant_id=engagement.tenant_id,
         engagement_id=engagement.id,
     )
