@@ -1,0 +1,49 @@
+# Auto-trigger CodeRabbit review on every push to a PR.
+# CodeRabbit free tier (OSS) skips auto-review for repos <10 stars.
+# This workflow automates the manual trigger by commenting
+# `@coderabbitai review` as the token owner (not github-actions[bot]).
+# CodeRabbit ignores bot comments, so a PAT is required.
+#
+# This is ADVISORY ONLY — not a required status check.
+# If CodeRabbit is rate-limited or unavailable, merge is not blocked.
+# AI review comments must be dispositioned by the owner before merge
+# (social enforcement via .devin/rules/blackbread.md), but no CI gate
+# blocks on AI reviewer availability.
+name: CodeRabbit auto-trigger
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+concurrency:
+  group: coderabbit-trigger-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  trigger:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Verify PAT secret is set
+        env:
+          CR_PAT: ${{ secrets.BLACKBREAD_PAT }}
+        if: ${{ env.CR_PAT == '' }}
+        run: |
+          echo "::error::Secret BLACKBREAD_PAT is not set. Add it in repo settings -> secrets -> actions."
+          exit 1
+
+      - name: Trigger CodeRabbit review as token owner
+        env:
+          GH_TOKEN: ${{ secrets.BLACKBREAD_PAT }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          echo "Triggering CodeRabbit review on PR #$PR_NUMBER ($REPO) as token owner"
+          gh pr comment "$PR_NUMBER" --repo "$REPO" --body "@coderabbitai review"
+          echo "Comment posted as authenticated user. CodeRabbit should pick it up within ~1-2 min."

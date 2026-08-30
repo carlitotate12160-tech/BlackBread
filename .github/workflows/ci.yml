@@ -83,3 +83,28 @@ jobs:
           BLACKBREAD_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: uv run python scripts/check_size_budget.py
       - run: uv run pytest tests/governance --no-cov
+
+  # Single required status check. Branch protection should require ONLY this
+  # job. It aggregates every job above, so adding a new job to this workflow
+  # automatically makes it merge-blocking — no ruleset edit, no silently
+  # unprotected lanes.
+  #
+  # Semantics: `skipped` is a PASS (path-gated lanes legitimately skip);
+  # `failure` and `cancelled` are FAILs.
+  ci-ok:
+    name: ci-ok
+    if: always()
+    needs: [quality, tests, security, governance]
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Verify no needed job failed or was cancelled
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          echo "$RESULTS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          bad=$(echo "$RESULTS" | jq -r '[to_entries[] | select(.value.result == "failure" or .value.result == "cancelled")] | length')
+          if [ "$bad" != "0" ]; then
+            echo "::error::$bad required job(s) failed or were cancelled."
+            exit 1
+          fi
