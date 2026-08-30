@@ -11,8 +11,9 @@ and never overrides live GitHub, accepted architecture, delivery policy, tests, 
 * **Protected main baseline:** `bcf713f02f10e42cbda90e91f9a246dc57db0d8d`
 * **Last merged PR:** `#26` (governance: update ENGINEERING-STATE.md after PR #24 and #25 merge)
 * **Active ruleset:** `main-branch-protection` (`21644438`)
-* **Enforced gate:** first-party CI (`quality`, `tests`, `security`, `governance`) +
-  `GitGuardian Security Checks` + review-thread resolution + branch currency
+* **Contractual gate:** first-party CI (`quality`, `tests`, `security`, `governance`) +
+  `GitGuardian Security Checks` + review-thread resolution + branch currency (live ruleset
+  conformance verified by GOV-GAP-001)
 
 These values are checkpoints to verify, not facts to trust without querying live GitHub.
 

@@ -31,8 +31,8 @@ admission blockers are recorded with their owner, milestone, and release in
 - **Verification:** a captured live ruleset read that matches the machine contract, referenced from
   the R0 conformance record.
 - **Compensating control:** fail closed. The four mandatory first-party CI checks, `GitGuardian
-  Security Checks`, and review-thread resolution are enforced today; no target-facing release proceeds
-  while ruleset conformance is unverified.
+  Security Checks`, and review-thread resolution are required by the machine contract; no
+  target-facing release proceeds while ruleset conformance is unverified.
 
 ## GOV-GAP-002 through GOV-GAP-005 — ai-review-gate activation (WITHDRAWN)
 
