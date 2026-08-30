@@ -23,8 +23,6 @@
       "security",
       "tests"
     ],
-    "pending_required_status_checks": ["ai-review-gate"],
-    "ai_review_gate_state": "bootstrap_not_enforced",
     "allow_blocking_debt": false,
     "ruleset_id": 21644438
   }

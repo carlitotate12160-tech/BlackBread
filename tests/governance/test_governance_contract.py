@@ -7,7 +7,7 @@ import yaml
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 
-from blackbread.governance.ai_review_gate import SAFETY_CRITICAL_PATH_PARTS
+from blackbread.governance.safety_paths import SAFETY_CRITICAL_PATH_PARTS
 from blackbread.health import EXPECTED_SCHEMA_REVISION
 from blackbread.models.base import Base
 from blackbread.models.core import PlatformMetadata
@@ -165,13 +165,6 @@ def load_registry() -> dict[str, object]:
 
 def load_workflow() -> dict[str, object]:
     path = ROOT / ".github/workflows/ci.yml"
-    text = path.read_text(encoding="utf-8")
-    quoted = re.sub(r"^on:", '"on":', text, count=1, flags=re.MULTILINE)
-    return yaml.safe_load(quoted)
-
-
-def load_ai_review_workflow() -> dict[str, object]:
-    path = ROOT / ".github/workflows/ai-review-gate.yml"
     text = path.read_text(encoding="utf-8")
     quoted = re.sub(r"^on:", '"on":', text, count=1, flags=re.MULTILINE)
     return yaml.safe_load(quoted)
@@ -380,15 +373,31 @@ def test_unenforced_branch_checks_are_recorded_as_release_blocker() -> None:
     assert "**Blocks:** R0 and every real-target release" in governance_gap
 
 
-def test_ai_review_gate_sha_targeting_gap_is_recorded() -> None:
-    gaps = (ROOT / "GAP-REGISTER.md").read_text(encoding="utf-8")
-    sha_gap = gaps.split("## GOV-GAP-002", maxsplit=1)[1].split("## LEDGER-GAP-001", maxsplit=1)[0]
+def test_ai_review_gate_apparatus_is_fully_removed() -> None:
+    removed = (
+        ROOT / ".github/workflows/ai-review-gate.yml",
+        ROOT / "src/blackbread/governance/ai_review_gate.py",
+        ROOT / "docs/AI-REVIEW-SETUP.md",
+        ROOT / "tests/governance/test_ai_review_gate.py",
+    )
+    for path in removed:
+        assert not path.exists(), f"withdrawn ai-review-gate artifact still present: {path}"
 
-    assert "**Status:** OPEN" in sha_gap
-    assert "**Severity:** P1 governance" in sha_gap
-    assert "ai-review-gate activation" in sha_gap
-    assert "commit-status" in sha_gap
-    assert "bootstrap_not_enforced" in sha_gap
+    delivery = load_delivery_contract()["agent_delivery"]
+    assert "pending_required_status_checks" not in delivery
+    assert "ai_review_gate_state" not in delivery
+
+    for name in (
+        ".devin/rules/blackbread.md",
+        ".github/BRANCH-PROTECTION.md",
+        ".github/agent-delivery.json",
+        "AGENTS.md",
+        "ENGINEERING-STATE.md",
+    ):
+        content = (ROOT / name).read_text(encoding="utf-8")
+        assert "ai-review-gate" not in content, (
+            f"{name} still references the removed ai-review-gate"
+        )
 
 
 def test_agent_delivery_authority_is_explicit_and_fail_closed() -> None:
@@ -417,8 +426,6 @@ def test_agent_delivery_authority_is_explicit_and_fail_closed() -> None:
             "security",
             "tests",
         ],
-        "pending_required_status_checks": ["ai-review-gate"],
-        "ai_review_gate_state": "bootstrap_not_enforced",
         "allow_blocking_debt": False,
         "ruleset_id": 21644438,
     }
@@ -430,14 +437,14 @@ def test_agent_delivery_authority_is_explicit_and_fail_closed() -> None:
     assert {"governance", "quality", "security", "tests"} <= required_checks
     assert "ai-review-gate" not in required_checks
     assert "Sourcery review" not in required_checks
-    assert delivery["pending_required_status_checks"] == ["ai-review-gate"]
+    assert "pending_required_status_checks" not in delivery
 
     delivery_rules = (ROOT / ".devin/rules/blackbread.md").read_text(encoding="utf-8")
     branch_protection = (ROOT / ".github/BRANCH-PROTECTION.md").read_text(encoding="utf-8")
     for content in (delivery_rules, branch_protection):
         assert "mandatory first-party CI" in content
-        assert "`ai-review-gate`" in content
-        assert "does not replace" in content
+        assert "Qodo" in content
+        assert "CodeRabbit" in content
 
     documents = (
         ROOT / "ADR-FINAL-002.md",
@@ -460,32 +467,10 @@ def test_agent_delivery_authority_is_explicit_and_fail_closed() -> None:
     )[0]
     assert "**Status:** OPEN" in governance_gap
 
-    workflow = load_ai_review_workflow()
-    ai_review_job = workflow["jobs"]["ai-review-gate-controller"]
-    assert ai_review_job["name"] == "ai-review-gate-controller"
-    assert set(workflow["on"]) == {
-        "pull_request_target",
-        "pull_request_review",
-        "issue_comment",
-    }
-    assert "pull_request_review" in workflow["on"]
-    assert workflow["env"]["UV_VERSION"] == "0.8.11"
-    checkout = ai_review_job["steps"][0]
-    assert checkout["with"] == {"ref": "main", "persist-credentials": False}
-    assert ai_review_job["steps"][1]["uses"] == "./.github/actions/setup-uv"
-    assert ai_review_job["steps"][2]["run"] == (
-        "uv run python -m blackbread.governance.ai_review_gate"
-    )
     assert delivery["require_review_thread_resolution"] is True
 
-    review_setup = (ROOT / "docs/AI-REVIEW-SETUP.md").read_text(encoding="utf-8")
     test_audit = (ROOT / "TEST-AUDIT.md").read_text(encoding="utf-8")
     codeowners = (ROOT / ".github/CODEOWNERS").read_text(encoding="utf-8")
-    assert "qodo-code-review[bot]" in review_setup
-    assert "authenticated provider-specific machine evidence" in review_setup
-    assert "issue-comment marker" in review_setup
-    assert "bug counts" in review_setup
-    assert "Sourcery is advisory" in review_setup
     assert "CodeRabbit auto-review" not in test_audit
     assert "CodeRabbit AI review runs in parallel" not in codeowners
 
@@ -502,28 +487,6 @@ def test_solo_developer_governance_documents_match_machine_contract() -> None:
     assert "kept in `evaluate` mode" not in branch_protection
     assert "is disabled as rollback evidence" in branch_protection
     assert "`main-approval-required` ruleset (`21698082`) is disabled" in gaps
-
-
-def test_ai_review_gate_issue_comment_wakeup_is_pr_scoped_and_filters_bots() -> None:
-    workflow = load_ai_review_workflow()
-    ai_review_job = workflow["jobs"]["ai-review-gate-controller"]
-
-    assert workflow["on"]["issue_comment"]["types"] == ["created", "edited", "deleted"]
-    assert ai_review_job["if"] == (
-        "github.event_name != 'issue_comment' || "
-        "(github.event.issue.pull_request != null && "
-        "(github.event.comment.user.type != 'Bot' || "
-        "github.event.action == 'deleted'))"
-    )
-    assert workflow["permissions"] == {
-        "contents": "read",
-        "issues": "read",
-        "pull-requests": "read",
-        "statuses": "write",
-    }
-    assert ai_review_job["steps"][2]["env"]["PR_NUMBER"] == (
-        "${{ github.event.pull_request.number || github.event.issue.number }}"
-    )
 
 
 def test_bootstrap_table_is_registered_in_model_metadata() -> None:
@@ -561,7 +524,7 @@ def test_gitleaks_baseline_contains_only_exact_historical_fingerprints() -> None
     assert "gitleaks:allow" in test_app
 
 
-def test_ai_review_gate_covers_every_safety_critical_coverage_module() -> None:
+def test_safety_critical_paths_cover_every_coverage_module() -> None:
     config = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     includes = config["tool"]["coverage"]["safety_critical"]["include"]
 
@@ -569,6 +532,6 @@ def test_ai_review_gate_covers_every_safety_critical_coverage_module() -> None:
         module = include.removeprefix("blackbread.").removesuffix(".*")
         expected = f"src/blackbread/{module}/"
         assert expected in SAFETY_CRITICAL_PATH_PARTS, (
-            f"ai-review-gate SAFETY_CRITICAL_PATH_PARTS must cover {expected}; the pyproject "
+            f"SAFETY_CRITICAL_PATH_PARTS must cover {expected}; the pyproject "
             "safety-critical coverage list is the single source for safety-critical paths"
         )

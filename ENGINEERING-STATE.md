@@ -8,24 +8,25 @@ and never overrides live GitHub, accepted architecture, delivery policy, tests, 
 * **State:** ACTIVE
 * **Current milestone:** M1 — Trust Spine
 * **Last verified:** 2026-08-30 UTC
-* **Protected main:** `ae30871106ae671c42c81904abe51c2cc3754a05`
-* **Last merged PRs:** `#24` (cross-session continuity + ENGINEERING-STATE.md), `#25` (ai-review-gate bot-comment filter)
-* **Squash-merge commits:** `b3880d19ffb04832c8a3c17461c3d1fdb021f3dd` (#24), `ae30871106ae671c42c81904abe51c2cc3754a05` (#25)
+* **Protected main baseline:** `bcf713f02f10e42cbda90e91f9a246dc57db0d8d`
+* **Last merged PR:** `#26` (governance: update ENGINEERING-STATE.md after PR #24 and #25 merge)
 * **Active ruleset:** `main-branch-protection` (`21644438`)
-* **AI review gate state:** `bootstrap_not_enforced` (bot-comment cascade fixed in #25)
+* **Enforced gate:** first-party CI (`quality`, `tests`, `security`, `governance`) +
+  `GitGuardian Security Checks` + review-thread resolution + branch currency
 
 These values are checkpoints to verify, not facts to trust without querying live GitHub.
 
 ## Current decision
 
-PR #24 (cross-session continuity protocol and ENGINEERING-STATE.md) and PR #25 (ai-review-gate
-bot-comment filter) have been squash-merged into protected `main`. Post-merge first-party CI
-(`CI`, `Push on main`) is verified green on `ae30871`. The ai-review-gate bot-comment cascade is
-resolved: bot `created`/`edited` issue comments are filtered, bot `deleted` events still trigger
-fail-closed re-evaluation.
+An in-flight governance slice removes the repository-owned AI-review gate apparatus (its workflow,
+its evaluator, `docs/AI-REVIEW-SETUP.md`, and the four activation sub-gaps). For a solo-developer
+repository the gate enforced nothing and produced a persistent failing check plus cascading
+`issue_comment` runs — pure noise. Qodo and CodeRabbit remain active advisory reviewers whose
+actionable comments must still be dispositioned before merge. Enforcement is the four first-party CI
+checks, `GitGuardian Security Checks`, and protected-main review-thread resolution.
 
-A failure from the non-required bootstrap ai-review-gate is not by itself a merge blocker. Do not
-modify ai-review-gate as part of any M1 implementation slice.
+This is a governance-only slice; it does not touch M1 trust-spine code. Verify its merge state on
+live GitHub before relying on it.
 
 ## Next selected slice
 
@@ -81,7 +82,6 @@ PR-M1.2 does not implement:
 * execution leases;
 * kill-switch;
 * capability execution;
-* AI-review-gate stabilization;
 * branch-protection changes;
 * unrelated refactoring.
 
@@ -105,14 +105,11 @@ implementation, tests, risks, and open gaps before work begins.
 
 The following remain OPEN unless live closure evidence proves otherwise:
 
-* GOV-GAP-001
-* GOV-GAP-002
-* GOV-GAP-003
-* GOV-GAP-004
-* GOV-GAP-005
-* LEDGER-GAP-001
+* GOV-GAP-001 (live ruleset conformance is not yet verified against the machine contract)
+* LEDGER-GAP-001 (R0 trust-spine integration remains incomplete)
 
-No session may infer closure from this work-state document.
+Former GOV-GAP-002 through GOV-GAP-005 are CLOSED (WITHDRAWN) with the AI-review gate removal; see
+GAP-REGISTER.md. No session may infer closure from this work-state document.
 
 ## Update protocol
 
