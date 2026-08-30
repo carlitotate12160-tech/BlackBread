@@ -26,17 +26,17 @@ must enforce the following default path:
   `quality` CI job (Ruff lint, Ruff format, mypy, McCabe complexity); GitHub Code Quality is not yet
   activated.
 - **AI review:** Qodo review on the exact current head and CodeRabbit FULL review for safety-critical
-  changes are mandatory parts of the review process, and every actionable AI-bot comment must be
-  dispositioned before merge. The repository-owned `ai-review-gate`
-  is `bootstrap_not_enforced` and does not replace any first-party CI check. It is not a required
-  status check until `GOV-GAP-001` through `GOV-GAP-005` are closed.
+  changes are part of the review process, and every actionable AI-bot comment must be dispositioned
+  before merge. No AI reviewer is a required status check; the mandatory first-party CI checks
+  (`quality`, `tests`, `security`, `governance`) plus `GitGuardian Security Checks`, review-thread
+  resolution, and branch currency are the enforced gate.
 - Linear history; branch deletion, force-push, direct push to `main`, and non-fast-forward updates
   are blocked.
 
 The legacy ruleset `main-approval-required` is disabled as rollback evidence. Its inactive
-configuration does not provide a bypass path. `GOV-GAP-001` remains open until the `ai-review-gate` is
-owned by protected `main`, exercised by a later activation PR, and the live ruleset is then updated
-while retaining the four mandatory first-party CI checks, `GitGuardian Security Checks`, branch
+configuration does not provide a bypass path. `GOV-GAP-001` remains open until the live `main` ruleset
+is verified on GitHub to match this contract: the four mandatory first-party CI checks (`quality`,
+`tests`, `security`, `governance`), `GitGuardian Security Checks`, CodeQL code scanning, branch
 currency, review-thread resolution, and the solo-developer zero-approval policy.
 
 A governance-only change may merge when it closes a recorded governance blocker and there is no

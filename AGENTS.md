@@ -52,11 +52,10 @@ on conversational memory.
 At most one implementation slice may be active. One agent owns writes to its branch. Other agents
 may perform independent read-only review but must not edit the implementation branch.
 
-AI review infrastructure and AI findings are different concerns. Do not modify or activate
-ai-review-gate unless explicitly assigned as a governance-only slice. However, every AI/bot comment
-that exists on a pull request must be inspected and dispositioned before merge. Reproduce findings
-with code, tests, SQL, runtime behavior, or repository evidence. Fix valid findings minimally and
-record why stale or false-positive findings are not actionable.
+Every AI/bot comment that exists on a pull request must be inspected and dispositioned before merge.
+Qodo and CodeRabbit are advisory reviewers, not required status checks. Reproduce findings with code,
+tests, SQL, runtime behavior, or repository evidence. Fix valid findings minimally and record why
+stale or false-positive findings are not actionable.
 
 ## Authority order
 
