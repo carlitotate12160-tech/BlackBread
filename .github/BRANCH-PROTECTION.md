@@ -34,10 +34,11 @@ must enforce the following default path:
   are blocked.
 
 The legacy ruleset `main-approval-required` is disabled as rollback evidence. Its inactive
-configuration does not provide a bypass path. `GOV-GAP-001` remains open until the live `main` ruleset
-is verified on GitHub to match this contract: the `ci-ok` aggregator check, `GitGuardian Security
-Checks`, CodeQL code scanning, branch currency, review-thread resolution, and the solo-developer
-zero-approval policy.
+configuration does not provide a bypass path. `GOV-GAP-001` is CLOSED as of 2026-08-31 after the live
+`main-branch-protection` ruleset was verified on GitHub to match this contract: the `ci-ok`
+aggregator check, `GitGuardian Security Checks`, CodeQL code scanning, branch currency, review-thread
+resolution, squash-only merge, stale-review dismissal, no bypass actors, and the solo-developer
+zero-approval policy. See GAP-REGISTER.md for the captured snapshot.
 
 A governance-only change may merge when it closes a recorded governance blocker and there is no
 remaining blocking debt for the requested milestone or release. If GitHub denies an operation, the

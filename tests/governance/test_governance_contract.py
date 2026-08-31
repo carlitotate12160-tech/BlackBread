@@ -362,17 +362,6 @@ def test_ci_uses_composite_actions_and_safety_script() -> None:
     assert "SAFETY_MODULES" not in safety
 
 
-def test_unenforced_branch_checks_are_recorded_as_release_blocker() -> None:
-    gaps = (ROOT / "GAP-REGISTER.md").read_text(encoding="utf-8")
-    governance_gap = gaps.split("## GOV-GAP-001", maxsplit=1)[1].split(
-        "## GOV-GAP-002", maxsplit=1
-    )[0]
-
-    assert "**Status:** OPEN" in governance_gap
-    assert "**Severity:** P0 governance" in governance_gap
-    assert "**Blocks:** R0 and every real-target release" in governance_gap
-
-
 def test_ai_review_gate_apparatus_is_fully_removed() -> None:
     removed = (
         ROOT / ".github/workflows/ai-review-gate.yml",
@@ -463,7 +452,7 @@ def test_agent_delivery_authority_is_explicit_and_fail_closed() -> None:
     governance_gap = gaps.split("## GOV-GAP-001", maxsplit=1)[1].split(
         "## LEDGER-GAP-001", maxsplit=1
     )[0]
-    assert "**Status:** OPEN" in governance_gap
+    assert "**Status:** CLOSED" in governance_gap
 
     assert delivery["require_review_thread_resolution"] is True
 

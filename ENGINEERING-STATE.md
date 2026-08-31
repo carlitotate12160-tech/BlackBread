@@ -8,13 +8,14 @@ and never overrides live GitHub, accepted architecture, delivery policy, tests, 
 * **State:** ACTIVE
 * **Current milestone:** M1 — Trust Spine
 * **Last verified:** 2026-08-31 UTC
-* **Protected main baseline:** `2230d93` (PR #35 — deterministic scope graph replay spine)
-* **Last merged PR:** `#35` (feat: add deterministic scope graph replay spine)
+* **Protected main baseline:** `41a6677` (PR #37 — live ruleset aligned to machine contract)
+* **Last merged PR:** `#37` (docs: close GOV-GAP-001 by aligning live ruleset to machine contract)
 * **Active ruleset:** `main-branch-protection` (`21644438`)
-* **Contractual gate:** union of the live required checks (`quality`, `tests`, `security`,
-  `governance`, `GitGuardian Security Checks`) and machine contract (`ci-ok`,
-  `GitGuardian Security Checks`), plus review-thread resolution and branch currency. The mismatch
-  remains `GOV-GAP-001`; it is not waived by this state file.
+* **Contractual gate:** the live ruleset matches the machine contract. Required status checks are
+  `ci-ok` (aggregator for `quality`, `tests`, `security`, `governance`) and `GitGuardian Security
+  Checks`. The pull-request rule enforces solo-developer zero approvals, review-thread resolution,
+  stale-review dismissal, squash-only merge, and no extra approval for unattributed changes. Branch
+  currency is required. `GOV-GAP-001` is CLOSED as of 2026-08-31; see GAP-REGISTER.md.
 
 These values are checkpoints to verify, not facts to trust without querying live GitHub.
 
@@ -87,10 +88,9 @@ CodeRabbit auto-trigger.
 
 ### What is NOT yet live
 
-* `quality-budget` is NOT a required status check in the live ruleset (only `quality`, `tests`,
-  `security`, `governance`, `GitGuardian Security Checks` are required)
-* `ci-ok` is NOT yet a required status check in the live ruleset (the same five individual checks
-  remain required)
+* `quality-budget` is NOT a required status check in the live ruleset; `ci-ok` is the required
+  aggregator and `GitGuardian Security Checks` is the required third-party check, matching
+  `.github/agent-delivery.json`. `GOV-GAP-001` is CLOSED.
 * CodeRabbit trigger transport has run successfully, but CodeRabbit skips automatic review for
   repositories with fewer than 10 stars; safety-critical PRs still require a manual FULL review on
   their exact current head.
@@ -138,8 +138,7 @@ PR-M1.3b1 may merge only when the v2 payload is fully registered, the supersessi
 all negative cases, the identity/revision split keeps `ScopeProjector` deterministic, v2 ledger replay
 fails before incompatible v1-only publication, all repository gates pass on the exact head, the
 current-head CodeRabbit FULL review is complete, and every review thread is dispositioned and
-resolved. A merge does not complete M1.3, M1/R0, `GOV-GAP-001`, `LEDGER-GAP-001`, or
-`GRAPH-GAP-001`.
+resolved. A merge does not complete M1.3, M1/R0, `LEDGER-GAP-001`, or `GRAPH-GAP-001`.
 
 ### M1.3b split plan (recorded contract)
 
@@ -172,9 +171,6 @@ resolved. A merge does not complete M1.3, M1/R0, `GOV-GAP-001`, `LEDGER-GAP-001`
   canonicalization/catalog version. PR-M1.3b2 is the correct place to close it structurally by
   pinning that version into the state-root v2 preimage with its own RED test. Until then it is a
   registered risk, mitigated only by the v1 golden vector.
-* **Merge-order / governance fence:** `GOV-GAP-001` is OPEN. No b1/b2/b3 may merge under an
-  unverified live ruleset without either closing `GOV-GAP-001` first or an explicit, recorded owner
-  decision to accept that risk. Building and reviewing may proceed; sealing waits on the fence.
 * **Total-consumer invariant (M1.3a N4):** `ScopeProjector.consume()` must explicitly transition or
   no-op every future `agent_events` schema/version; an unknown input fails full replay closed.
 * **Domain-only b1 amendment:** `GRAPH-GAP-001` records the owner-selected fail-closed boundary. A v2
@@ -185,10 +181,14 @@ resolved. A merge does not complete M1.3, M1/R0, `GOV-GAP-001`, `LEDGER-GAP-001`
 
 The following remain OPEN unless live closure evidence proves otherwise:
 
-* GOV-GAP-001 (live ruleset conformance is not yet verified against the machine contract —
-  `ci-ok` not yet required in live ruleset)
 * LEDGER-GAP-001 (R0 trust-spine integration remains incomplete)
 * GRAPH-GAP-001 (v2 head publication awaits the b3 temporal persistence schema)
+
+## Closed blockers
+
+* GOV-GAP-001 (live ruleset conformance verified against the machine contract on 2026-08-31 —
+  `ci-ok` and `GitGuardian Security Checks` are required in `main-branch-protection`, plus the
+  documented solo-developer pull-request controls; see GAP-REGISTER.md for the captured snapshot).
 
 Former GOV-GAP-002 through GOV-GAP-005 are CLOSED (WITHDRAWN) with the AI-review gate removal; see
 GAP-REGISTER.md. No session may infer closure from this work-state document.
