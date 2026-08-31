@@ -58,6 +58,21 @@ safety-critical paths. Neither is a required status check. Reproduce findings wi
 tests, SQL, runtime behavior, or repository evidence. Fix valid findings minimally and record why
 stale or false-positive findings are not actionable.
 
+## Architecture preflight and prompt handoff
+
+Before writing or executing an implementation prompt:
+
+1. Verify protected main, open PRs, rulesets, required checks, gaps, and the selected slice from live sources.
+2. Issue one explicit decision: ACCEPT, ACCEPT WITH CHANGES, or REJECT, with evidence.
+3. Map the change into dependency-ordered, independently sealable slices before implementation.
+4. Estimate runtime lines, files, trust boundaries, migrations, and test modules for every slice.
+5. Split proactively when one prompt crosses multiple independently sealable trust boundaries or is unlikely to fit with review margin under the repository budget.
+6. Never accept a split that exposes a reachable unsafe or semantically invalid intermediate state. Add a fail-closed fence or keep the inseparable work together.
+7. Every execution prompt must identify the current slice, completed prerequisites, next slice, non-goals, intermediate-state reachability, RED tests, seal criteria, and STOP/SPLIT conditions.
+8. Advisory AI reviewers (CodeRabbit, Sourcery, Codex, Bito, and similar) are advisory. Trigger an exact-head review once when required by the task. A silent, pending, unavailable, or rate-limited advisory bot does not block merge. A surfaced correctness or security finding that is reproduced and valid does block merge until resolved. Safety-critical paths remain subject to the binding current-head PR-Agent (DeepSeek) review defined in the repository delivery authority.
+9. Required CI, branch currency, valid unresolved threads, changes-requested reviews, blocking gaps, and budget violations remain merge blockers.
+10. Update ENGINEERING-STATE.md after every merge or material rescope so a new session never depends on conversation memory.
+
 ## Authority order
 
 Obey repository authority in this order:

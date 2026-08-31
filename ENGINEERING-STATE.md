@@ -8,8 +8,8 @@ and never overrides live GitHub, accepted architecture, delivery policy, tests, 
 * **State:** ACTIVE
 * **Current milestone:** M1 — Trust Spine
 * **Last verified:** 2026-08-31 UTC
-* **Protected main baseline:** `c1a456f` (PR #36 — feat: add versioned attestation supersession and revision domain split)
-* **Last merged PR:** `#36` (feat: add versioned attestation supersession and revision domain split)
+* **Protected main baseline:** `ff25fba` (PR #38 — add PR-Agent DeepSeek, remove Qodo, update AI review contract)
+* **Last merged PR:** `#38` (add PR-Agent DeepSeek, remove Qodo, update AI review contract)
 * **Active ruleset:** `main-branch-protection` (`21644438`)
 * **Contractual gate:** the live ruleset matches the machine contract. Required status checks are
   `ci-ok` (aggregator for `quality`, `tests`, `security`, `governance`) and `GitGuardian Security
@@ -21,7 +21,7 @@ These values are checkpoints to verify, not facts to trust without querying live
 
 ## Current decision
 
-Two governance PRs merged in sequence:
+Three governance PRs merged in sequence:
 
 * **PR #31** (Alpha): protected-base size budgets — `quality-budget` workflow, `size_budget.py`
   module, `check_size_budget.py` script, `quality-budgets.json` config. Legacy oversize exceptions
@@ -29,15 +29,14 @@ Two governance PRs merged in sequence:
 * **PR #32** (Devin): restored ci-ok aggregator, CodeRabbit auto-trigger, banned patterns (13
   tests), AI-slop detection (5 tests), diff budget, advisory AI review policy with safety-critical
   binding, GAP-REGISTER sync, ci-ok governance tests (3 tests in `test_ci_ok_aggregator.py`).
-* **PR #38** (Devin, pending): add `.github/workflows/pr-agent.yml` with
+* **PR #38** (Devin): add `.github/workflows/pr-agent.yml` with
   `The-PR-Agent/pr-agent@ab6ec54bfeb37933ddb74259338752e9272016c6` using `DEEPSEEK_API_KEY` and
   `deepseek/deepseek-v4-pro` as the model; add `.pr_agent.toml`; remove the previous fallback
   review provider from the AI review contract; make PR-Agent (DeepSeek) binding for safety-critical
   PRs and CodeRabbit the advisory fallback for non-safety-critical PRs.
 
-The repository now has both the protected-base size budget system (PR #31) and the Decepticon-style
-quality gates (PR #32): banned patterns, AI-slop signatures, diff budget, ci-ok aggregator, and
-CodeRabbit auto-trigger.
+The repository now has the protected-base size budget system (PR #31), the Decepticon-style quality
+gates (PR #32), and the PR-Agent/CodiumAI DeepSeek review integration (PR #38).
 
 ## What is now live on main
 
@@ -75,6 +74,17 @@ CodeRabbit auto-trigger.
 * `GAP-REGISTER.md` updated to reference ci-ok aggregator
 * `.github/agent-delivery.json` updated: required_status_checks = ci-ok + GitGuardian
 
+### From PR #38 (AI review tooling — PR-Agent/CodiumAI with DeepSeek)
+
+* `.github/workflows/pr-agent.yml` — pinned `The-PR-Agent/pr-agent@ab6ec54bfeb37933ddb74259338752e9272016c6`
+  with `DEEPSEEK_API_KEY`, model `deepseek/deepseek-v4-pro`, fallback `deepseek/deepseek-v4-flash`
+* `.pr_agent.toml` with review instructions, `handle_push_trigger = true`, `push_commands = ["/review"]`
+* `pull_request` path: non-draft, same-repo, and main-branch guards; `issue_comment` path: trusted
+  user (`OWNER`/`MEMBER`/`COLLABORATOR`) and slash-command guards
+* Separate `pull_request` vs `issue_comment` concurrency groups
+* AI review contract: PR-Agent (DeepSeek) binding for safety-critical paths, CodeRabbit primary
+  advisory for non-safety-critical paths, neither a required status check
+
 ### From PR #35 (M1.3a — deterministic ScopeRoot graph projection)
 
 * `engagement.attested` v1 projects deterministic `ScopeRoot` nodes (root_domain, exact_host,
@@ -96,9 +106,10 @@ CodeRabbit auto-trigger.
 * `quality-budget` is NOT a required status check in the live ruleset; `ci-ok` is the required
   aggregator and `GitGuardian Security Checks` is the required third-party check, matching
   `.github/agent-delivery.json`. `GOV-GAP-001` is CLOSED.
-* CodeRabbit trigger transport has run successfully, but CodeRabbit skips automatic review for
-  repositories with fewer than 10 stars; safety-critical PRs still require a manual FULL review on
-  their exact current head.
+* CodeRabbit is the primary advisory reviewer for non-safety-critical paths, with PR-Agent as
+  fallback advisory; PR-Agent (CodiumAI / DeepSeek) is the binding reviewer for safety-critical
+  paths. Neither is a required status check; both must be dispositioned when they produce actionable
+  findings.
 * Test quality bar (mock SUT, tautological tests, vague test names, skip/flaky/pragma) — NOT yet
   implemented
 * Self-review checklist — NOT yet in PR template
@@ -106,9 +117,9 @@ CodeRabbit auto-trigger.
 
 ## Selected M1.3b slices
 
-The repository owner has split PR-M1.3b into three sequential sub-slices. PR-M1.3a and PR-M1.3b1 are
-now live on `main`. PR-M1.3b2 is the next selected slice. PR #38 is the current active governance
-update and does not advance M1.3b; it will close before M1.3b2 becomes ACTIVE.
+The repository owner has split PR-M1.3b into three sequential sub-slices. PR-M1.3a, PR-M1.3b1, and
+PR #38 are now live on `main`. PR-M1.3b2 is the next selected slice and becomes ACTIVE only when the
+owner explicitly starts it.
 
 ### PR-M1.3b1 (released)
 
