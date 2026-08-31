@@ -7,13 +7,14 @@ and never overrides live GitHub, accepted architecture, delivery policy, tests, 
 
 * **State:** ACTIVE
 * **Current milestone:** M1 — Trust Spine
-* **Last verified:** 2026-08-30 UTC
-* **Protected main baseline:** `0ac702b` (governance: restore ci-ok aggregator, CodeRabbit trigger, banned patterns, AI-slop detection)
-* **Last merged PR:** `#32` (governance: restore ci-ok aggregator, CodeRabbit trigger, banned patterns, AI-slop detection)
+* **Last verified:** 2026-08-31 UTC
+* **Protected main baseline:** `4bf2942` (coordination update after PR #31 and PR #32)
+* **Last merged PR:** `#33` (chore: update ENGINEERING-STATE.md after PR #31 and PR #32 merge)
 * **Active ruleset:** `main-branch-protection` (`21644438`)
-* **Contractual gate:** first-party CI (`quality`, `tests`, `security`, `governance`) +
-  `GitGuardian Security Checks` + review-thread resolution + branch currency (live ruleset
-  conformance verified by GOV-GAP-001)
+* **Contractual gate:** union of the live required checks (`quality`, `tests`, `security`,
+  `governance`, `GitGuardian Security Checks`) and machine contract (`ci-ok`,
+  `GitGuardian Security Checks`), plus review-thread resolution and branch currency. The mismatch
+  remains `GOV-GAP-001`; it is not waived by this state file.
 
 These values are checkpoints to verify, not facts to trust without querying live GitHub.
 
@@ -72,53 +73,71 @@ CodeRabbit auto-trigger.
 
 * `quality-budget` is NOT a required status check in the live ruleset (only `quality`, `tests`,
   `security`, `governance`, `GitGuardian Security Checks` are required)
-* `ci-ok` is NOT yet a required status check in the live ruleset (same four individual checks
+* `ci-ok` is NOT yet a required status check in the live ruleset (the same five individual checks
   remain required)
-* CodeRabbit auto-trigger workflow has not been verified end-to-end (PAT scope issue: needs
-  `pull-requests: write` for `gh pr comment`)
-* CodeRabbit skips auto-review for repos with fewer than 10 stars (manual trigger required)
+* CodeRabbit trigger transport has run successfully, but CodeRabbit skips automatic review for
+  repositories with fewer than 10 stars; safety-critical PRs still require a manual FULL review on
+  their exact current head.
 * Test quality bar (mock SUT, tautological tests, vague test names, skip/flaky/pragma) — NOT yet
   implemented
 * Self-review checklist — NOT yet in PR template
 * End-to-end verification statement — deferred until runtime exists
 
+## Active selected slice
+
+* **ID:** PR-M1.3a
+* **Title:** Deterministic ScopeRoot Graph Projection + Replay/Rebuild Spine
+* **State:** ACTIVE
+* **Owner:** trust-spine
+* **Purpose:** prove the ledger-derived graph architecture for `engagement.attested` through one
+  independently verified committed snapshot, deterministic durable `ScopeRoot` projection,
+  NetworkX rebuild, and versioned state root.
+* **Selection:** the repository owner selected this slice ahead of PR-Q2/Q3. That sequencing change
+  does not waive governance, architecture, isolation, evidence, or release blockers.
+
+### Bounded scope and non-goals
+
+This slice admits only positive attested scope as authoritative `ScopeRoot` nodes. It does not create
+observed assets or edges, implement the broader Attack Graph, resume target-facing capabilities,
+implement Q2/Q3/Q4, close `GOV-GAP-001` or `LEDGER-GAP-001`, or advance M1/R0.
+
+### M1.3a seal gate
+
+PR-M1.3a may merge only when exact attestation-payload provenance is enforced at the PostgreSQL
+publication boundary, projection consumers receive no events before the committed-snapshot verdict,
+all PostgreSQL and repository gates pass on the exact head, the current-head CodeRabbit FULL review
+is complete, and every review thread is dispositioned and resolved. A merge seals only M1.3a; it does
+not complete M1.3, M1/R0, `GOV-GAP-001`, or `LEDGER-GAP-001`.
+
+State-root v1 compatibility freezes `EngagementAttested` v1 and `EngagementScope` canonicalization,
+ScopeRoot identity v1, canonical JSON and timestamp encoding, projector v1, and state-root v1. A
+semantic change requires a new version while retaining the v1 replay path and known-answer vector.
+`ScopeProjector` is a total event consumer: every admitted ledger schema or version requires an
+explicit transition or audited no-op; unknown inputs continue to fail closed.
+
 ## Next selected slice
 
-* **ID:** PR-Q2
-* **Title:** Activate ci-ok as required status check + live ruleset sync
-* **State:** PENDING (awaiting owner decision)
-* **Owner:** governance
-* **Purpose:** replace the four individual required checks (`quality`, `tests`, `security`,
-  `governance`) with the single `ci-ok` aggregator in the live GitHub ruleset, then synchronize
-  `.github/agent-delivery.json` and `.github/BRANCH-PROTECTION.md` to match.
+* **ID:** PR-M1.3b
+* **Title:** Temporal ScopeRoot Projection Lifecycle
+* **State:** DECIDED
+* **Owner:** trust-spine
+* **Prerequisite:** PR-M1.3a is squash-merged with its seal evidence bound to the exact merged head.
+* **Purpose:** introduce explicit attestation supersession and replacement while preserving immutable
+  ledger history, stable ScopeRoot identity, deterministic temporal state, and cold replay parity.
 
-### Required scope
+### M1.3b bounded scope
 
-* live ruleset mutation: required_status_checks = `ci-ok` + `GitGuardian Security Checks`
-* machine contract sync: `.github/agent-delivery.json` already updated (PR #32)
-* documentation sync: `.github/BRANCH-PROTECTION.md` already updated (PR #32)
-* governance test update: `test_governance_contract.py` must verify live ruleset requires `ci-ok`
-* GOV-GAP-001 closure evidence: live ruleset read matches machine contract
+* Explicit versioned supersession with a predecessor event hash; missing predecessor, fork, cycle,
+  invalid ordering, or unsupported version fails closed.
+* Half-open validity intervals `[valid_from, valid_until)` with deterministic overlap handling.
+* Stable ScopeRoot identity separated from immutable temporal assertion revisions and provenance.
+* Atomic current-state replacement without deleting ledger history or prior projection lineage.
+* Cold rebuild from an empty projection must reproduce the same rows, current-state selection, and
+  state root as the live incremental path.
 
-### Non-goals
-
-PR-Q2 does not add test quality bar patterns, self-review checklist, production capabilities, or
-resume M1. It must not weaken any existing gate.
-
-## Planned sequence after PR-Q2
-
-Subject to live evidence and a fresh owner decision:
-
-1. PR-Q3 — Test quality bar (mock SUT, tautological, vague names, skip/flaky/pragma detection)
-2. PR-Q4 — Self-review checklist in PR template
-3. Resume PR-M1.2 — PostgreSQL Tenant Isolation Foundation (already merged via PR #29)
-4. PR-M1.3 — Deterministic Graph Projection and NetworkX Rebuild
-5. PR-M1.4 — Policy Kernel v1
-6. PR-M1.5 — Execution Lease and Deterministic Conductor Path
-7. PR-M1.6 — Dual Kill Switch
-
-This sequence is planning authority only. Each slice must be revalidated against live architecture,
-implementation, tests, risks, and open gaps before work begins.
+M1.3b does not add Host, Address, graph edges, observed evidence, network execution, Policy Kernel,
+Conductor, Target Identity Guard, capability admission, or target-facing behavior. Those boundaries
+must not be pulled forward merely to make the temporal slice appear complete.
 
 ## Open blockers
 

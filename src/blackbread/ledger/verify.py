@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from dataclasses import dataclass
 from uuid import UUID
 
@@ -112,6 +113,7 @@ async def _scan_chain(
     *,
     tenant_id: str,
     engagement_id: UUID,
+    consumer: Callable[[AgentEvent], None] | None = None,
 ) -> _ChainScan:
     statement = (
         select(AgentEvent.__table__)
@@ -143,6 +145,8 @@ async def _scan_chain(
                     broken_at_sequence=event.sequence,
                     reason=failure,
                 )
+            if consumer is not None:
+                consumer(event)
             expected_prev = event.event_hash
             expected_sequence += 1
     finally:
@@ -218,6 +222,30 @@ async def _verify_in_snapshot(
         tenant_id=tenant_id,
         engagement_id=engagement_id,
     )
+
+
+verify_snapshot = _verify_in_snapshot
+
+
+async def replay_verified_snapshot(
+    connection: AsyncConnection,
+    *,
+    tenant_id: str,
+    engagement_id: UUID,
+    consumer: Callable[[AgentEvent], None],
+) -> ChainVerification:
+    """Deliver events only after their caller-owned database snapshot verifies."""
+    verification = await verify_snapshot(
+        connection, tenant_id=tenant_id, engagement_id=engagement_id
+    )
+    if verification.ok:
+        await _scan_chain(
+            connection,
+            tenant_id=tenant_id,
+            engagement_id=engagement_id,
+            consumer=consumer,
+        )
+    return verification
 
 
 async def verify_chain(
