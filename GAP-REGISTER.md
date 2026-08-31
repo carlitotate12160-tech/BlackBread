@@ -6,33 +6,92 @@ admission blockers are recorded with their owner, milestone, and release in
 
 ## GOV-GAP-001 — Live main ruleset is not verified against the machine contract
 
-- **Status:** OPEN
+- **Status:** CLOSED
 - **Severity:** P0 governance
 - **Owner:** repository administrator
 - **Target milestone:** M0 governance hardening
 - **Blocks:** R0 and every real-target release
-- **Current evidence:** the live ruleset is consolidated into a single `main-branch-protection`
-  (`21644438`) that is expected to require deletion protection, non-fast-forward, required linear
-  history, pull_request with zero approving reviews (solo-developer mode:
+- **Closed at:** 2026-08-31T16:39:39+07:00
+- **Closure evidence:** the live `main-branch-protection` ruleset (`21644438`) was read from GitHub
+  after alignment and matches `.github/agent-delivery.json` and `.github/BRANCH-PROTECTION.md`. The
+  legacy `main-approval-required` ruleset (`21698082`) is disabled and retained only as rollback evidence. The
+  verified ruleset enforces: deletion protection, non-fast-forward, required linear history,
+  required pull request with solo-developer settings (`required_approving_review_count: 0`,
   `require_code_owner_review: false`, `require_last_push_approval: false`,
-  `require_extra_approval_for_unattributed_changes: false`), review-thread resolution, source-pinned
-  required_status_checks (`ci-ok` aggregator, `GitGuardian Security Checks`), CodeQL code scanning
-  (`high_or_higher` security alerts and `errors` tool/analysis alerts), and strict branch currency.
-  The legacy `main-approval-required` ruleset (`21698082`) is disabled and retained only as rollback
-  evidence; it has no enforcement effect and provides no active bypass. Whether the live GitHub
-  ruleset actually matches `.github/agent-delivery.json` and `.github/BRANCH-PROTECTION.md` cannot
-  be proven from source and is not yet independently verified.
-- **Required closure:** read the live `main-branch-protection` ruleset from GitHub and confirm it
-  matches the machine contract and prose exactly — the `ci-ok` aggregator check, `GitGuardian
-  Security Checks`, CodeQL code scanning, review-thread resolution, branch currency, and the
-  solo-developer zero-approval policy — with no unexpected required check, bypass actor, or missing
-  control. Record the verified ruleset snapshot.
-- **Verification:** a captured live ruleset read that matches the machine contract, referenced from
-  the R0 conformance record.
-- **Compensating control:** fail closed. The `ci-ok` aggregator (which depends on `quality`,
-  `tests`, `security`, and `governance`), `GitGuardian Security Checks`, and review-thread
-  resolution are required by the machine contract; no target-facing release proceeds while ruleset
-  conformance is unverified.
+  `dismiss_stale_reviews_on_push: true`, `require_review_thread_resolution: true`,
+  `require_extra_approval_for_unattributed_changes: false`, `allowed_merge_methods: ["squash"]`),
+  required status checks (`ci-ok` and `GitGuardian Security Checks`), CodeQL code scanning
+  (`high_or_higher` security alerts and `errors` tool/analysis alerts), strict branch currency,
+  and no bypass actors (`bypass_actors: []`, `current_user_can_bypass: "never"`).
+- **Verification:** captured live ruleset snapshot below, fetched from
+  `https://api.github.com/repos/carlitotate12160-tech/BlackBread/rulesets/21644438`, matches the
+  machine contract.
+- **Compensating control:** N/A.
+
+<details>
+<summary>Verified live ruleset snapshot (2026-08-31T16:39:39+07:00)</summary>
+
+```json
+{
+  "id": 21644438,
+  "name": "main-branch-protection",
+  "target": "branch",
+  "source_type": "Repository",
+  "source": "carlitotate12160-tech/BlackBread",
+  "enforcement": "active",
+  "conditions": {
+    "ref_name": {
+      "exclude": [],
+      "include": ["refs/heads/main"]
+    }
+  },
+  "rules": [
+    {"type": "deletion"},
+    {"type": "non_fast_forward"},
+    {"type": "required_linear_history"},
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": true,
+        "do_not_enforce_on_create": false,
+        "required_status_checks": [
+          {"context": "ci-ok", "integration_id": 15368},
+          {"context": "GitGuardian Security Checks", "integration_id": 46505}
+        ]
+      }
+    },
+    {
+      "type": "code_scanning",
+      "parameters": {
+        "code_scanning_tools": [
+          {
+            "tool": "CodeQL",
+            "security_alerts_threshold": "high_or_higher",
+            "alerts_threshold": "errors"
+          }
+        ]
+      }
+    },
+    {
+      "type": "pull_request",
+      "parameters": {
+        "required_approving_review_count": 0,
+        "dismiss_stale_reviews_on_push": true,
+        "required_reviewers": [],
+        "require_code_owner_review": false,
+        "require_last_push_approval": false,
+        "required_review_thread_resolution": true,
+        "require_extra_approval_for_unattributed_changes": false,
+        "allowed_merge_methods": ["squash"]
+      }
+    }
+  ],
+  "bypass_actors": [],
+  "current_user_can_bypass": "never"
+}
+```
+
+</details>
 
 ## GOV-GAP-002 through GOV-GAP-005 — ai-review-gate activation (WITHDRAWN)
 
