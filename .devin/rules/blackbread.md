@@ -23,6 +23,20 @@ BlackBread is an **authorized, covert, agentless external red-team / adversary-e
 - No ruleset bypass is configured for the merge gate. The repository owner is the only actor who may merge to `main` after the same gates pass. An automation integration may create commits, push a feature branch, and update a pull request, but it may not click merge, push directly to `main`, or bypass an approval, status-check, or thread-resolution gate.
 - Delivery authority never authorizes force-push, history rewrite, branch deletion, weakening safety controls, suppressing findings, dismissing a valid review merely to merge, or claiming delivery when GitHub denied it. A governance-only change may merge when its purpose is to close a recorded blocker.
 
+## Architecture preflight and prompt handoff
+
+Before writing or executing an implementation prompt:
+- Verify protected main, open PRs, rulesets, required checks, gaps, and the selected slice from live sources.
+- Issue one explicit decision: ACCEPT, ACCEPT WITH CHANGES, or REJECT, with evidence.
+- Map the change into dependency-ordered, independently sealable slices before implementation.
+- Estimate runtime lines, files, trust boundaries, migrations, and test modules for every slice.
+- Split proactively when one prompt crosses multiple independently sealable trust boundaries or is unlikely to fit with review margin under the repository budget.
+- Never accept a split that exposes a reachable unsafe or semantically invalid intermediate state. Add a fail-closed fence or keep the inseparable work together.
+- Every execution prompt must identify the current slice, completed prerequisites, next slice, non-goals, intermediate-state reachability, RED tests, seal criteria, and STOP/SPLIT conditions.
+- Advisory AI reviewers (CodeRabbit, Sourcery, Codex, Bito, and similar) are advisory. Trigger an exact-head review once when required by the task. A silent, pending, unavailable, or rate-limited advisory bot does not block merge. A surfaced correctness or security finding that is reproduced and valid does block merge until resolved. Safety-critical paths remain subject to the binding current-head PR-Agent (DeepSeek) review defined in the repository delivery authority.
+- Required CI, branch currency, valid unresolved threads, changes-requested reviews, blocking gaps, and budget violations remain merge blockers.
+- Update ENGINEERING-STATE.md after every merge or material rescope so a new session never depends on conversation memory.
+
 ## Hard invariants (never violate)
 - **Authorization first.** No target action without a valid, unexpired, attested engagement manifest verified by the Policy Kernel.
 - **Deterministic safety, not LLM.** Policy Kernel, OPSEC heat/stop, budgets, scope, and the Authentication Risk Governor are pure deterministic code. The LLM never gates safety and never executes actions — it only emits typed proposals.
