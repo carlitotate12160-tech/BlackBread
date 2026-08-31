@@ -104,16 +104,20 @@ CodeRabbit auto-trigger.
 * Self-review checklist — NOT yet in PR template
 * End-to-end verification statement — deferred until runtime exists
 
-## Active selected slice
+## Selected M1.3b slices
 
-The repository owner has split PR-M1.3b into three sequential sub-slices. PR-M1.3a is now live on
-`main`; PR-M1.3b1 is the active implementation slice.
+The repository owner has split PR-M1.3b into three sequential sub-slices. PR-M1.3a and PR-M1.3b1 are
+now live on `main`. PR-M1.3b2 is the next selected slice. PR #38 is the current active governance
+update and does not advance M1.3b; it will close before M1.3b2 becomes ACTIVE.
+
+### PR-M1.3b1 (released)
 
 * **ID:** PR-M1.3b1
 * **Title:** Versioned Attestation Supersession + Identity/Revision Domain Split
-* **State:** ACTIVE
+* **State:** RELEASED
 * **Owner:** trust-spine
 * **Prerequisite:** PR-M1.3a is squash-merged to `main` at `2230d93`.
+* **Released at:** `e68595a` / PR #36
 * **Purpose:** structural head selection only; clock-free; no temporal `as_of`; no state-root v2.
   Proves `engagement.attested v2` (with `supersedes_event_hash`) is admitted and registered, the
   supersession chain is validated fail-closed, and stable ScopeRoot identity is separated from
@@ -144,6 +148,16 @@ all negative cases, the identity/revision split keeps `ScopeProjector` determini
 fails before incompatible v1-only publication, all repository gates pass on the exact head, the
 current-head CodeRabbit FULL review is complete, and every review thread is dispositioned and
 resolved. A merge does not complete M1.3, M1/R0, `LEDGER-GAP-001`, or `GRAPH-GAP-001`.
+
+### PR-M1.3b2 (next selected)
+
+* **ID:** PR-M1.3b2
+* **Title:** Temporal Selection + State-Root v2
+* **State:** DECIDED
+* **Prerequisite:** PR-M1.3b1 merged and `GRAPH-GAP-001` still OPEN (b3 will close it).
+* **Purpose:** clock-free temporal selection and v2 state root binding the full supersession history.
+* **Activation condition:** after PR #38 (AI review tooling) merges and the owner explicitly starts
+  M1.3b2.
 
 ### M1.3b split plan (recorded contract)
 
