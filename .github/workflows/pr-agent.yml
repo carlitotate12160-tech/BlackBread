@@ -1,0 +1,72 @@
+# PR Agent (CodiumAI) with DeepSeek.
+#
+# This workflow runs the open-source PR-Agent on pull requests and PR comments,
+# using a DeepSeek API key supplied as the repository secret DEEPSEEK_API_KEY.
+#
+# For safety-critical PRs, the current-head PR-Agent (DeepSeek) review is binding
+# and must be complete with all actionable findings disposed before merge.
+# For non-safety-critical PRs, CodeRabbit is the primary advisory reviewer and
+# PR-Agent may provide fallback. The workflow is not a required status check.
+#
+# Security note: PR-Agent sends the PR diff to DeepSeek's API. The repository
+# owner is responsible for the data-handling terms of that API key.
+name: PR Agent DeepSeek
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+  issue_comment:
+    types: [created]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+concurrency:
+  group: pr-agent-deepseek-${{ github.event_name }}-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    if: |
+      github.event.sender.type != 'Bot' &&
+      (
+        (github.event_name == 'pull_request' &&
+         github.event.pull_request.base.ref == 'main' &&
+         !github.event.pull_request.draft &&
+         github.event.pull_request.head.repo.full_name == github.repository) ||
+        (github.event_name == 'issue_comment' &&
+         github.event.issue.pull_request &&
+         (github.event.comment.author_association == 'OWNER' ||
+          github.event.comment.author_association == 'MEMBER' ||
+          github.event.comment.author_association == 'COLLABORATOR') &&
+         startsWith(github.event.comment.body, '/'))
+      )
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Verify DeepSeek API key is set
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        if: ${{ env.DEEPSEEK_API_KEY == '' }}
+        run: |
+          echo "::error::Secret DEEPSEEK_API_KEY is not set. Add it in repo settings -> secrets -> actions."
+          exit 1
+
+      - name: Checkout repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+
+      - name: Run PR Agent
+        uses: The-PR-Agent/pr-agent@ab6ec54bfeb37933ddb74259338752e9272016c6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          DEEPSEEK_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          CONFIG__MODEL: "deepseek/deepseek-v4-pro"
+          CONFIG__FALLBACK_MODELS: '["deepseek/deepseek-v4-flash"]'
+          GITHUB_ACTION_CONFIG__AUTO_REVIEW: "true"
+          GITHUB_ACTION_CONFIG__AUTO_DESCRIBE: "false"
+          GITHUB_ACTION_CONFIG__AUTO_IMPROVE: "false"
+          GITHUB_ACTION_CONFIG__HANDLE_PUSH_TRIGGER: "true"
+          GITHUB_ACTION_CONFIG__PUSH_COMMANDS: '["/review"]'

@@ -8,8 +8,8 @@ and never overrides live GitHub, accepted architecture, delivery policy, tests, 
 * **State:** ACTIVE
 * **Current milestone:** M1 — Trust Spine
 * **Last verified:** 2026-08-31 UTC
-* **Protected main baseline:** `41a6677` (PR #37 — live ruleset aligned to machine contract)
-* **Last merged PR:** `#37` (docs: close GOV-GAP-001 by aligning live ruleset to machine contract)
+* **Protected main baseline:** `c1a456f` (PR #36 — feat: add versioned attestation supersession and revision domain split)
+* **Last merged PR:** `#36` (feat: add versioned attestation supersession and revision domain split)
 * **Active ruleset:** `main-branch-protection` (`21644438`)
 * **Contractual gate:** the live ruleset matches the machine contract. Required status checks are
   `ci-ok` (aggregator for `quality`, `tests`, `security`, `governance`) and `GitGuardian Security
@@ -29,6 +29,11 @@ Two governance PRs merged in sequence:
 * **PR #32** (Devin): restored ci-ok aggregator, CodeRabbit auto-trigger, banned patterns (13
   tests), AI-slop detection (5 tests), diff budget, advisory AI review policy with safety-critical
   binding, GAP-REGISTER sync, ci-ok governance tests (3 tests in `test_ci_ok_aggregator.py`).
+* **PR #38** (Devin, pending): add `.github/workflows/pr-agent.yml` with
+  `The-PR-Agent/pr-agent@ab6ec54bfeb37933ddb74259338752e9272016c6` using `DEEPSEEK_API_KEY` and
+  `deepseek/deepseek-v4-pro` as the model; add `.pr_agent.toml`; remove the previous fallback
+  review provider from the AI review contract; make PR-Agent (DeepSeek) binding for safety-critical
+  PRs and CodeRabbit the advisory fallback for non-safety-critical PRs.
 
 The repository now has both the protected-base size budget system (PR #31) and the Decepticon-style
 quality gates (PR #32): banned patterns, AI-slop signatures, diff budget, ci-ok aggregator, and
@@ -65,8 +70,8 @@ CodeRabbit auto-trigger.
 * `test_ci_ok_aggregator.py` — 3 tests: ci-ok exists with `if: always()`, needs all required jobs,
   fails on non-success
 * Diff budget: ≤400 runtime lines, ≤10 runtime files (excludes docs/config)
-* Advisory AI review policy with safety-critical binding (CodeRabbit FULL required for
-  safety-critical paths; Qodo fallback for non-safety-critical only)
+* Advisory AI review policy with safety-critical binding (PR-Agent DeepSeek review required for
+  safety-critical paths; CodeRabbit primary for non-safety-critical paths, with PR-Agent fallback)
 * `GAP-REGISTER.md` updated to reference ci-ok aggregator
 * `.github/agent-delivery.json` updated: required_status_checks = ci-ok + GitGuardian
 
@@ -99,16 +104,20 @@ CodeRabbit auto-trigger.
 * Self-review checklist — NOT yet in PR template
 * End-to-end verification statement — deferred until runtime exists
 
-## Active selected slice
+## Selected M1.3b slices
 
-The repository owner has split PR-M1.3b into three sequential sub-slices. PR-M1.3a is now live on
-`main`; PR-M1.3b1 is the active implementation slice.
+The repository owner has split PR-M1.3b into three sequential sub-slices. PR-M1.3a and PR-M1.3b1 are
+now live on `main`. PR-M1.3b2 is the next selected slice. PR #38 is the current active governance
+update and does not advance M1.3b; it will close before M1.3b2 becomes ACTIVE.
+
+### PR-M1.3b1 (released)
 
 * **ID:** PR-M1.3b1
 * **Title:** Versioned Attestation Supersession + Identity/Revision Domain Split
-* **State:** ACTIVE
+* **State:** RELEASED
 * **Owner:** trust-spine
 * **Prerequisite:** PR-M1.3a is squash-merged to `main` at `2230d93`.
+* **Released at:** `e68595a` / PR #36
 * **Purpose:** structural head selection only; clock-free; no temporal `as_of`; no state-root v2.
   Proves `engagement.attested v2` (with `supersedes_event_hash`) is admitted and registered, the
   supersession chain is validated fail-closed, and stable ScopeRoot identity is separated from
@@ -137,8 +146,20 @@ The repository owner has split PR-M1.3b into three sequential sub-slices. PR-M1.
 PR-M1.3b1 may merge only when the v2 payload is fully registered, the supersession validator rejects
 all negative cases, the identity/revision split keeps `ScopeProjector` deterministic, v2 ledger replay
 fails before incompatible v1-only publication, all repository gates pass on the exact head, the
-current-head CodeRabbit FULL review is complete, and every review thread is dispositioned and
-resolved. A merge does not complete M1.3, M1/R0, `LEDGER-GAP-001`, or `GRAPH-GAP-001`.
+current-head independent AI review required by the then-active binding review contract is complete
+(CodeRabbit for b1, since PR-Agent had not yet been adopted), and every review thread is
+dispositioned and resolved. A merge does not complete M1.3, M1/R0, `LEDGER-GAP-001`, or
+`GRAPH-GAP-001`.
+
+### PR-M1.3b2 (next selected)
+
+* **ID:** PR-M1.3b2
+* **Title:** Temporal Selection + State-Root v2
+* **State:** DECIDED
+* **Prerequisite:** PR-M1.3b1 merged and `GRAPH-GAP-001` still OPEN (b3 will close it).
+* **Purpose:** clock-free temporal selection and v2 state root binding the full supersession history.
+* **Activation condition:** after PR #38 (AI review tooling) merges and the owner explicitly starts
+  M1.3b2.
 
 ### M1.3b split plan (recorded contract)
 

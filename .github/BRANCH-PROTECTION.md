@@ -22,14 +22,16 @@ must enforce the following default path:
 - **Require code quality results:** OFF. BlackBread currently enforces code quality through the
   `quality` CI job (Ruff lint, Ruff format, mypy, McCabe complexity); GitHub Code Quality is not yet
   activated.
-- **AI review:** CodeRabbit is auto-triggered via `coderabbit-trigger.yml` (PAT-owned comment) on
-  every non-draft PR. Qodo provides fallback advisory review. Both post advisory findings that must
-  be dispositioned before merge, but neither is a required status check. If CodeRabbit is
-  rate-limited or unavailable, Qodo provides the fallback; if both are unavailable, the owner
-  dispositions the absence explicitly in the PR. Every actionable AI-bot comment must be
-  dispositioned before merge. The mandatory first-party CI gate is `ci-ok` (aggregating `quality`,
-  `tests`, `security`, `governance`) plus `GitGuardian Security Checks`, review-thread resolution,
-  and branch currency.
+- **AI review:** PR-Agent (CodiumAI) is auto-triggered via `.github/workflows/pr-agent.yml` on
+  every non-draft PR using a DeepSeek API key. For **safety-critical** PRs, the current-head
+  PR-Agent review is binding and must be complete with all actionable findings disposed before
+  merge. For **non-safety-critical** PRs, CodeRabbit is the primary advisory reviewer, auto-triggered
+  via `coderabbit-trigger.yml` (PAT-owned comment). If CodeRabbit is rate-limited or unavailable,
+  PR-Agent may provide fallback advisory review; if neither is available, the owner dispositions the
+  absence explicitly in the PR. Every actionable AI-bot comment must be dispositioned before merge.
+  Neither AI reviewer is a required status check; the mandatory first-party CI gate is `ci-ok`
+  (aggregating `quality`, `tests`, `security`, `governance`) plus `GitGuardian Security Checks`,
+  review-thread resolution, and branch currency.
 - Linear history; branch deletion, force-push, direct push to `main`, and non-fast-forward updates
   are blocked.
 

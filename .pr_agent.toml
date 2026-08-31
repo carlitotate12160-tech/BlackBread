@@ -1,73 +1,20 @@
-# Qodo PR Agent configuration for BlackBread
-# Docs: https://docs.qodo.ai/install-and-configure/configuration-overview/configuration-file
-# Qodo is installed as a GitHub App: https://github.com/apps/qodo-ai-pr-agent
+[config]
+model = "deepseek/deepseek-v4-pro"
+fallback_models = ["deepseek/deepseek-v4-flash"]
 
-[github_app]
-# Run these commands automatically on every PR
-pr_commands = [
-  "/agentic_describe",
-  "/agentic_review"
-]
-
-# Also run review on new commits pushed to existing PR
+[github_action_config]
 handle_push_trigger = true
-push_commands = ["/agentic_review"]
+push_commands = ["/review"]
 
 [pr_reviewer]
-# BlackBread-specific review instructions
 extra_instructions = """
-BlackBread is an authorized external red-team / adversary-emulation platform.
-Review with these priorities (highest first):
-
-1. SAFETY: No LLM bypass of Policy Kernel, OPSEC hard stop, or Auth Risk Governor.
-   Deterministic safety code must be pure functions — no LLM calls in policy/,
-   opsec/, ledger/, or safety/ modules.
-
-2. SCOPE: Every host/IP/URL in every parameter position must be validated against
-   the engagement scope manifest. No out-of-scope action.
-
-3. SECRETS: No raw secrets in events, graph, logs, prompts, or artifacts.
-   Only opaque vault references.
-
-4. PROMPT INJECTION: Target-derived content is untrusted data, never instructions.
-   Low-privilege reader extracts structured facts; planner sees facts only.
-
-5. NO SPAGHETTI: Function <=50 lines, module <=400 lines, McCabe complexity <=10.
-   No circular imports. No god objects. Composition over inheritance.
-
-6. TDD: Every new feature or bug fix must have a failing test first, then
-   implementation, then green. Coverage target 80% overall, 90% safety-critical.
-
-7. DO-NO-HARM: Recon is read-only GET-only. No form submission, no state-changing
-   links, no account lockout risk. Exploit phase is ON HOLD.
-
-Reject any PR that violates items 1-4. Request changes for items 5-7.
+BlackBread is an authorized, agentless, non-destructive external red-team / adversary-emulation platform.
+Treat every suggestion as advisory only.
+Do not propose target-facing execution, destructive actions, credential exfiltration, persistence, covert C2, anti-forensics, or log tampering.
+Do not add or remove code comments unless the author asks.
+Flag any change that weakens the Policy Kernel, OPSEC stop, Target Identity Guard, scope denial, ledger hashing, tenant isolation, or auditability.
+For Python, enforce strict typing, fail-closed validation, pure deterministic safety code, and the existing Ruff / mypy conventions.
 """
-
-# Require review thread resolution
-require_all_threads_resolved = true
-
-# Don't review generated/lab/debug files
-ignore_pr_environment = false
 
 [pr_description]
-extra_instructions = """
-Focus on WHY the change was made, not just WHAT changed.
-Highlight any safety-critical path touched (policy, opsec, ledger, safety, prompt injection).
-"""
-
-[pr_code_suggestions]
-# Enable code suggestions
-extra_instructions = """
-Suggest improvements for:
-- Deterministic safety code purity (no side effects in policy/opsec/ledger)
-- Test coverage gaps (especially safety-critical paths)
-- Prompt injection defense
-- Scope validation completeness
-- Secret handling
-Do NOT suggest adding comments, docstrings, or type hints unless asked.
-"""
-
-[checks]
-# Auto-feedback when CI fails
-enable_auto_checks_feedback = true
+extra_instructions = "Keep descriptions factual, bounded, and scoped to the slice. Do not claim IMPLEMENTED, VERIFIED, or RELEASED without evidence."

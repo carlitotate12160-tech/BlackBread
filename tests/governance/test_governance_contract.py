@@ -430,7 +430,7 @@ def test_agent_delivery_authority_is_explicit_and_fail_closed() -> None:
     branch_protection = (ROOT / ".github/BRANCH-PROTECTION.md").read_text(encoding="utf-8")
     for content in (delivery_rules, branch_protection):
         assert "mandatory first-party CI" in content
-        assert "Qodo" in content
+        assert "PR-Agent" in content
         assert "CodeRabbit" in content
 
     documents = (
