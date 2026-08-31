@@ -73,7 +73,7 @@ CodeRabbit auto-trigger.
 
 * `quality-budget` is NOT a required status check in the live ruleset (only `quality`, `tests`,
   `security`, `governance`, `GitGuardian Security Checks` are required)
-* `ci-ok` is NOT yet a required status check in the live ruleset (same four individual checks
+* `ci-ok` is NOT yet a required status check in the live ruleset (the same five individual checks
   remain required)
 * CodeRabbit trigger transport has run successfully, but CodeRabbit skips automatic review for
   repositories with fewer than 10 stars; safety-critical PRs still require a manual FULL review on
@@ -108,6 +108,12 @@ publication boundary, projection consumers receive no events before the committe
 all PostgreSQL and repository gates pass on the exact head, the current-head CodeRabbit FULL review
 is complete, and every review thread is dispositioned and resolved. A merge seals only M1.3a; it does
 not complete M1.3, M1/R0, `GOV-GAP-001`, or `LEDGER-GAP-001`.
+
+State-root v1 compatibility freezes `EngagementAttested` v1 and `EngagementScope` canonicalization,
+ScopeRoot identity v1, canonical JSON and timestamp encoding, projector v1, and state-root v1. A
+semantic change requires a new version while retaining the v1 replay path and known-answer vector.
+`ScopeProjector` is a total event consumer: every admitted ledger schema or version requires an
+explicit transition or audited no-op; unknown inputs continue to fail closed.
 
 ## Next selected slice
 
