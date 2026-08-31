@@ -192,6 +192,28 @@ has no live effect; it is retained only as rollback evidence:
 - **Verification:**
   `tests/governance/test_governance_contract.py::test_ai_review_gate_apparatus_is_fully_removed`.
 
+## GOV-GAP-006 — Post-merge `ENGINEERING-STATE.md` main SHA pointer automation missing
+
+- **Status:** OPEN
+- **Severity:** P1 governance
+- **Owner:** repository administrator
+- **Target milestone:** M0 governance hardening
+- **Blocks:** none — a stale or missing SHA pointer is not a merge blocker, per AGENTS.md and
+  `.devin/rules/blackbread.md` preflight rule #10.
+- **Current evidence:** the `Protected main baseline` in `ENGINEERING-STATE.md` is currently
+  hand-typed. After every squash merge the actual `main` HEAD advances, so the hand-typed pointer
+  becomes stale until a person updates it. This caused a recursive series of state-only PRs.
+- **Required closure:** a required post-merge automation step (e.g., a `push`/`merge` triggered
+  GitHub Actions workflow with `contents: write` and a protected-branch bypass for the automation
+  identity, or a repository rule that stamps the merged SHA) updates the
+  `ENGINEERING-STATE.md` `Protected main baseline` pointer immediately after a PR is squash-merged
+  to `main`. Manual edits to that pointer are no longer needed and no longer allowed.
+- **Verification:** after a merge, the pointer matches the actual `main` HEAD SHA within one
+  workflow run, without creating a follow-up PR.
+- **Compensating control:** until the automation is live, `ENGINEERING-STATE.md` may contain a
+  hand-typed or stale SHA pointer, which must be cross-checked against live GitHub. The file's own
+  header and preflight rule #10 state that it is a checkpoint, not a substitute for live GitHub.
+
 ## LEDGER-GAP-001 — R0 trust-spine integration remains incomplete
 
 - **Status:** OPEN

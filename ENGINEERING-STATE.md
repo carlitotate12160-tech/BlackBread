@@ -8,14 +8,18 @@ and never overrides live GitHub, accepted architecture, delivery policy, tests, 
 * **State:** ACTIVE
 * **Current milestone:** M1 — Trust Spine
 * **Last verified:** 2026-08-31 UTC
-* **Protected main baseline:** `6b98a66` (PR #39 — update post-PR #38 state and add architecture preflight rules)
-* **Last merged PR:** `#39` (docs: update post-PR #38 state and add architecture preflight rules)
+* **Protected main baseline:** `4c8cc80` (PR #40 — update engineering state baseline to PR #39 merge commit)
+* **Last merged PR:** `#40` (docs: update engineering state baseline to PR #39 merge commit)
 * **Active ruleset:** `main-branch-protection` (`21644438`)
 * **Contractual gate:** the live ruleset matches the machine contract. Required status checks are
   `ci-ok` (aggregator for `quality`, `tests`, `security`, `governance`) and `GitGuardian Security
   Checks`. The pull-request rule enforces solo-developer zero approvals, review-thread resolution,
   stale-review dismissal, squash-only merge, and no extra approval for unattributed changes. Branch
-  currency is required. `GOV-GAP-001` is CLOSED as of 2026-08-31; see GAP-REGISTER.md.
+  currency is required. `GOV-GAP-001` is CLOSED as of 2026-08-31; `GOV-GAP-006` is OPEN as of
+  2026-08-31; see GAP-REGISTER.md.
+* **Note on `Protected main baseline`:** this SHA is hand-typed in this PR. `GOV-GAP-006` tracks
+  the required post-merge automation that will stamp the actual merged SHA; until then, always
+  verify the live `main` HEAD on GitHub.
 
 These values are checkpoints to verify, not facts to trust without querying live GitHub.
 
