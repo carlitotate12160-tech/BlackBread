@@ -18,7 +18,7 @@ admission blockers are recorded with their owner, milestone, and release in
   verified ruleset enforces: deletion protection, non-fast-forward, required linear history,
   required pull request with solo-developer settings (`required_approving_review_count: 0`,
   `require_code_owner_review: false`, `require_last_push_approval: false`,
-  `dismiss_stale_reviews_on_push: true`, `require_review_thread_resolution: true`,
+  `dismiss_stale_reviews_on_push: true`, `required_review_thread_resolution: true`,
   `require_extra_approval_for_unattributed_changes: false`, `allowed_merge_methods: ["squash"]`),
   required status checks (`ci-ok` and `GitGuardian Security Checks`), CodeQL code scanning
   (`high_or_higher` security alerts and `errors` tool/analysis alerts), strict branch currency,
