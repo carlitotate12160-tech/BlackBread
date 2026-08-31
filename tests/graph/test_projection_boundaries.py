@@ -51,7 +51,7 @@ async def test_publication_rejects_nodes_not_exactly_attested(
             state_root=compute_state_root(engagement.tenant_id, engagement.id, nodes),
             nodes=nodes,
         )
-        with pytest.raises(IntegrityError, match="ck_graph_nodes_attested_provenance"):
+        with pytest.raises(IntegrityError, match="not exactly bound"):
             await publish_scope_projection(engine, forged)
 
     with pytest.raises(ProjectionNotFoundError, match="scope projection is not published"):
