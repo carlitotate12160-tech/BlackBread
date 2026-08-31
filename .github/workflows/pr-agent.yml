@@ -20,12 +20,11 @@ on:
     types: [created]
 
 permissions:
-  issues: write
   pull-requests: write
   contents: read
 
 concurrency:
-  group: pr-agent-deepseek-${{ github.event.pull_request.number || github.event.issue.number }}
+  group: pr-agent-deepseek-${{ github.event_name }}-${{ github.event.pull_request.number || github.event.issue.number }}
   cancel-in-progress: true
 
 jobs:
@@ -33,8 +32,15 @@ jobs:
     if: |
       github.event.sender.type != 'Bot' &&
       (
-        github.event_name == 'pull_request' ||
-        (github.event_name == 'issue_comment' && github.event.issue.pull_request &&
+        (github.event_name == 'pull_request' &&
+         github.event.pull_request.base.ref == 'main' &&
+         !github.event.pull_request.draft &&
+         github.event.pull_request.head.repo.full_name == github.repository) ||
+        (github.event_name == 'issue_comment' &&
+         github.event.issue.pull_request &&
+         (github.event.comment.author_association == 'OWNER' ||
+          github.event.comment.author_association == 'MEMBER' ||
+          github.event.comment.author_association == 'COLLABORATOR') &&
          startsWith(github.event.comment.body, '/'))
       )
     runs-on: ubuntu-24.04
@@ -58,7 +64,9 @@ jobs:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           DEEPSEEK_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           CONFIG__MODEL: "deepseek/deepseek-v4-pro"
-          CONFIG__FALLBACK_MODELS: '["deepseek/deepseek-v4-pro"]'
+          CONFIG__FALLBACK_MODELS: '["deepseek/deepseek-v4-flash"]'
           GITHUB_ACTION_CONFIG__AUTO_REVIEW: "true"
           GITHUB_ACTION_CONFIG__AUTO_DESCRIBE: "false"
           GITHUB_ACTION_CONFIG__AUTO_IMPROVE: "false"
+          GITHUB_ACTION_CONFIG__HANDLE_PUSH_TRIGGER: "true"
+          GITHUB_ACTION_CONFIG__PUSH_COMMANDS: '["/review"]'

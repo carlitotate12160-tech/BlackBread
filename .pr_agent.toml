@@ -1,6 +1,10 @@
 [config]
 model = "deepseek/deepseek-v4-pro"
-fallback_models = ["deepseek/deepseek-v4-pro"]
+fallback_models = ["deepseek/deepseek-v4-flash"]
+
+[github_action_config]
+handle_push_trigger = true
+push_commands = ["/review"]
 
 [pr_reviewer]
 extra_instructions = """

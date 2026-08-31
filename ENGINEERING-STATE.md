@@ -31,9 +31,9 @@ Two governance PRs merged in sequence:
   binding, GAP-REGISTER sync, ci-ok governance tests (3 tests in `test_ci_ok_aggregator.py`).
 * **PR #38** (Devin, pending): add `.github/workflows/pr-agent.yml` with
   `The-PR-Agent/pr-agent@ab6ec54bfeb37933ddb74259338752e9272016c6` using `DEEPSEEK_API_KEY` and
-  `deepseek/deepseek-v4-pro` as the model; add `.pr_agent.toml`; remove Qodo from the AI review
-  contract; make PR-Agent (DeepSeek) binding for safety-critical PRs and CodeRabbit the advisory
-  fallback for non-safety-critical PRs.
+  `deepseek/deepseek-v4-pro` as the model; add `.pr_agent.toml`; remove the previous fallback
+  review provider from the AI review contract; make PR-Agent (DeepSeek) binding for safety-critical
+  PRs and CodeRabbit the advisory fallback for non-safety-critical PRs.
 
 The repository now has both the protected-base size budget system (PR #31) and the Decepticon-style
 quality gates (PR #32): banned patterns, AI-slop signatures, diff budget, ci-ok aggregator, and
@@ -71,7 +71,7 @@ CodeRabbit auto-trigger.
   fails on non-success
 * Diff budget: ≤400 runtime lines, ≤10 runtime files (excludes docs/config)
 * Advisory AI review policy with safety-critical binding (PR-Agent DeepSeek review required for
-  safety-critical paths; CodeRabbit fallback for non-safety-critical only)
+  safety-critical paths; CodeRabbit primary for non-safety-critical paths, with PR-Agent fallback)
 * `GAP-REGISTER.md` updated to reference ci-ok aggregator
 * `.github/agent-delivery.json` updated: required_status_checks = ci-ok + GitGuardian
 
