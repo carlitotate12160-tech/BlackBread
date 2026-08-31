@@ -8,8 +8,8 @@ and never overrides live GitHub, accepted architecture, delivery policy, tests, 
 * **State:** ACTIVE
 * **Current milestone:** M1 — Trust Spine
 * **Last verified:** 2026-08-31 UTC
-* **Protected main baseline:** `41a6677` (PR #37 — live ruleset aligned to machine contract)
-* **Last merged PR:** `#37` (docs: close GOV-GAP-001 by aligning live ruleset to machine contract)
+* **Protected main baseline:** `c1a456f` (PR #36 — feat: add versioned attestation supersession and revision domain split)
+* **Last merged PR:** `#36` (feat: add versioned attestation supersession and revision domain split)
 * **Active ruleset:** `main-branch-protection` (`21644438`)
 * **Contractual gate:** the live ruleset matches the machine contract. Required status checks are
   `ci-ok` (aggregator for `quality`, `tests`, `security`, `governance`) and `GitGuardian Security
@@ -29,6 +29,11 @@ Two governance PRs merged in sequence:
 * **PR #32** (Devin): restored ci-ok aggregator, CodeRabbit auto-trigger, banned patterns (13
   tests), AI-slop detection (5 tests), diff budget, advisory AI review policy with safety-critical
   binding, GAP-REGISTER sync, ci-ok governance tests (3 tests in `test_ci_ok_aggregator.py`).
+* **PR #38** (Devin, pending): add `.github/workflows/pr-agent.yml` with
+  `The-PR-Agent/pr-agent@ab6ec54bfeb37933ddb74259338752e9272016c6` using `DEEPSEEK_API_KEY` and
+  `deepseek/deepseek-v4-pro` as the model; add `.pr_agent.toml`; remove Qodo from the AI review
+  contract; make PR-Agent (DeepSeek) binding for safety-critical PRs and CodeRabbit the advisory
+  fallback for non-safety-critical PRs.
 
 The repository now has both the protected-base size budget system (PR #31) and the Decepticon-style
 quality gates (PR #32): banned patterns, AI-slop signatures, diff budget, ci-ok aggregator, and
