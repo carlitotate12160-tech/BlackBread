@@ -53,7 +53,8 @@ At most one implementation slice may be active. One agent owns writes to its bra
 may perform independent read-only review but must not edit the implementation branch.
 
 Every AI/bot comment that exists on a pull request must be inspected and dispositioned before merge.
-Qodo and CodeRabbit are advisory reviewers, not required status checks. Reproduce findings with code,
+CodeRabbit is an advisory reviewer; PR-Agent (DeepSeek) is the required independent reviewer for
+safety-critical paths. Neither is a required status check. Reproduce findings with code,
 tests, SQL, runtime behavior, or repository evidence. Fix valid findings minimally and record why
 stale or false-positive findings are not actionable.
 

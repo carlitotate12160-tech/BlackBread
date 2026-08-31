@@ -183,9 +183,11 @@ has no live effect; it is retained only as rollback evidence:
   cascading `issue_comment` runs. The four sub-gaps it tracked are moot once the gate no longer
   exists: issue_comment SHA targeting (former GOV-GAP-002), review-thread resolution inside the gate
   (former GOV-GAP-003), controller concurrency ordering (former GOV-GAP-004), and thread-resolution
-  wake-up (former GOV-GAP-005). Qodo and CodeRabbit remain active advisory reviewers whose actionable
-  comments must be dispositioned before merge; enforcement relies on first-party CI (`quality`,
-  `tests`, `security`, `governance`), `GitGuardian Security Checks`, and protected-main review-thread
+  wake-up (former GOV-GAP-005). PR-Agent (DeepSeek) and CodeRabbit remain active advisory reviewers.
+  For safety-critical PRs, the current-head PR-Agent review is binding. For non-safety-critical PRs,
+  CodeRabbit is the primary advisory reviewer and PR-Agent may provide fallback. Actionable comments
+  must be dispositioned before merge; enforcement relies on first-party CI (`quality`, `tests`,
+  `security`, `governance`), `GitGuardian Security Checks`, and protected-main review-thread
   resolution.
 - **Verification:**
   `tests/governance/test_governance_contract.py::test_ai_review_gate_apparatus_is_fully_removed`.

@@ -65,8 +65,8 @@ CodeRabbit auto-trigger.
 * `test_ci_ok_aggregator.py` — 3 tests: ci-ok exists with `if: always()`, needs all required jobs,
   fails on non-success
 * Diff budget: ≤400 runtime lines, ≤10 runtime files (excludes docs/config)
-* Advisory AI review policy with safety-critical binding (CodeRabbit FULL required for
-  safety-critical paths; Qodo fallback for non-safety-critical only)
+* Advisory AI review policy with safety-critical binding (PR-Agent DeepSeek review required for
+  safety-critical paths; CodeRabbit fallback for non-safety-critical only)
 * `GAP-REGISTER.md` updated to reference ci-ok aggregator
 * `.github/agent-delivery.json` updated: required_status_checks = ci-ok + GitGuardian
 
