@@ -143,7 +143,7 @@ def test_stop_before_attestation_fails_closed(
 
 @pytest.mark.parametrize(
     ("schema_name", "schema_version"),
-    [("engagement.attested", 2), ("future.event", 1)],
+    [("engagement.attested", 3), ("future.event", 1)],
 )
 def test_unsupported_event_schema_or_version_fails_closed(
     attestation_factory: Callable[..., EngagementAttested],
@@ -180,7 +180,7 @@ def test_second_attestation_without_supersession_semantics_fails_closed(
     projector = ScopeProjector()
     projector.consume(event_factory(attestation_factory(), sequence=1))
 
-    with pytest.raises(GraphProjectionError, match="multiple attestations"):
+    with pytest.raises(GraphProjectionError, match="second v1 attestation"):
         projector.consume(event_factory(attestation_factory(), sequence=2))
 
 

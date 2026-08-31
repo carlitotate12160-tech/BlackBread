@@ -6,13 +6,15 @@ from typing import ClassVar, Literal, NamedTuple, cast
 from uuid import UUID
 
 import blackbread.ledger.catalog as ledger_catalog
+from blackbread.graph.revision import ScopeKind, ScopeRevision
+from blackbread.graph.supersession import AttestationChain, SupersessionError
 from blackbread.ledger.errors import LedgerValidationError
 from blackbread.ledger.event import AgentEvent
 from blackbread.ledger.hashing import canonical_json, canonical_timestamp, sha256_hex
+from blackbread.ledger.schema import EventPayload
 
 PROJECTOR_VERSION = 1
 STATE_ROOT_VERSION = 1
-ScopeKind = Literal["root_domain", "exact_host", "exact_address", "cloud_tenant"]
 _SCOPE_FIELDS: dict[ScopeKind, str] = {
     "root_domain": "root_domains",
     "exact_host": "exact_hosts",
@@ -61,7 +63,7 @@ class ScopeRoot:
     node_family: Literal["ScopeRoot"] = "ScopeRoot"
     authority: Literal["attested_scope"] = "attested_scope"
     source_schema_name: Literal["engagement.attested"] = "engagement.attested"
-    source_schema_version: Literal[1] = 1
+    source_schema_version: int = 1
 
 
 @dataclass(frozen=True, slots=True)
@@ -121,26 +123,81 @@ def compute_state_root(
     return sha256_hex(canonical_json(state))
 
 
+AttestationPayload = ledger_catalog.EngagementAttested | ledger_catalog.EngagementAttestedV2
+
+
+def _scope_entries(payload: AttestationPayload) -> Iterable[tuple[ScopeKind, str]]:
+    return (
+        (kind, value)
+        for kind, field in _SCOPE_FIELDS.items()
+        for value in getattr(payload.scope, field)
+    )
+
+
+def _project_nodes(payload: AttestationPayload, event: AgentEvent) -> tuple[ScopeRoot, ...]:
+    roots = (
+        ScopeRoot(
+            scope_root_id(kind, value),
+            kind,
+            value,
+            payload.manifest_hash,
+            payload.valid_from,
+            payload.expires_at,
+            event.sequence,
+            event.event_hash,
+            source_schema_version=event.schema_version,
+        )
+        for kind, value in _scope_entries(payload)
+    )
+    return tuple(sorted(roots, key=lambda node: node.node_id))
+
+
+def _project_revisions(
+    payload: AttestationPayload,
+    event: AgentEvent,
+    predecessor: str | None,
+) -> tuple[ScopeRevision, ...]:
+    revisions = (
+        ScopeRevision(
+            node_id=scope_root_id(kind, value),
+            scope_kind=kind,
+            canonical_value=value,
+            manifest_hash=payload.manifest_hash,
+            valid_from=payload.valid_from,
+            valid_until=payload.expires_at,
+            source_sequence=event.sequence,
+            source_event_hash=event.event_hash,
+            source_schema_name="engagement.attested",
+            source_schema_version=event.schema_version,
+            predecessor_attestation_event_hash=predecessor,
+        )
+        for kind, value in _scope_entries(payload)
+    )
+    return tuple(sorted(revisions, key=lambda revision: revision.revision_id))
+
+
 class ScopeProjector:
     def __init__(self, *, version: int = PROJECTOR_VERSION) -> None:
         if version != PROJECTOR_VERSION:
             raise GraphProjectionError("unsupported projector version")
         self._binding: tuple[str, object] | None = None
+        self._chain = AttestationChain()
         self._nodes: tuple[ScopeRoot, ...] = ()
+        self._revisions: tuple[ScopeRevision, ...] = ()
 
     @property
     def nodes(self) -> tuple[ScopeRoot, ...]:
         return self._nodes
 
+    @property
+    def revisions(self) -> tuple[ScopeRevision, ...]:
+        return self._revisions
+
     def consume(self, event: AgentEvent) -> None:
         binding = event.tenant_id, event.engagement_id
         if self._binding is not None and binding != self._binding:
             raise GraphProjectionError("ledger event binding changed during replay")
-        try:
-            registry = ledger_catalog.default_registry()
-            payload = registry.parse(event.schema_name, event.schema_version, event.payload)
-        except LedgerValidationError as exc:
-            raise GraphProjectionError("unsupported schema or malformed payload") from exc
+        payload = self._parse(event)
         if isinstance(payload, ledger_catalog.EngagementStopped):
             if not self._nodes:
                 raise GraphProjectionError("stop precedes attestation")
@@ -148,15 +205,22 @@ class ScopeProjector:
             return
         if not isinstance(payload, ledger_catalog.EngagementAttested):
             raise GraphProjectionError("unsupported graph event schema")
-        if self._nodes:
-            raise GraphProjectionError("multiple attestations lack supersession semantics")
-        manifest = payload.manifest_hash
-        window = payload.valid_from, payload.expires_at
-        source = event.sequence, event.event_hash
-        roots = (
-            ScopeRoot(scope_root_id(kind, value), kind, value, manifest, *window, *source)
-            for kind, field in _SCOPE_FIELDS.items()
-            for value in getattr(payload.scope, field)
-        )
-        self._nodes = tuple(sorted(roots, key=lambda node: node.node_id))
+        try:
+            predecessor = self._chain.admit(event, payload)
+        except SupersessionError as exc:
+            raise GraphProjectionError(str(exc)) from exc
+        self._nodes = _project_nodes(payload, event)
+        revisions = (*self._revisions, *_project_revisions(payload, event, predecessor))
+        self._revisions = tuple(sorted(revisions, key=lambda revision: revision.revision_id))
         self._binding = binding
+
+    @staticmethod
+    def _parse(event: AgentEvent) -> EventPayload:
+        try:
+            return ledger_catalog.default_registry().parse(
+                event.schema_name,
+                event.schema_version,
+                event.payload,
+            )
+        except LedgerValidationError as exc:
+            raise GraphProjectionError("unsupported schema or malformed payload") from exc

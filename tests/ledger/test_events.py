@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from blackbread.ledger import append_event, verify_chain
 from blackbread.ledger.catalog import (
     EngagementAttested,
+    EngagementAttestedV2,
     EngagementMode,
     EngagementScope,
     EngagementStopped,
@@ -150,9 +151,11 @@ def test_default_registry_is_complete_and_frozen() -> None:
 
     assert registry.registered_keys == {
         ("engagement.attested", 1),
+        ("engagement.attested", 2),
         ("engagement.stopped", 1),
     }
     assert registry.resolve("engagement.attested", 1) is EngagementAttested
+    assert registry.resolve("engagement.attested", 2) is EngagementAttestedV2
     with pytest.raises(LedgerValidationError, match="frozen"):
         registry.register(_ThingV1)
 

@@ -209,3 +209,24 @@ has no live effect; it is retained only as rollback evidence:
   conformance record.
 - **Compensating control:** none. The ledger slice may merge, but R0/M1 and target-facing execution
   remain blocked until closure evidence is attached.
+
+## GRAPH-GAP-001 — Attestation v2 head lacks a truthful durable projection schema
+
+- **Status:** OPEN
+- **Severity:** P1 architecture
+- **Owner:** trust-spine
+- **Target milestone:** M1.3b3
+- **Blocks:** M1.3 completion, R0, and every target-facing release
+- **Current evidence:** migration `0005_m1_scope_graph` constrains `graph_nodes` source provenance to
+  `engagement.attested` v1. A v2 replacement head cannot be stored truthfully without a new temporal
+  lineage schema; substituting v1 provenance would violate the source-event FK and exact-payload
+  trigger. The owner selected a domain-only M1.3b1 amendment after this conflict was verified.
+- **Required closure:** M1.3b3 adds the accepted temporal persistence migration, persists immutable
+  revision lineage and stable membership separately from the materialized head, and enables atomic
+  v2-head publication without weakening exact source provenance.
+- **Verification:** a real PostgreSQL cold-rebuild test must prove v1 and v2 publication, retained,
+  removed, and added revision durability, state-root v2 recomputation, tenant isolation, and exact
+  source-event binding.
+- **Compensating control:** v2 events are durably admitted to the ledger and domain replay is
+  deterministic, but `rebuild_scope_projection()` fails closed before publication when the effective
+  head is v2. Lone-v1 publication remains unchanged.
