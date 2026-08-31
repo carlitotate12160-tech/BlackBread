@@ -5,12 +5,7 @@ from datetime import datetime
 from typing import ClassVar, Literal, NamedTuple, cast
 from uuid import UUID
 
-from blackbread.ledger.catalog import (
-    EngagementAttested,
-    EngagementScope,
-    EngagementStopped,
-    default_registry,
-)
+import blackbread.ledger.catalog as ledger_catalog
 from blackbread.ledger.errors import LedgerValidationError
 from blackbread.ledger.event import AgentEvent
 from blackbread.ledger.hashing import canonical_json, canonical_timestamp, sha256_hex
@@ -41,7 +36,7 @@ def canonical_scope_value(kind: str, value: str) -> tuple[ScopeKind, str]:
     if field is None:
         raise GraphProjectionError("unsupported ScopeRoot kind")
     try:
-        scope = EngagementScope.model_validate({field: (value,)}, strict=True)
+        scope = ledger_catalog.EngagementScope.model_validate({field: (value,)}, strict=True)
     except ValueError as exc:
         raise GraphProjectionError("invalid canonical ScopeRoot value") from exc
     return canonical_kind, cast(tuple[str, ...], getattr(scope, field))[0]
@@ -142,16 +137,16 @@ class ScopeProjector:
         if self._binding is not None and binding != self._binding:
             raise GraphProjectionError("ledger event binding changed during replay")
         try:
-            registry = default_registry()
+            registry = ledger_catalog.default_registry()
             payload = registry.parse(event.schema_name, event.schema_version, event.payload)
         except LedgerValidationError as exc:
             raise GraphProjectionError("unsupported schema or malformed payload") from exc
-        if isinstance(payload, EngagementStopped):
+        if isinstance(payload, ledger_catalog.EngagementStopped):
             if not self._nodes:
                 raise GraphProjectionError("stop precedes attestation")
             self._binding = binding
             return
-        if not isinstance(payload, EngagementAttested):
+        if not isinstance(payload, ledger_catalog.EngagementAttested):
             raise GraphProjectionError("unsupported graph event schema")
         if self._nodes:
             raise GraphProjectionError("multiple attestations lack supersession semantics")

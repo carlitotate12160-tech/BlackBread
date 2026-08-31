@@ -201,6 +201,61 @@ def upgrade() -> None:
             name="ck_graph_nodes_source_schema",
         ),
     )
+    op.execute(
+        sa.text(
+            """
+            CREATE FUNCTION blackbread_require_attested_scope_node()
+            RETURNS trigger
+            LANGUAGE plpgsql
+            SET search_path = pg_catalog, public
+            AS $$
+            DECLARE
+                attestation jsonb;
+                scope_field text;
+                attested_values jsonb;
+            BEGIN
+                SELECT payload INTO attestation
+                FROM public.agent_events
+                WHERE tenant_id = NEW.tenant_id
+                  AND engagement_id = NEW.engagement_id
+                  AND sequence = NEW.source_sequence
+                  AND event_hash = NEW.source_event_hash
+                  AND schema_name = NEW.source_schema_name
+                  AND schema_version = NEW.source_schema_version;
+                scope_field := CASE NEW.scope_kind
+                    WHEN 'root_domain' THEN 'root_domains'
+                    WHEN 'exact_host' THEN 'exact_hosts'
+                    WHEN 'exact_address' THEN 'exact_addresses'
+                    WHEN 'cloud_tenant' THEN 'cloud_tenants'
+                END;
+                attested_values := attestation -> 'scope' -> scope_field;
+                IF attestation IS NULL
+                   OR attestation ->> 'manifest_hash' IS DISTINCT FROM NEW.manifest_hash
+                   OR (attestation ->> 'valid_from')::timestamptz IS DISTINCT FROM NEW.valid_from
+                   OR (attestation ->> 'expires_at')::timestamptz IS DISTINCT FROM NEW.valid_until
+                   OR jsonb_typeof(attested_values) IS DISTINCT FROM 'array'
+                   OR NOT COALESCE(attested_values ? NEW.canonical_value, false) THEN
+                    RAISE EXCEPTION 'graph node is not exactly bound to its attestation payload'
+                        USING ERRCODE = '23514',
+                              CONSTRAINT = 'ck_graph_nodes_attested_provenance';
+                END IF;
+                RETURN NEW;
+            END;
+            $$
+            """
+        )
+    )
+    op.execute(
+        sa.text(
+            """
+            CREATE CONSTRAINT TRIGGER graph_nodes_attested_provenance
+            AFTER INSERT ON graph_nodes
+            DEFERRABLE INITIALLY IMMEDIATE
+            FOR EACH ROW
+            EXECUTE FUNCTION blackbread_require_attested_scope_node()
+            """
+        )
+    )
     op.create_index(
         "ix_graph_nodes_tenant_engagement_version",
         "graph_nodes",
@@ -210,6 +265,7 @@ def upgrade() -> None:
         _install_tenant_policy(table)
     privilege_statements = (
         "REVOKE ALL ON TABLE graph_projection_snapshots, graph_nodes FROM PUBLIC",
+        "REVOKE ALL ON FUNCTION blackbread_require_attested_scope_node() FROM PUBLIC",
         "GRANT SELECT, INSERT ON TABLE graph_projection_snapshots TO blackbread_runtime",
         "GRANT UPDATE (verified_event_count, verified_head_hash, ledger_hash_algorithm, "
         "ledger_hash_version, projector_version, state_root_version, state_root) "
@@ -221,7 +277,9 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    op.execute(sa.text("DROP TRIGGER graph_nodes_attested_provenance ON graph_nodes"))
     op.drop_table("graph_nodes")
+    op.execute(sa.text("DROP FUNCTION blackbread_require_attested_scope_node()"))
     op.drop_table("graph_projection_snapshots")
     op.drop_constraint("uq_agent_events_projection_anchor", "agent_events", type_="unique")
     op.drop_constraint("uq_agent_events_projection_source", "agent_events", type_="unique")

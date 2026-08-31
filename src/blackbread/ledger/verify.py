@@ -205,7 +205,6 @@ async def _verify_in_snapshot(
     *,
     tenant_id: str,
     engagement_id: UUID,
-    consumer: Callable[[AgentEvent], None] | None = None,
 ) -> ChainVerification:
     anchor = await _load_anchor(
         connection,
@@ -216,7 +215,6 @@ async def _verify_in_snapshot(
         connection,
         tenant_id=tenant_id,
         engagement_id=engagement_id,
-        consumer=consumer,
     )
     return _snapshot_result(
         scan,
@@ -227,6 +225,27 @@ async def _verify_in_snapshot(
 
 
 verify_snapshot = _verify_in_snapshot
+
+
+async def replay_verified_snapshot(
+    connection: AsyncConnection,
+    *,
+    tenant_id: str,
+    engagement_id: UUID,
+    consumer: Callable[[AgentEvent], None],
+) -> ChainVerification:
+    """Deliver events only after their caller-owned database snapshot verifies."""
+    verification = await verify_snapshot(
+        connection, tenant_id=tenant_id, engagement_id=engagement_id
+    )
+    if verification.ok:
+        await _scan_chain(
+            connection,
+            tenant_id=tenant_id,
+            engagement_id=engagement_id,
+            consumer=consumer,
+        )
+    return verification
 
 
 async def verify_chain(
