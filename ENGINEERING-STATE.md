@@ -146,8 +146,10 @@ update and does not advance M1.3b; it will close before M1.3b2 becomes ACTIVE.
 PR-M1.3b1 may merge only when the v2 payload is fully registered, the supersession validator rejects
 all negative cases, the identity/revision split keeps `ScopeProjector` deterministic, v2 ledger replay
 fails before incompatible v1-only publication, all repository gates pass on the exact head, the
-current-head CodeRabbit FULL review is complete, and every review thread is dispositioned and
-resolved. A merge does not complete M1.3, M1/R0, `LEDGER-GAP-001`, or `GRAPH-GAP-001`.
+current-head independent AI review required by the then-active binding review contract is complete
+(CodeRabbit for b1, since PR-Agent had not yet been adopted), and every review thread is
+dispositioned and resolved. A merge does not complete M1.3, M1/R0, `LEDGER-GAP-001`, or
+`GRAPH-GAP-001`.
 
 ### PR-M1.3b2 (next selected)
 
