@@ -71,7 +71,14 @@ Before writing or executing an implementation prompt:
 7. Every execution prompt must identify the current slice, completed prerequisites, next slice, non-goals, intermediate-state reachability, RED tests, seal criteria, and STOP/SPLIT conditions.
 8. Advisory AI reviewers (CodeRabbit, Sourcery, Codex, Bito, and similar) are advisory. Trigger an exact-head review once when required by the task. A silent, pending, unavailable, or rate-limited advisory bot does not block merge. A surfaced correctness or security finding that is reproduced and valid does block merge until resolved. Safety-critical paths remain subject to the binding current-head PR-Agent (DeepSeek) review defined in the repository delivery authority.
 9. Required CI, branch currency, valid unresolved threads, changes-requested reviews, blocking gaps, and budget violations remain merge blockers.
-10. Update ENGINEERING-STATE.md after every merge or material rescope so a new session never depends on conversation memory.
+10. `ENGINEERING-STATE.md` content (phase, last decision, open gaps, next action) is updated
+    in the same PR that changes them, written against that PR's own diff — never against a
+    future commit SHA. A PR that changes phase/decision/gap state without updating this
+    narrative in the same diff is incomplete and blocks merge. The file's "current main HEAD"
+    pointer is never hand-typed: a required post-merge automation step stamps the actual
+    merged SHA immediately after merge completes. A missing or stale SHA pointer is a
+    tracked gap (`GAP-REGISTER.md`), not a merge blocker — the automation, not a person's
+    memory, is the source of truth for it.
 
 ## Authority order
 
