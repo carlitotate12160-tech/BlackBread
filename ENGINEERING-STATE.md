@@ -8,8 +8,8 @@ and never overrides live GitHub, accepted architecture, delivery policy, tests, 
 * **State:** ACTIVE
 * **Current milestone:** M1 — Trust Spine
 * **Last verified:** 2026-08-31 UTC
-* **Protected main baseline:** `ff25fba` (PR #38 — add PR-Agent DeepSeek, remove Qodo, update AI review contract)
-* **Last merged PR:** `#38` (add PR-Agent DeepSeek, remove Qodo, update AI review contract)
+* **Protected main baseline:** `6b98a66` (PR #39 — update post-PR #38 state and add architecture preflight rules)
+* **Last merged PR:** `#39` (docs: update post-PR #38 state and add architecture preflight rules)
 * **Active ruleset:** `main-branch-protection` (`21644438`)
 * **Contractual gate:** the live ruleset matches the machine contract. Required status checks are
   `ci-ok` (aggregator for `quality`, `tests`, `security`, `governance`) and `GitGuardian Security
