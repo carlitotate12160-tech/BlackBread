@@ -37,7 +37,7 @@ async def rebuild_scope_projection(
         raise domain.GraphProjectionError("verified ledger has no attestation")
     if any(node.source_schema_version != 1 for node in projector.nodes):
         raise domain.GraphProjectionError(
-            "v2 head publication requires durable temporal persistence"
+            "GRAPH-GAP-001 blocks v2-head publication until durable temporal persistence"
         )
     root = compute_state_root(tenant_id, engagement_id, projector.nodes, version=state_root_version)
     projection = domain.ScopeProjection(

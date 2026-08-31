@@ -41,7 +41,7 @@ async def test_v2_ledger_head_fails_before_v1_only_projection_publication(
         ),
     )
 
-    with pytest.raises(GraphProjectionError, match="durable temporal persistence"):
+    with pytest.raises(GraphProjectionError, match="GRAPH-GAP-001"):
         await rebuild_scope_projection(
             engine,
             tenant_id=engagement.tenant_id,

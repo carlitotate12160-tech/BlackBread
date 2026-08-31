@@ -283,7 +283,7 @@ def test_source_sequence_regression_fails_closed(
 
 
 @pytest.mark.parametrize("binding_field", ["tenant_id", "engagement_id"])
-def test_cross_binding_predecessor_fails_closed(
+def test_replacement_event_binding_change_fails_closed(
     attestation_factory: Callable[..., EngagementAttested],
     event_factory: Callable[..., AgentEvent],
     binding_field: str,
