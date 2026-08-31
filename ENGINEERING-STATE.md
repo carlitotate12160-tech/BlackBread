@@ -121,21 +121,25 @@ The repository owner has split PR-M1.3b into three sequential sub-slices. PR-M1.
 * Supersession chain validation: no predecessor, fork, cycle, sequence-regression, second v1, or
   unsupported v3 fails closed; cross-tenant/cross-engagement substitution fails closed.
 * Stable ScopeRoot identity separated from immutable temporal-revision/provenance record.
-* Effective scope = the verified chain head's replacement scope, projected with existing v1 identity
-  and v1 state root.
+* Effective scope = the verified chain head's replacement scope in the domain projector, using the
+  existing stable identity and state-root v1 preimage.
 * State-root v1 preimage and golden vector remain byte-stable for v1-only histories.
 * Files: `ledger/catalog.py` (+v2 payload), new `graph/supersession.py` (chain validation + head
-  selection), `graph/domain.py` split as needed (extract revision types to keep every module <400
-  lines), `graph/domain.py::ScopeProjector.consume` v2 admission.
-* No migration; no new persistence tables; head still published to the existing `0005` tables.
+  selection), new `graph/revision.py` (immutable revision identity), and bounded projector/replay
+  integration.
+* No migration or new persistence table. The owner selected a domain-only b1 amendment after live
+  `0005` inspection proved that truthful v2 provenance cannot satisfy its v1-only source constraint.
+  Lone-v1 publication remains unchanged; a v2 head fails closed before publication until b3 closes
+  `GRAPH-GAP-001`.
 
 ### M1.3b1 seal gate
 
 PR-M1.3b1 may merge only when the v2 payload is fully registered, the supersession validator rejects
-all negative cases, the identity/revision split keeps `ScopeProjector` deterministic, all repository
-gates pass on the exact head, the current-head CodeRabbit FULL review is complete, and every review
-thread is dispositioned and resolved. A merge does not complete M1.3, M1/R0, `GOV-GAP-001`, or
-`LEDGER-GAP-001`.
+all negative cases, the identity/revision split keeps `ScopeProjector` deterministic, v2 ledger replay
+fails before incompatible v1-only publication, all repository gates pass on the exact head, the
+current-head CodeRabbit FULL review is complete, and every review thread is dispositioned and
+resolved. A merge does not complete M1.3, M1/R0, `GOV-GAP-001`, `LEDGER-GAP-001`, or
+`GRAPH-GAP-001`.
 
 ### M1.3b split plan (recorded contract)
 
@@ -157,7 +161,8 @@ thread is dispositioned and resolved. A merge does not complete M1.3, M1/R0, `GO
 * **Contract sections:** E + the persistence half of F.
 * **Purpose:** immutable attestation-revision lineage + stable membership persisted separately from
   the replaceable materialized head; atomic publish preserves history; `read()` recomputes the v2
-  history-binding root from persisted lineage.
+  history-binding root from persisted lineage; close `GRAPH-GAP-001` and enable truthful v2-head
+  publication.
 * **Files:** new `migrations/versions/0006_m1_temporal_scope_graph.py` (excluded from runtime budget),
   `graph/persistence.py` (+lineage read/publish, v2 read recompute, upgrade path).
 
@@ -170,6 +175,11 @@ thread is dispositioned and resolved. A merge does not complete M1.3, M1/R0, `GO
 * **Merge-order / governance fence:** `GOV-GAP-001` is OPEN. No b1/b2/b3 may merge under an
   unverified live ruleset without either closing `GOV-GAP-001` first or an explicit, recorded owner
   decision to accept that risk. Building and reviewing may proceed; sealing waits on the fence.
+* **Total-consumer invariant (M1.3a N4):** `ScopeProjector.consume()` must explicitly transition or
+  no-op every future `agent_events` schema/version; an unknown input fails full replay closed.
+* **Domain-only b1 amendment:** `GRAPH-GAP-001` records the owner-selected fail-closed boundary. A v2
+  attestation is ledger-durable and domain-replayable, but existing `0005` tables cannot truthfully
+  store its source version. Temporal lineage and v2-head persistence remain b3 work.
 
 ## Open blockers
 
@@ -178,6 +188,7 @@ The following remain OPEN unless live closure evidence proves otherwise:
 * GOV-GAP-001 (live ruleset conformance is not yet verified against the machine contract —
   `ci-ok` not yet required in live ruleset)
 * LEDGER-GAP-001 (R0 trust-spine integration remains incomplete)
+* GRAPH-GAP-001 (v2 head publication awaits the b3 temporal persistence schema)
 
 Former GOV-GAP-002 through GOV-GAP-005 are CLOSED (WITHDRAWN) with the AI-review gate removal; see
 GAP-REGISTER.md. No session may infer closure from this work-state document.

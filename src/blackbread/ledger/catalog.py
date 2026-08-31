@@ -191,6 +191,12 @@ class EngagementAttested(EventPayload):
         return self
 
 
+class EngagementAttestedV2(EngagementAttested):
+    SCHEMA_VERSION: ClassVar[int] = 2
+
+    supersedes_event_hash: str = Field(pattern=_HEX_DIGEST_PATTERN)
+
+
 class EngagementStopped(EventPayload):
     SCHEMA_NAME: ClassVar[str] = "engagement.stopped"
     SCHEMA_VERSION: ClassVar[int] = 1
@@ -238,5 +244,6 @@ class EngagementStopped(EventPayload):
 def default_registry() -> EventRegistry:
     registry = EventRegistry()
     registry.register(EngagementAttested)
+    registry.register(EngagementAttestedV2)
     registry.register(EngagementStopped)
     return registry.freeze()

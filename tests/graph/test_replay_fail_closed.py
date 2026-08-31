@@ -56,7 +56,7 @@ async def test_unsupported_ledger_event_version_prevents_publication(
     graph_events,
 ) -> None:
     payload = graph_events.attestation().to_ledger_payload()
-    await graph_events.draft(session, engagement, "engagement.attested", 2, payload)
+    await graph_events.draft(session, engagement, "engagement.attested", 3, payload)
 
     with pytest.raises(GraphProjectionError, match=r"unsupported|unknown"):
         await rebuild_scope_projection(
