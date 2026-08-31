@@ -85,59 +85,57 @@ CodeRabbit auto-trigger.
 
 ## Active selected slice
 
-* **ID:** PR-M1.3a
-* **Title:** Deterministic ScopeRoot Graph Projection + Replay/Rebuild Spine
+The repository owner has split PR-M1.3b into three sequential sub-slices. PR-M1.3a is now live on
+`main`; PR-M1.3b1 is the active implementation slice.
+
+* **ID:** PR-M1.3b1
+* **Title:** Versioned Attestation Supersession + Identity/Revision Domain Split
 * **State:** ACTIVE
 * **Owner:** trust-spine
-* **Purpose:** prove the ledger-derived graph architecture for `engagement.attested` through one
-  independently verified committed snapshot, deterministic durable `ScopeRoot` projection,
-  NetworkX rebuild, and versioned state root.
-* **Selection:** the repository owner selected this slice ahead of PR-Q2/Q3. That sequencing change
-  does not waive governance, architecture, isolation, evidence, or release blockers.
+* **Prerequisite:** PR-M1.3a is squash-merged to `main` at `2230d93`.
+* **Purpose:** structural head selection only; clock-free; no temporal `as_of`; no state-root v2.
+  Proves `engagement.attested v2` (with `supersedes_event_hash`) is admitted and registered, the
+  supersession chain is validated fail-closed, and stable ScopeRoot identity is separated from
+  immutable temporal assertion revisions.
 
-### Bounded scope and non-goals
+### M1.3b1 bounded scope
 
-This slice admits only positive attested scope as authoritative `ScopeRoot` nodes. It does not create
-observed assets or edges, implement the broader Attack Graph, resume target-facing capabilities,
-implement Q2/Q3/Q4, close `GOV-GAP-001` or `LEDGER-GAP-001`, or advance M1/R0.
+* Contract sections **A + B** only.
+* `engagement.attested v2` payload and registry entry `("engagement.attested", 2)`.
+* Supersession chain validation: no predecessor, fork, cycle, sequence-regression, second v1, or
+  unsupported v3 fails closed; cross-tenant/cross-engagement substitution fails closed.
+* Stable ScopeRoot identity separated from immutable temporal-revision/provenance record.
+* Effective scope = the verified chain head's replacement scope, projected with existing v1 identity
+  and v1 state root.
+* State-root v1 preimage and golden vector remain byte-stable for v1-only histories.
+* No migration; no new persistence tables; head still published to the existing `0005` tables.
 
-### M1.3a seal gate
+### M1.3b1 seal gate
 
-PR-M1.3a may merge only when exact attestation-payload provenance is enforced at the PostgreSQL
-publication boundary, projection consumers receive no events before the committed-snapshot verdict,
-all PostgreSQL and repository gates pass on the exact head, the current-head CodeRabbit FULL review
-is complete, and every review thread is dispositioned and resolved. A merge seals only M1.3a; it does
-not complete M1.3, M1/R0, `GOV-GAP-001`, or `LEDGER-GAP-001`.
+PR-M1.3b1 may merge only when the v2 payload is fully registered, the supersession validator rejects
+all negative cases, the identity/revision split keeps `ScopeProjector` deterministic, all repository
+gates pass on the exact head, the current-head CodeRabbit FULL review is complete, and every review
+thread is dispositioned and resolved. A merge does not complete M1.3, M1/R0, or `LEDGER-GAP-001`.
 
-State-root v1 compatibility freezes `EngagementAttested` v1 and `EngagementScope` canonicalization,
-ScopeRoot identity v1, canonical JSON and timestamp encoding, projector v1, and state-root v1. A
-semantic change requires a new version while retaining the v1 replay path and known-answer vector.
-`ScopeProjector` is a total event consumer: every admitted ledger schema or version requires an
-explicit transition or audited no-op; unknown inputs continue to fail closed.
+## M1.3b split plan (recorded contract)
 
-## Next selected slice
+#### PR-M1.3b2 — Temporal Selection + State-Root v2
 
-* **ID:** PR-M1.3b
-* **Title:** Temporal ScopeRoot Projection Lifecycle
 * **State:** DECIDED
-* **Owner:** trust-spine
-* **Prerequisite:** PR-M1.3a is squash-merged with its seal evidence bound to the exact merged head.
-* **Purpose:** introduce explicit attestation supersession and replacement while preserving immutable
-  ledger history, stable ScopeRoot identity, deterministic temporal state, and cold replay parity.
+* **Prerequisite:** b1 merged (uses its revision representation).
+* **Contract sections:** C + D, plus NetworkX `as_of` view.
+* **Purpose:** clock-free temporal selection and v2 state root binding the full supersession history
+  (stable identities, every immutable revision, predecessor linkage, lineage head, exact provenance,
+  schema/version, and scope-canonicalization/catalog version).
 
-### M1.3b bounded scope
+#### PR-M1.3b3 — Durable Temporal Projection Lifecycle
 
-* Explicit versioned supersession with a predecessor event hash; missing predecessor, fork, cycle,
-  invalid ordering, or unsupported version fails closed.
-* Half-open validity intervals `[valid_from, valid_until)` with deterministic overlap handling.
-* Stable ScopeRoot identity separated from immutable temporal assertion revisions and provenance.
-* Atomic current-state replacement without deleting ledger history or prior projection lineage.
-* Cold rebuild from an empty projection must reproduce the same rows, current-state selection, and
-  state root as the live incremental path.
-
-M1.3b does not add Host, Address, graph edges, observed evidence, network execution, Policy Kernel,
-Conductor, Target Identity Guard, capability admission, or target-facing behavior. Those boundaries
-must not be pulled forward merely to make the temporal slice appear complete.
+* **State:** DECIDED
+* **Prerequisite:** b2 merged (needs the v2 root + revision lineage semantics it must persist).
+* **Contract sections:** E + the persistence half of F.
+* **Purpose:** immutable attestation-revision lineage + stable membership persisted separately from
+  the replaceable materialized head; atomic publish preserves history; `read()` recomputes the v2
+  history-binding root from persisted lineage.
 
 ## Open blockers
 

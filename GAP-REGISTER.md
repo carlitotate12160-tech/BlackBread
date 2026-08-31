@@ -93,6 +93,84 @@ admission blockers are recorded with their owner, milestone, and release in
 
 </details>
 
+<details>
+<summary>Repository ruleset listing and legacy ruleset (2026-08-31)</summary>
+
+The repository-wide ruleset listing confirms that only `main-branch-protection` (`21644438`) is
+`active` for `branch` targets and that `main-approval-required` (`21698082`) is `disabled`:
+
+```json
+[
+  {
+    "id": 21698082,
+    "name": "main-approval-required",
+    "target": "branch",
+    "source_type": "Repository",
+    "source": "carlitotate12160-tech/BlackBread",
+    "enforcement": "disabled"
+  },
+  {
+    "id": 21644438,
+    "name": "main-branch-protection",
+    "target": "branch",
+    "source_type": "Repository",
+    "source": "carlitotate12160-tech/BlackBread",
+    "enforcement": "active"
+  },
+  {
+    "id": 21644473,
+    "name": "tag-protection",
+    "target": "tag",
+    "source_type": "Repository",
+    "source": "carlitotate12160-tech/BlackBread",
+    "enforcement": "active"
+  }
+]
+```
+
+The disabled `main-approval-required` ruleset (`21698082`) has `enforcement: disabled` and therefore
+has no live effect; it is retained only as rollback evidence:
+
+```json
+{
+  "id": 21698082,
+  "name": "main-approval-required",
+  "target": "branch",
+  "enforcement": "disabled",
+  "conditions": {
+    "ref_name": {
+      "exclude": [],
+      "include": ["refs/heads/main"]
+    }
+  },
+  "rules": [
+    {
+      "type": "pull_request",
+      "parameters": {
+        "required_approving_review_count": 0,
+        "dismiss_stale_reviews_on_push": true,
+        "required_reviewers": [],
+        "require_code_owner_review": false,
+        "require_last_push_approval": false,
+        "required_review_thread_resolution": false,
+        "require_extra_approval_for_unattributed_changes": true,
+        "allowed_merge_methods": ["merge", "squash", "rebase"]
+      }
+    }
+  ],
+  "bypass_actors": [
+    {
+      "actor_id": 1144995,
+      "actor_type": "Integration",
+      "bypass_mode": "pull_request"
+    }
+  ],
+  "current_user_can_bypass": "never"
+}
+```
+
+</details>
+
 ## GOV-GAP-002 through GOV-GAP-005 — ai-review-gate activation (WITHDRAWN)
 
 - **Status:** CLOSED (WITHDRAWN 2026-08-30)
@@ -121,8 +199,9 @@ admission blockers are recorded with their owner, milestone, and release in
 - **Blocks:** R0 and every target-facing release
 - **Current evidence:** the tenant-bound, hash-versioned PostgreSQL ledger supports serialized append,
   replay verification, immutable envelope hashing, and database-level UPDATE/DELETE/TRUNCATE denial.
-  Graph projection, NetworkX rebuild, Conductor, Policy Kernel v1, execution leases, dual kill-switch,
-  and authenticated PostgreSQL row-level tenant context are not implemented.
+  PR #35 added durable, deterministic `ScopeRoot` projection from the ledger, frozen NetworkX rebuild,
+  and state-root v1. Conductor, Policy Kernel v1, execution leases, dual kill-switch, and the full
+  authenticated trust-spine runtime are not yet integrated.
 - **Required closure:** wire every trust-spine publisher through the ledger; implement projector/rebuild,
   deterministic Conductor and Policy Kernel paths, lease and kill-switch enforcement, and database-role
   tenant isolation; prove replay and negative scope/lease paths end to end.
