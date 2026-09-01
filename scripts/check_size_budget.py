@@ -6,6 +6,7 @@ import os
 import subprocess
 from pathlib import Path
 
+from blackbread.governance.documentation_integrity import evaluate_documentation_integrity
 from blackbread.governance.size_budget import (
     BudgetConfigurationError,
     QualityCaps,
@@ -96,17 +97,14 @@ def check_repository(base_ref: str, head_ref: str) -> list[str]:
     _validate_commit(head_ref)
     base_caps = _caps_for_ref(base_ref, bootstrap=True)
     head_caps = _caps_for_ref(head_ref, bootstrap=False)
+    base_tree = _read_python_tree(base_ref)
+    head_tree = _read_python_tree(head_ref)
     violations = [
         f"quality cap increase is forbidden: {change}"
         for change in cap_increases(base_caps, head_caps)
     ]
-    violations.extend(
-        evaluate_size_budget(
-            _read_python_tree(base_ref),
-            _read_python_tree(head_ref),
-            head_caps,
-        )
-    )
+    violations.extend(evaluate_size_budget(base_tree, head_tree, head_caps))
+    violations.extend(evaluate_documentation_integrity(base_tree, head_tree))
     return violations
 
 
