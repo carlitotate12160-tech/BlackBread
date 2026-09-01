@@ -9,7 +9,6 @@ and never overrides live GitHub, accepted architecture, delivery policy, tests, 
 * **Current milestone:** M1 — Trust Spine
 * **Last verified:** 2026-09-01 UTC
 * **Current branch:** `gov-gap-006-state-update`
-* **Protected main baseline:** `f721f72`
 * **Active ruleset:** `main-branch-protection` (`21644438`)
 * **Contractual gate:** the live ruleset matches the machine contract. Required status checks are
   `ci-ok` (aggregator for `quality`, `tests`, `security`, `governance`) and `GitGuardian Security

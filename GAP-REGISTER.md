@@ -201,10 +201,10 @@ has no live effect; it is retained only as rollback evidence:
 - **Blocks:** none — a stale or missing SHA pointer is not a merge blocker, per AGENTS.md and
   `.devin/rules/blackbread.md` preflight rule #10.
 - **Current evidence:** PR #43 was squash-merged to `main` at `f721f72`. The `ENGINEERING-STATE.md`
-  `Protected main baseline` pointer and `PR-M1.3b2b` release record were manually updated to
-  `f721f72` on branch `gov-gap-006-state-update`. The required post-merge automation is still missing,
-  so future merges will again leave the pointer stale until the automation is implemented or another
-  manual compensating update is performed.
+  `PR-M1.3b2b` release record was manually updated to `f721f72` on branch `gov-gap-006-state-update`
+  (a PR-level release record is permitted). No protected-main-baseline pointer was added, consistent
+  with the no-hand-typing policy. The required post-merge automation is still missing, so
+  `GOV-GAP-006` remains open.
 - **Required closure:** a required post-merge automation step (e.g., a `push`/`merge` triggered
   GitHub Actions workflow with `contents: write` and a protected-branch bypass for the automation
   identity, or a repository rule that stamps the merged SHA) updates the
