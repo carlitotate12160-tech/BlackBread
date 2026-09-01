@@ -107,6 +107,15 @@ def test_temporal_networkx_view_rejects_injected_historical_node() -> None:
         build_temporal_networkx_view(forged)
 
 
+def test_temporal_networkx_view_rejects_unhashable_node_id() -> None:
+    projection = _projection()
+    forged_node = replace(projection.effective_nodes[0], node_id=[])
+    forged = replace(projection, effective_nodes=(forged_node,))
+
+    with pytest.raises(GraphProjectionError, match="effective nodes"):
+        build_temporal_networkx_view(forged)
+
+
 def test_temporal_networkx_view_accepts_order_independent_effective_membership() -> None:
     projection = _projection()
     extra = replace(

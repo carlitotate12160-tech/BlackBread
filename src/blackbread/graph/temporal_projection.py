@@ -43,7 +43,12 @@ def _node_membership(nodes: object) -> dict[str, ScopeRoot]:
         raise GraphProjectionError("temporal projection effective nodes are invalid")
     membership: dict[str, ScopeRoot] = {}
     for node in nodes:
-        if not isinstance(node, ScopeRoot) or node.node_id in membership:
+        invalid = (
+            not isinstance(node, ScopeRoot)
+            or not isinstance(node.node_id, str)
+            or node.node_id in membership
+        )
+        if invalid:
             raise GraphProjectionError("temporal projection effective nodes are invalid")
         membership[node.node_id] = node
     return membership
