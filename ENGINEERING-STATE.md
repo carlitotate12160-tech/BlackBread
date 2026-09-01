@@ -8,7 +8,7 @@ and never overrides live GitHub, accepted architecture, delivery policy, tests, 
 * **State:** ACTIVE
 * **Current milestone:** M1 — Trust Spine
 * **Last verified:** 2026-09-01 UTC
-* **Current branch:** `m1-3b2b-state-root-v2-rebuild`
+* **Current branch:** `gov-gap-006-state-update`
 * **Active ruleset:** `main-branch-protection` (`21644438`)
 * **Contractual gate:** the live ruleset matches the machine contract. Required status checks are
   `ci-ok` (aggregator for `quality`, `tests`, `security`, `governance`) and `GitGuardian Security
@@ -41,9 +41,10 @@ Three governance PRs merged in sequence:
 The repository now has the protected-base size budget system (PR #31), the Decepticon-style quality
 gates (PR #32), and the PR-Agent/CodiumAI DeepSeek review integration (PR #38).
 
-PR-M1.3b2a was released in PR #42 (`aff7df4`). PR-M1.3b2b is the current active slice on branch
-`m1-3b2b-state-root-v2-rebuild`; it is scoped to state-root v2, verified temporal replay, and an
-immutable NetworkX view, with durable v2 publication deferred to PR-M1.3b3.
+PR-M1.3b2a was released in PR #42 (`aff7df4`). PR-M1.3b2b was released in PR #43 (`f721f72`).
+PR-M1.3b3 is the current active slice; it is scoped to durable temporal projection lifecycle
+(migration `0006`, immutable revision-lineage persistence, atomic temporal publication, and
+`GRAPH-GAP-001` closure).
 
 ## What is now live on main
 
@@ -126,8 +127,8 @@ immutable NetworkX view, with durable v2 publication deferred to PR-M1.3b3.
 
 The repository owner split the former PR-M1.3b2 after its combined temporal-policy, state-root,
 PostgreSQL-replay, and NetworkX runtime diff exceeded both the 320-line architecture threshold and
-400-line hard cap. PR-M1.3b1 is RELEASED; PR-M1.3b2a is RELEASED; PR-M1.3b2b is ACTIVE;
-PR-M1.3b3 is the durable-persistence slice after b2b.
+400-line hard cap. PR-M1.3b1 is RELEASED; PR-M1.3b2a is RELEASED; PR-M1.3b2b is RELEASED;
+PR-M1.3b3 is ACTIVE.
 
 ### PR-M1.3b1 (released)
 
@@ -194,12 +195,13 @@ dispositioned and resolved. A merge does not complete M1.3, M1/R0, `LEDGER-GAP-0
   and is explicitly deferred without an ARM64 result claim. B2a changes no capability, tool, image,
   or client-eligibility state, so the live ARM64 capability-qualification rule is not a per-PR gate.
 
-### PR-M1.3b2b (active)
+### PR-M1.3b2b (released)
 
 * **ID:** PR-M1.3b2b
 * **Title:** State-Root v2 + Verified Temporal Rebuild + Effective NetworkX View
-* **State:** ACTIVE
+* **State:** RELEASED
 * **Prerequisite:** PR-M1.3b2a released at `aff7df4` / PR #42.
+* **Released at:** `f721f72` / PR #43
 * **Scope:** state-root v2 over the complete validated temporal lineage; bind the scope
   canonicalization version; harden v1 to reject v2 provenance; verified, read-only, non-persistent
   temporal rebuild from a PostgreSQL snapshot; immutable effective-only NetworkX view with zero edges.
@@ -215,12 +217,12 @@ dispositioned and resolved. A merge does not complete M1.3, M1/R0, `LEDGER-GAP-0
   graph/ledger suites green; all repository gates and budgets green; binding current-head
   PR-Agent/DeepSeek review complete with all findings dispositioned.
 
-### PR-M1.3b3 (selected after b2b)
+### PR-M1.3b3 (active)
 
 * **ID:** PR-M1.3b3
 * **Title:** Durable Temporal Projection Lifecycle
-* **State:** DECIDED
-* **Prerequisite:** PR-M1.3b2b merged.
+* **State:** ACTIVE
+* **Prerequisite:** PR-M1.3b2b released at `f721f72` / PR #43.
 * **Purpose:** migration `0006`, immutable revision-lineage and stable-membership persistence, atomic
   temporal publication, persisted state-root recomputation, truthful v2-head publication, and
   `GRAPH-GAP-001` closure.
