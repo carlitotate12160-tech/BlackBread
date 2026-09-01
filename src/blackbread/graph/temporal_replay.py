@@ -4,7 +4,7 @@ from uuid import UUID
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from blackbread.graph.domain import GraphProjectionError, ScopeProjector, ScopeRoot
+from blackbread.graph.domain import GraphProjectionError, ScopeProjector
 from blackbread.graph.state_root import (
     SUPPORTED_TEMPORAL_STATE_ROOT_VERSIONS,
     compute_temporal_state_root,
@@ -92,7 +92,8 @@ async def rebuild_and_publish_temporal_projection(
     ver, lineage = await _verify_and_reconstruct_lineage(
         engine, tenant_id=tenant_id, engagement_id=engagement_id
     )
-    assert ver.verified_head_hash is not None
+    if ver.verified_head_hash is None:
+        raise GraphProjectionError("verified ledger has no head hash")
     pub = TemporalPublication(
         tenant_id=tenant_id,
         engagement_id=engagement_id,
@@ -101,19 +102,5 @@ async def rebuild_and_publish_temporal_projection(
         lineage=lineage,
         state_root=compute_temporal_state_root(tenant_id, engagement_id, lineage),
         versions=SUPPORTED_TEMPORAL_STATE_ROOT_VERSIONS,
-        structural_head_nodes=tuple(
-            ScopeRoot(
-                node_id=r.node_id,
-                scope_kind=r.scope_kind,
-                canonical_value=r.canonical_value,
-                manifest_hash=r.manifest_hash,
-                valid_from=r.valid_from,
-                valid_until=r.valid_until,
-                source_sequence=r.source_sequence,
-                source_event_hash=r.source_event_hash,
-                source_schema_version=r.source_schema_version,
-            )
-            for r in lineage.groups[-1].revisions
-        ),
     )
     return await _publish_temporal_publication(engine, validate_temporal_publication(pub))

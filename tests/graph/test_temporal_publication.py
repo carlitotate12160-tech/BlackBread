@@ -5,6 +5,7 @@ Real PostgreSQL. Tests use the rebuild_and_publish_temporal_projection entry poi
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -12,11 +13,10 @@ import pytest_asyncio
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
-from blackbread.graph.domain import ScopeProjector, scope_root_id
-from blackbread.graph.state_root import (
-    SUPPORTED_TEMPORAL_STATE_ROOT_VERSIONS,
-)
+from blackbread.graph.domain import GraphProjectionError, ScopeProjector, scope_root_id
+from blackbread.graph.state_root import SUPPORTED_TEMPORAL_STATE_ROOT_VERSIONS
 from blackbread.graph.temporal import validate_temporal_lineage
+from blackbread.graph.temporal_persistence import _publish_temporal_publication
 from blackbread.graph.temporal_publication import (
     TemporalPublication,
     TemporalPublicationRead,
@@ -85,7 +85,7 @@ async def pub_engagement(session: AsyncSession) -> Engagement:
 
 class TestPublicationContract:
     async def test_validate_rejects_non_publication(self) -> None:
-        with pytest.raises(Exception, match="invalid temporal publication"):
+        with pytest.raises(GraphProjectionError, match="invalid temporal publication"):
             validate_temporal_publication("not a publication")
 
     async def test_validate_rejects_wrong_state_root(
@@ -112,10 +112,48 @@ class TestPublicationContract:
             lineage=lineage,
             state_root="f" * 64,  # wrong
             versions=SUPPORTED_TEMPORAL_STATE_ROOT_VERSIONS,
-            structural_head_nodes=tuple(projector.nodes),
         )
-        with pytest.raises(Exception, match="state root is inconsistent"):
+        with pytest.raises(GraphProjectionError, match="state root is inconsistent"):
             validate_temporal_publication(pub)
+
+    async def test_publication_has_no_caller_supplied_structural_head(
+        self,
+        pub_engagement: Engagement,
+        session: AsyncSession,
+        append_payload: object,
+        engine: AsyncEngine,
+    ) -> None:
+        """The contract has no independent caller-supplied structural-head claim."""
+        att = _v1_attestation(root_domains=("example.com",))
+        await append_payload(session, pub_engagement, att)
+
+        result = await rebuild_and_publish_temporal_projection(
+            engine,
+            tenant_id=pub_engagement.tenant_id,
+            engagement_id=pub_engagement.id,
+        )
+        assert not hasattr(result.publication, "structural_head_nodes")
+
+        final = result.publication.lineage.groups[-1]
+        async with engine.connect() as conn:
+            await conn.execute(text(f"SET blackbread.tenant_id = '{pub_engagement.tenant_id}'"))
+            heads = (
+                (
+                    await conn.execute(
+                        text(
+                            "SELECT * FROM graph_temporal_head_nodes "
+                            "WHERE tenant_id = :tid AND engagement_id = :eid"
+                        ),
+                        {"tid": pub_engagement.tenant_id, "eid": pub_engagement.id},
+                    )
+                )
+                .mappings()
+                .all()
+            )
+        expected = {(h["node_id"], h["revision_id"], h["source_event_hash"]) for h in heads}
+        assert expected == {
+            (rev.node_id, rev.revision_id, final.source_event_hash) for rev in final.revisions
+        }
 
 
 class TestV1OnlyPublication:
@@ -199,7 +237,8 @@ class TestV1OnlyPublication:
             tenant_id=pub_engagement.tenant_id,
             engagement_id=pub_engagement.id,
         )
-        assert result1.publication.state_root == result2.publication.state_root
+        assert result1.publication == result2.publication
+        assert result1.is_current is True
         assert result2.is_current is True
 
     async def test_structural_head_membership(
@@ -320,8 +359,7 @@ class TestV1ToV2Publication:
                 .all()
             )
             root_values = {r["canonical_value"] for r in roots}
-            assert "old.org" in root_values  # stable identity preserved
-            assert "example.com" in root_values
+            assert root_values == {"example.com", "old.org"}
 
             heads = (
                 (
@@ -337,8 +375,7 @@ class TestV1ToV2Publication:
                 .all()
             )
             head_ids = {h["node_id"] for h in heads}
-            assert scope_root_id("root_domain", "example.com") in head_ids
-            assert scope_root_id("root_domain", "old.org") not in head_ids
+            assert head_ids == {scope_root_id("root_domain", "example.com")}
 
 
 class TestStateRootParity:
@@ -368,7 +405,7 @@ class TestStateRootParity:
 
 
 class TestStalePublicationSemantics:
-    async def test_stale_publication_returns_is_current_false(
+    async def test_graph_neutral_anchor_advance_stays_current(
         self,
         pub_engagement: Engagement,
         session: AsyncSession,
@@ -400,5 +437,39 @@ class TestStalePublicationSemantics:
             tenant_id=pub_engagement.tenant_id,
             engagement_id=pub_engagement.id,
         )
-        # New publication still valid, but the projection didn't change
+        # New publication is current because the graph head did not change
         assert result2.is_current is True
+
+    async def test_stale_candidate_returns_is_current_false(
+        self,
+        pub_engagement: Engagement,
+        session: AsyncSession,
+        append_payload: object,
+        engine: AsyncEngine,
+    ) -> None:
+        att = _v1_attestation()
+        v1_event = await append_payload(session, pub_engagement, att)
+
+        result1 = await rebuild_and_publish_temporal_projection(
+            engine,
+            tenant_id=pub_engagement.tenant_id,
+            engagement_id=pub_engagement.id,
+        )
+        assert result1.is_current is True
+
+        # Advance ledger after the candidate is constructed
+        stopped = EngagementStopped(
+            reason="operator_stop",
+            stopped_by="op",
+            disposition="graceful_stop",
+        )
+        await append_payload(session, pub_engagement, stopped)
+
+        # Re-publish the already-constructed v1 candidate
+        stale = replace(
+            result1.publication,
+            verified_event_count=v1_event.sequence,
+            verified_head_hash=v1_event.event_hash,
+        )
+        result2 = await _publish_temporal_publication(engine, stale)
+        assert result2.is_current is False
