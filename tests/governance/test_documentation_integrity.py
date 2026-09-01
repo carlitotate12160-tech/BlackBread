@@ -72,13 +72,30 @@ def test_trivial_code_reduction_does_not_bypass_doc_strip() -> None:
 
 def test_multiline_string_constant_counts_as_code() -> None:
     path = "src/blackbread/graph/temporal_replay.py"
-    constant = '\n'.join(
-        ['    PAYLOAD = """', '    line 0', '    line 1', '    line 2',
-         '    line 3', '    line 4', '    """', '']
+    constant = "\n".join(
+        [
+            '    PAYLOAD = """',
+            "    line 0",
+            "    line 1",
+            "    line 2",
+            "    line 3",
+            "    line 4",
+            '    """',
+            "",
+        ]
     )
-    base_doc = '\n'.join(
-        ['', '    """', '    doc line 0', '    doc line 1', '    doc line 2',
-         '    doc line 3', '    doc line 4', '    """', '']
+    base_doc = "\n".join(
+        [
+            "",
+            '    """',
+            "    doc line 0",
+            "    doc line 1",
+            "    doc line 2",
+            "    doc line 3",
+            "    doc line 4",
+            '    """',
+            "",
+        ]
     )
     base_body = "def worker() -> None:\n" + base_doc + constant
     head_body = "def worker() -> None:\n    return None\n"
