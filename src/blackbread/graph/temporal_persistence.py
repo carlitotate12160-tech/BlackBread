@@ -147,7 +147,7 @@ class _TemporalStore:
 
     def _snapshot_matches(self, pub: TemporalPublication, snap: RowMapping) -> bool:
         final = pub.lineage.groups[-1]
-        return bool(
+        return (
             pub.verified_event_count == snap["verified_event_count"]
             and pub.verified_head_hash == snap["verified_head_hash"]
             and snap["ledger_hash_algorithm"] == "sha256"
