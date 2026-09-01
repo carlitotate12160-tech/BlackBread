@@ -64,20 +64,7 @@ def _root_key(node_id: str, scope_kind: str, canonical_value: str) -> tuple[str,
 
 
 def _revision_fields(rev: ScopeRevision) -> dict[str, object]:
-    return {
-        "revision_id": rev.revision_id,
-        "node_id": rev.node_id,
-        "scope_kind": rev.scope_kind,
-        "canonical_value": rev.canonical_value,
-        "manifest_hash": rev.manifest_hash,
-        "valid_from": rev.valid_from,
-        "valid_until": rev.valid_until,
-        "source_sequence": rev.source_sequence,
-        "source_event_hash": rev.source_event_hash,
-        "source_schema_name": rev.source_schema_name,
-        "source_schema_version": rev.source_schema_version,
-        "predecessor_attestation_event_hash": rev.predecessor_attestation_event_hash,
-    }
+    return {k: getattr(rev, k) for k in ("revision_id", "node_id", "scope_kind", "canonical_value", "manifest_hash", "valid_from", "valid_until", "source_sequence", "source_event_hash", "source_schema_name", "source_schema_version", "predecessor_attestation_event_hash")}
 
 
 def _row_matches_revision(row: RowMapping, rev: ScopeRevision) -> bool:
@@ -85,11 +72,7 @@ def _row_matches_revision(row: RowMapping, rev: ScopeRevision) -> bool:
 
 
 def _row_matches_root(row: RowMapping, root: tuple[str, str, str]) -> bool:
-    return bool(
-        row["node_id"] == root[0]
-        and row["scope_kind"] == root[1]
-        and row["canonical_value"] == root[2]
-    )
+    return bool(row["node_id"] == root[0] and row["scope_kind"] == root[1] and row["canonical_value"] == root[2])
 
 
 class _TemporalStore:
@@ -143,11 +126,7 @@ class _TemporalStore:
         if pub.verified_event_count < existing_count:
             raise GraphProjectionError("publication anchor regression")
         if pub.verified_event_count == existing_count:
-            if (
-                pub.verified_head_hash == snap["verified_head_hash"]
-                and pub.state_root == snap["state_root"]
-                and pub.lineage.lineage_head_hash == snap["lineage_head_hash"]
-            ):
+            if (pub.verified_head_hash == snap["verified_head_hash"] and pub.state_root == snap["state_root"] and pub.lineage.lineage_head_hash == snap["lineage_head_hash"]):
                 return TemporalPublicationRead(pub, is_current)
             raise GraphProjectionError("publication diverges from existing snapshot at same anchor")
         # newer anchor — validate monotonic history
