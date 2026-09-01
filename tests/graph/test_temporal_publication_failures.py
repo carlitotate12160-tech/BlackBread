@@ -62,17 +62,25 @@ def _build_publication(
 ) -> TemporalPublication:
     """Helper: build a validated publication from a projector."""
     lineage = validate_temporal_lineage(
-        projector.revisions, lineage_head_hash=projector.lineage_head_hash,
+        projector.revisions,
+        lineage_head_hash=projector.lineage_head_hash,
     )
     state_root = compute_temporal_state_root(
-        engagement.tenant_id, engagement.id, lineage,
+        engagement.tenant_id,
+        engagement.id,
+        lineage,
     )
     final_group = lineage.groups[-1]
     head_nodes = tuple(
         ScopeRoot(
-            node_id=r.node_id, scope_kind=r.scope_kind, canonical_value=r.canonical_value,
-            manifest_hash=r.manifest_hash, valid_from=r.valid_from, valid_until=r.valid_until,
-            source_sequence=r.source_sequence, source_event_hash=r.source_event_hash,
+            node_id=r.node_id,
+            scope_kind=r.scope_kind,
+            canonical_value=r.canonical_value,
+            manifest_hash=r.manifest_hash,
+            valid_from=r.valid_from,
+            valid_until=r.valid_until,
+            source_sequence=r.source_sequence,
+            source_event_hash=r.source_event_hash,
             source_schema_version=r.source_schema_version,
         )
         for r in final_group.revisions
@@ -272,9 +280,7 @@ class TestUnsupportedEvents:
 
         # Verify nothing was published
         async with engine.connect() as conn:
-            await conn.execute(
-                text(f"SET blackbread.tenant_id = '{fail_engagement.tenant_id}'")
-            )
+            await conn.execute(text(f"SET blackbread.tenant_id = '{fail_engagement.tenant_id}'"))
             snap = (
                 await conn.execute(
                     text(
@@ -354,9 +360,7 @@ class TestRollbackCleanup:
 
         # Verify no partial data exists
         async with engine.connect() as conn:
-            await conn.execute(
-                text(f"SET blackbread.tenant_id = '{fail_engagement.tenant_id}'")
-            )
+            await conn.execute(text(f"SET blackbread.tenant_id = '{fail_engagement.tenant_id}'"))
             for table in (
                 "graph_temporal_projection_snapshots",
                 "graph_temporal_scope_roots",
@@ -418,7 +422,9 @@ class TestRollbackCleanup:
         session.add(client)
         await session.flush()
         engagement = Engagement(
-            client_id=client.id, tenant_id=correct_tenant, status="created",
+            client_id=client.id,
+            tenant_id=correct_tenant,
+            status="created",
         )
         session.add(engagement)
         await session.flush()
@@ -445,17 +451,25 @@ class TestRollbackCleanup:
         projector = ScopeProjector()
         projector.consume(event)
         lineage = validate_temporal_lineage(
-            projector.revisions, lineage_head_hash=projector.lineage_head_hash,
+            projector.revisions,
+            lineage_head_hash=projector.lineage_head_hash,
         )
         state_root = compute_temporal_state_root(
-            "wrong-tenant", engagement.id, lineage,
+            "wrong-tenant",
+            engagement.id,
+            lineage,
         )
         final_group = lineage.groups[-1]
         head_nodes = tuple(
             ScopeRoot(
-                node_id=r.node_id, scope_kind=r.scope_kind, canonical_value=r.canonical_value,
-                manifest_hash=r.manifest_hash, valid_from=r.valid_from, valid_until=r.valid_until,
-                source_sequence=r.source_sequence, source_event_hash=r.source_event_hash,
+                node_id=r.node_id,
+                scope_kind=r.scope_kind,
+                canonical_value=r.canonical_value,
+                manifest_hash=r.manifest_hash,
+                valid_from=r.valid_from,
+                valid_until=r.valid_until,
+                source_sequence=r.source_sequence,
+                source_event_hash=r.source_event_hash,
                 source_schema_version=r.source_schema_version,
             )
             for r in final_group.revisions

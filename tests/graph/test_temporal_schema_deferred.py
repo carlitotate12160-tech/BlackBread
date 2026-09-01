@@ -37,6 +37,7 @@ TENANT = "schema-test-tenant"
 # Migration lifecycle isolation fixture (separate temporary database)
 # ---------------------------------------------------------------------------
 
+
 def _temp_db_name() -> str:
     return f"blackbread_test_migration_{uuid.uuid4().hex[:8]}"
 
@@ -117,6 +118,7 @@ def lifecycle_runtime_engine(lifecycle_db: str) -> Iterator[AsyncEngine]:
 # Shared schema-test fixtures (uses the session migrated_database)
 # ---------------------------------------------------------------------------
 
+
 @pytest_asyncio.fixture
 async def admin_engine(migrated_database: None) -> AsyncIterator[AsyncEngine]:
     engine = create_async_engine(TEST_MIGRATION_DATABASE_URL, pool_pre_ping=True)
@@ -130,7 +132,9 @@ async def runtime_engine(engine: AsyncEngine) -> AsyncEngine:
 
 
 async def _seed_engagement(
-    admin: AsyncEngine, tenant_id: str, engagement_id: uuid.UUID,
+    admin: AsyncEngine,
+    tenant_id: str,
+    engagement_id: uuid.UUID,
 ) -> None:
     """Insert a client + engagement for testing via the admin connection."""
     client_id = uuid.uuid4()
@@ -235,9 +239,12 @@ async def _seed_attestation_event(  # noqa: PLR0913
 # Migration lifecycle tests
 # ---------------------------------------------------------------------------
 
+
 class TestDeferredFK:
     async def test_snapshot_head_deferred_fk_accepted(
-        self, admin_engine: AsyncEngine, runtime_engine: AsyncEngine,
+        self,
+        admin_engine: AsyncEngine,
+        runtime_engine: AsyncEngine,
     ) -> None:
         """Head nodes can be inserted in a deferred transaction with snapshot."""
         eid = uuid.uuid4()
@@ -249,19 +256,22 @@ class TestDeferredFK:
 
         node_id = scope_root_id("root_domain", "example.com")
         rev = ScopeRevision(
-            node_id=node_id, scope_kind="root_domain", canonical_value="example.com",
-            manifest_hash="a" * 64, valid_from=FIXED_TIME,
+            node_id=node_id,
+            scope_kind="root_domain",
+            canonical_value="example.com",
+            manifest_hash="a" * 64,
+            valid_from=FIXED_TIME,
             valid_until=FIXED_TIME + timedelta(days=7),
-            source_sequence=1, source_event_hash=event_hash,
-            source_schema_name="engagement.attested", source_schema_version=1,
+            source_sequence=1,
+            source_event_hash=event_hash,
+            source_schema_name="engagement.attested",
+            source_schema_version=1,
             predecessor_attestation_event_hash=None,
         )
 
         async with runtime_engine.connect() as conn:
             await conn.execute(text(f"SET blackbread.tenant_id = '{TENANT}'"))
-            await conn.execute(
-                text("SET CONSTRAINTS fk_graph_temporal_head_lineage DEFERRED")
-            )
+            await conn.execute(text("SET CONSTRAINTS fk_graph_temporal_head_lineage DEFERRED"))
             # Insert root
             await conn.execute(
                 text(
@@ -284,9 +294,13 @@ class TestDeferredFK:
                     ":mh, :vf, :vu, 1, :eh, 'engagement.attested', 1, NULL)"
                 ),
                 {
-                    "tid": TENANT, "eid": eid, "rid": rev.revision_id,
-                    "nid": node_id, "mh": "a" * 64,
-                    "vf": FIXED_TIME, "vu": FIXED_TIME + timedelta(days=7),
+                    "tid": TENANT,
+                    "eid": eid,
+                    "rid": rev.revision_id,
+                    "nid": node_id,
+                    "mh": "a" * 64,
+                    "vf": FIXED_TIME,
+                    "vu": FIXED_TIME + timedelta(days=7),
                     "eh": event_hash,
                 },
             )
@@ -310,19 +324,21 @@ class TestDeferredFK:
                     "VALUES (:tid, :eid, :nid, :rid, :seh)"
                 ),
                 {
-                    "tid": TENANT, "eid": eid,
-                    "nid": node_id, "rid": rev.revision_id,
+                    "tid": TENANT,
+                    "eid": eid,
+                    "nid": node_id,
+                    "rid": rev.revision_id,
                     "seh": event_hash,
                 },
             )
             # Force immediate before commit
-            await conn.execute(
-                text("SET CONSTRAINTS fk_graph_temporal_head_lineage IMMEDIATE")
-            )
+            await conn.execute(text("SET CONSTRAINTS fk_graph_temporal_head_lineage IMMEDIATE"))
             # commit succeeded — deferred FK passed
 
     async def test_head_wrong_source_rejected(
-        self, admin_engine: AsyncEngine, runtime_engine: AsyncEngine,
+        self,
+        admin_engine: AsyncEngine,
+        runtime_engine: AsyncEngine,
     ) -> None:
         """Head node with wrong source_event_hash is rejected at commit."""
         eid = uuid.uuid4()
@@ -334,11 +350,16 @@ class TestDeferredFK:
 
         node_id = scope_root_id("root_domain", "example.com")
         rev = ScopeRevision(
-            node_id=node_id, scope_kind="root_domain", canonical_value="example.com",
-            manifest_hash="a" * 64, valid_from=FIXED_TIME,
+            node_id=node_id,
+            scope_kind="root_domain",
+            canonical_value="example.com",
+            manifest_hash="a" * 64,
+            valid_from=FIXED_TIME,
             valid_until=FIXED_TIME + timedelta(days=7),
-            source_sequence=1, source_event_hash=event_hash,
-            source_schema_name="engagement.attested", source_schema_version=1,
+            source_sequence=1,
+            source_event_hash=event_hash,
+            source_schema_name="engagement.attested",
+            source_schema_version=1,
             predecessor_attestation_event_hash=None,
         )
 
@@ -363,9 +384,13 @@ class TestDeferredFK:
                     ":mh, :vf, :vu, 1, :eh, 'engagement.attested', 1, NULL)"
                 ),
                 {
-                    "tid": TENANT, "eid": eid, "rid": rev.revision_id,
-                    "nid": node_id, "mh": "a" * 64,
-                    "vf": FIXED_TIME, "vu": FIXED_TIME + timedelta(days=7),
+                    "tid": TENANT,
+                    "eid": eid,
+                    "rid": rev.revision_id,
+                    "nid": node_id,
+                    "mh": "a" * 64,
+                    "vf": FIXED_TIME,
+                    "vu": FIXED_TIME + timedelta(days=7),
                     "eh": event_hash,
                 },
             )
@@ -385,9 +410,7 @@ class TestDeferredFK:
         async with runtime_engine.connect() as conn:
             await conn.execute(text(f"SET blackbread.tenant_id = '{TENANT}'"))
             with pytest.raises(Exception):  # noqa: B017
-                await conn.execute(
-                    text("SET CONSTRAINTS fk_graph_temporal_head_lineage DEFERRED")
-                )
+                await conn.execute(text("SET CONSTRAINTS fk_graph_temporal_head_lineage DEFERRED"))
                 wrong_hash = "f" * 64
                 await conn.execute(
                     text(
@@ -396,11 +419,11 @@ class TestDeferredFK:
                         "VALUES (:tid, :eid, :nid, :rid, :seh)"
                     ),
                     {
-                        "tid": TENANT, "eid": eid,
-                        "nid": node_id, "rid": rev.revision_id,
+                        "tid": TENANT,
+                        "eid": eid,
+                        "nid": node_id,
+                        "rid": rev.revision_id,
                         "seh": wrong_hash,
                     },
                 )
-                await conn.execute(
-                    text("SET CONSTRAINTS fk_graph_temporal_head_lineage IMMEDIATE")
-                )
+                await conn.execute(text("SET CONSTRAINTS fk_graph_temporal_head_lineage IMMEDIATE"))

@@ -37,6 +37,7 @@ TENANT = "schema-test-tenant"
 # Migration lifecycle isolation fixture (separate temporary database)
 # ---------------------------------------------------------------------------
 
+
 def _temp_db_name() -> str:
     return f"blackbread_test_migration_{uuid.uuid4().hex[:8]}"
 
@@ -117,6 +118,7 @@ def lifecycle_runtime_engine(lifecycle_db: str) -> Iterator[AsyncEngine]:
 # Shared schema-test fixtures (uses the session migrated_database)
 # ---------------------------------------------------------------------------
 
+
 @pytest_asyncio.fixture
 async def admin_engine(migrated_database: None) -> AsyncIterator[AsyncEngine]:
     engine = create_async_engine(TEST_MIGRATION_DATABASE_URL, pool_pre_ping=True)
@@ -130,7 +132,9 @@ async def runtime_engine(engine: AsyncEngine) -> AsyncEngine:
 
 
 async def _seed_engagement(
-    admin: AsyncEngine, tenant_id: str, engagement_id: uuid.UUID,
+    admin: AsyncEngine,
+    tenant_id: str,
+    engagement_id: uuid.UUID,
 ) -> None:
     """Insert a client + engagement for testing via the admin connection."""
     client_id = uuid.uuid4()
@@ -235,9 +239,12 @@ async def _seed_attestation_event(  # noqa: PLR0913
 # Migration lifecycle tests
 # ---------------------------------------------------------------------------
 
+
 class TestPrivileges:
     async def test_snapshot_insert_allowed(
-        self, admin_engine: AsyncEngine, runtime_engine: AsyncEngine,
+        self,
+        admin_engine: AsyncEngine,
+        runtime_engine: AsyncEngine,
     ) -> None:
         eid = uuid.uuid4()
         await _seed_engagement(admin_engine, TENANT, eid)
@@ -258,7 +265,9 @@ class TestPrivileges:
             )
 
     async def test_roots_delete_denied(
-        self, admin_engine: AsyncEngine, runtime_engine: AsyncEngine,
+        self,
+        admin_engine: AsyncEngine,
+        runtime_engine: AsyncEngine,
     ) -> None:
         eid = uuid.uuid4()
         await _seed_engagement(admin_engine, TENANT, eid)
@@ -267,15 +276,17 @@ class TestPrivileges:
             await conn.execute(text(f"SET blackbread.tenant_id = '{TENANT}'"))
             with pytest.raises(Exception):  # noqa: B017
                 await conn.execute(
-                text(
-                    "DELETE FROM graph_temporal_scope_roots "
-                    "WHERE tenant_id = :tid AND engagement_id = :eid"
-                ),
-                {"tid": TENANT, "eid": eid},
-            )
+                    text(
+                        "DELETE FROM graph_temporal_scope_roots "
+                        "WHERE tenant_id = :tid AND engagement_id = :eid"
+                    ),
+                    {"tid": TENANT, "eid": eid},
+                )
 
     async def test_revisions_update_denied(
-        self, admin_engine: AsyncEngine, runtime_engine: AsyncEngine,
+        self,
+        admin_engine: AsyncEngine,
+        runtime_engine: AsyncEngine,
     ) -> None:
         eid = uuid.uuid4()
         await _seed_engagement(admin_engine, TENANT, eid)
@@ -284,15 +295,17 @@ class TestPrivileges:
             await conn.execute(text(f"SET blackbread.tenant_id = '{TENANT}'"))
             with pytest.raises(Exception):  # noqa: B017
                 await conn.execute(
-                text(
-                    "UPDATE graph_temporal_scope_revisions SET manifest_hash = :mh "
-                    "WHERE tenant_id = :tid AND engagement_id = :eid"
-                ),
-                {"tid": TENANT, "eid": eid, "mh": "c" * 64},
-            )
+                    text(
+                        "UPDATE graph_temporal_scope_revisions SET manifest_hash = :mh "
+                        "WHERE tenant_id = :tid AND engagement_id = :eid"
+                    ),
+                    {"tid": TENANT, "eid": eid, "mh": "c" * 64},
+                )
 
     async def test_head_nodes_update_denied(
-        self, admin_engine: AsyncEngine, runtime_engine: AsyncEngine,
+        self,
+        admin_engine: AsyncEngine,
+        runtime_engine: AsyncEngine,
     ) -> None:
         eid = uuid.uuid4()
         await _seed_engagement(admin_engine, TENANT, eid)
@@ -301,12 +314,12 @@ class TestPrivileges:
             await conn.execute(text(f"SET blackbread.tenant_id = '{TENANT}'"))
             with pytest.raises(Exception):  # noqa: B017
                 await conn.execute(
-                text(
-                    "UPDATE graph_temporal_head_nodes SET revision_id = :rid "
-                    "WHERE tenant_id = :tid AND engagement_id = :eid"
-                ),
-                {"tid": TENANT, "eid": eid, "rid": "d" * 64},
-            )
+                    text(
+                        "UPDATE graph_temporal_head_nodes SET revision_id = :rid "
+                        "WHERE tenant_id = :tid AND engagement_id = :eid"
+                    ),
+                    {"tid": TENANT, "eid": eid, "rid": "d" * 64},
+                )
 
 
 # ---------------------------------------------------------------------------

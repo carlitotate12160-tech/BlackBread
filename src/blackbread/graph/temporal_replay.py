@@ -46,14 +46,15 @@ async def _verify_and_reconstruct_lineage(
                 engagement_id=engagement_id,
                 consumer=projector.consume,
             )
-            if not verification.ok or verification.verified_head_hash is None:
-                reason = verification.reason or "missing verified head"
-                raise GraphProjectionError(f"ledger verification failed: {reason}")
-    lineage_head = projector.lineage_head_hash
-    if lineage_head is None:
+            if not verification.ok or not verification.verified_head_hash:
+                raise GraphProjectionError(
+                    f"ledger verification failed: {verification.reason or 'missing verified head'}"
+                )
+    if not projector.lineage_head_hash:
         raise GraphProjectionError("verified ledger has no attestation")
-    lineage = validate_temporal_lineage(projector.revisions, lineage_head_hash=lineage_head)
-    return verification, lineage
+    return verification, validate_temporal_lineage(
+        projector.revisions, lineage_head_hash=projector.lineage_head_hash
+    )
 
 
 async def rebuild_temporal_projection(
@@ -85,41 +86,34 @@ async def rebuild_temporal_projection(
 
 
 async def rebuild_and_publish_temporal_projection(
-    engine: AsyncEngine,
-    *,
-    tenant_id: str,
-    engagement_id: UUID,
+    engine: AsyncEngine, *, tenant_id: str, engagement_id: UUID
 ) -> TemporalPublicationRead:
     """Verified replay -> construct TemporalPublication -> persist durably."""
-    verification, lineage = await _verify_and_reconstruct_lineage(
+    ver, lineage = await _verify_and_reconstruct_lineage(
         engine, tenant_id=tenant_id, engagement_id=engagement_id
     )
-    state_root = compute_temporal_state_root(tenant_id, engagement_id, lineage)
-    final_group = lineage.groups[-1]
-    structural_head_nodes = tuple(
-        ScopeRoot(
-            node_id=r.node_id,
-            scope_kind=r.scope_kind,
-            canonical_value=r.canonical_value,
-            manifest_hash=r.manifest_hash,
-            valid_from=r.valid_from,
-            valid_until=r.valid_until,
-            source_sequence=r.source_sequence,
-            source_event_hash=r.source_event_hash,
-            source_schema_version=r.source_schema_version,
-        )
-        for r in final_group.revisions
-    )
-    assert verification.verified_head_hash is not None
-    publication = TemporalPublication(
+    assert ver.verified_head_hash is not None
+    pub = TemporalPublication(
         tenant_id=tenant_id,
         engagement_id=engagement_id,
-        verified_event_count=verification.event_count,
-        verified_head_hash=verification.verified_head_hash,
+        verified_event_count=ver.event_count,
+        verified_head_hash=ver.verified_head_hash,
         lineage=lineage,
-        state_root=state_root,
+        state_root=compute_temporal_state_root(tenant_id, engagement_id, lineage),
         versions=SUPPORTED_TEMPORAL_STATE_ROOT_VERSIONS,
-        structural_head_nodes=structural_head_nodes,
+        structural_head_nodes=tuple(
+            ScopeRoot(
+                node_id=r.node_id,
+                scope_kind=r.scope_kind,
+                canonical_value=r.canonical_value,
+                manifest_hash=r.manifest_hash,
+                valid_from=r.valid_from,
+                valid_until=r.valid_until,
+                source_sequence=r.source_sequence,
+                source_event_hash=r.source_event_hash,
+                source_schema_version=r.source_schema_version,
+            )
+            for r in lineage.groups[-1].revisions
+        ),
     )
-    validate_temporal_publication(publication)
-    return await _publish_temporal_publication(engine, publication)
+    return await _publish_temporal_publication(engine, validate_temporal_publication(pub))

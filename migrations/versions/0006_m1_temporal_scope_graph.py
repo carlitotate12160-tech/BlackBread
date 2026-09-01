@@ -51,15 +51,20 @@ def upgrade() -> None:
         sa.Column("lineage_head_hash", sa.String(length=64), nullable=False),
         sa.Column("lineage_head_sequence", sa.BigInteger(), nullable=False),
         sa.PrimaryKeyConstraint(
-            "tenant_id", "engagement_id",
+            "tenant_id",
+            "engagement_id",
             name="pk_graph_temporal_projection_snapshots",
         ),
         sa.UniqueConstraint(
-            "tenant_id", "engagement_id", "verified_event_count",
+            "tenant_id",
+            "engagement_id",
+            "verified_event_count",
             name="uq_graph_temporal_snapshot_version",
         ),
         sa.UniqueConstraint(
-            "tenant_id", "engagement_id", "lineage_head_hash",
+            "tenant_id",
+            "engagement_id",
+            "lineage_head_hash",
             name="uq_graph_temporal_snapshot_lineage_head",
         ),
         sa.ForeignKeyConstraint(
@@ -146,15 +151,24 @@ def upgrade() -> None:
         sa.Column("scope_kind", sa.String(length=50), nullable=False),
         sa.Column("canonical_value", sa.String(length=500), nullable=False),
         sa.PrimaryKeyConstraint(
-            "tenant_id", "engagement_id", "node_id",
+            "tenant_id",
+            "engagement_id",
+            "node_id",
             name="pk_graph_temporal_scope_roots",
         ),
         sa.UniqueConstraint(
-            "tenant_id", "engagement_id", "scope_kind", "canonical_value",
+            "tenant_id",
+            "engagement_id",
+            "scope_kind",
+            "canonical_value",
             name="uq_graph_temporal_scope_roots_identity",
         ),
         sa.UniqueConstraint(
-            "tenant_id", "engagement_id", "node_id", "scope_kind", "canonical_value",
+            "tenant_id",
+            "engagement_id",
+            "node_id",
+            "scope_kind",
+            "canonical_value",
             name="uq_graph_temporal_scope_roots_composite",
         ),
         sa.ForeignKeyConstraint(
@@ -210,11 +224,17 @@ def upgrade() -> None:
         sa.Column("source_schema_version", sa.Integer(), nullable=False),
         sa.Column("predecessor_attestation_event_hash", sa.String(length=64), nullable=True),
         sa.PrimaryKeyConstraint(
-            "tenant_id", "engagement_id", "revision_id",
+            "tenant_id",
+            "engagement_id",
+            "revision_id",
             name="pk_graph_temporal_scope_revisions",
         ),
         sa.UniqueConstraint(
-            "tenant_id", "engagement_id", "revision_id", "node_id", "source_event_hash",
+            "tenant_id",
+            "engagement_id",
+            "revision_id",
+            "node_id",
+            "source_event_hash",
             name="uq_graph_temporal_revision_node_key",
         ),
         sa.ForeignKeyConstraint(
@@ -231,8 +251,12 @@ def upgrade() -> None:
         ),
         sa.ForeignKeyConstraint(
             [
-                "tenant_id", "engagement_id", "source_sequence",
-                "source_event_hash", "source_schema_name", "source_schema_version",
+                "tenant_id",
+                "engagement_id",
+                "source_sequence",
+                "source_event_hash",
+                "source_schema_name",
+                "source_schema_version",
             ],
             [
                 "agent_events.tenant_id",
@@ -386,13 +410,18 @@ def upgrade() -> None:
         sa.Column("revision_id", sa.String(length=64), nullable=False),
         sa.Column("source_event_hash", sa.String(length=64), nullable=False),
         sa.PrimaryKeyConstraint(
-            "tenant_id", "engagement_id", "node_id",
+            "tenant_id",
+            "engagement_id",
+            "node_id",
             name="pk_graph_temporal_head_nodes",
         ),
         sa.ForeignKeyConstraint(
             [
-                "tenant_id", "engagement_id", "revision_id",
-                "node_id", "source_event_hash",
+                "tenant_id",
+                "engagement_id",
+                "revision_id",
+                "node_id",
+                "source_event_hash",
             ],
             [
                 "graph_temporal_scope_revisions.tenant_id",
@@ -451,8 +480,7 @@ def upgrade() -> None:
         "graph_temporal_scope_roots, graph_temporal_scope_revisions, "
         "graph_temporal_head_nodes FROM PUBLIC",
         "REVOKE ALL ON FUNCTION blackbread_require_attested_temporal_revision() FROM PUBLIC",
-        "GRANT SELECT, INSERT ON TABLE graph_temporal_projection_snapshots "
-        "TO blackbread_runtime",
+        "GRANT SELECT, INSERT ON TABLE graph_temporal_projection_snapshots TO blackbread_runtime",
         "GRANT UPDATE (verified_event_count, verified_head_hash, "
         "ledger_hash_algorithm, ledger_hash_version, temporal_projector_version, "
         "state_root_version, scope_canonicalization_version, state_root, "

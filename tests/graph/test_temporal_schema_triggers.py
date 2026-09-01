@@ -37,6 +37,7 @@ TENANT = "schema-test-tenant"
 # Migration lifecycle isolation fixture (separate temporary database)
 # ---------------------------------------------------------------------------
 
+
 def _temp_db_name() -> str:
     return f"blackbread_test_migration_{uuid.uuid4().hex[:8]}"
 
@@ -117,6 +118,7 @@ def lifecycle_runtime_engine(lifecycle_db: str) -> Iterator[AsyncEngine]:
 # Shared schema-test fixtures (uses the session migrated_database)
 # ---------------------------------------------------------------------------
 
+
 @pytest_asyncio.fixture
 async def admin_engine(migrated_database: None) -> AsyncIterator[AsyncEngine]:
     engine = create_async_engine(TEST_MIGRATION_DATABASE_URL, pool_pre_ping=True)
@@ -130,7 +132,9 @@ async def runtime_engine(engine: AsyncEngine) -> AsyncEngine:
 
 
 async def _seed_engagement(
-    admin: AsyncEngine, tenant_id: str, engagement_id: uuid.UUID,
+    admin: AsyncEngine,
+    tenant_id: str,
+    engagement_id: uuid.UUID,
 ) -> None:
     """Insert a client + engagement for testing via the admin connection."""
     client_id = uuid.uuid4()
@@ -235,9 +239,12 @@ async def _seed_attestation_event(  # noqa: PLR0913
 # Migration lifecycle tests
 # ---------------------------------------------------------------------------
 
+
 class TestProvenanceTrigger:
     async def test_valid_v1_revision_accepted(
-        self, admin_engine: AsyncEngine, runtime_engine: AsyncEngine,
+        self,
+        admin_engine: AsyncEngine,
+        runtime_engine: AsyncEngine,
     ) -> None:
         eid = uuid.uuid4()
         await _seed_engagement(admin_engine, TENANT, eid)
@@ -297,7 +304,9 @@ class TestProvenanceTrigger:
             )
 
     async def test_wrong_manifest_hash_rejected(
-        self, admin_engine: AsyncEngine, runtime_engine: AsyncEngine,
+        self,
+        admin_engine: AsyncEngine,
+        runtime_engine: AsyncEngine,
     ) -> None:
         eid = uuid.uuid4()
         await _seed_engagement(admin_engine, TENANT, eid)
@@ -344,13 +353,17 @@ class TestProvenanceTrigger:
                 )
 
     async def test_wrong_scope_membership_rejected(
-        self, admin_engine: AsyncEngine, runtime_engine: AsyncEngine,
+        self,
+        admin_engine: AsyncEngine,
+        runtime_engine: AsyncEngine,
     ) -> None:
         """A revision claiming scope membership not in the payload is rejected."""
         eid = uuid.uuid4()
         await _seed_engagement(admin_engine, TENANT, eid)
         event_hash = await _seed_attestation_event(
-            admin_engine, TENANT, eid,
+            admin_engine,
+            TENANT,
+            eid,
             scope={"root_domains": ["example.com"]},
         )
 

@@ -43,59 +43,45 @@ class TemporalPublicationRead(NamedTuple):
     is_current: bool
 
 
-def _validate_anchor(publication: TemporalPublication) -> None:
-    if not isinstance(publication.tenant_id, str) or not publication.tenant_id.strip():
+def validate_temporal_publication(pub: object) -> TemporalPublication:
+    """Validate internal consistency of a TemporalPublication. Fail closed."""
+    if not isinstance(pub, TemporalPublication):
+        raise GraphProjectionError("invalid temporal publication")
+    if not isinstance(pub.tenant_id, str) or not pub.tenant_id.strip():
         raise GraphProjectionError("invalid temporal publication tenant_id")
-    if not isinstance(publication.engagement_id, UUID):
+    if not isinstance(pub.engagement_id, UUID):
         raise GraphProjectionError("invalid temporal publication engagement_id")
-    count_ok = isinstance(publication.verified_event_count, int)
-    if not count_ok or publication.verified_event_count < 1:
+    if not isinstance(pub.verified_event_count, int) or pub.verified_event_count < 1:
         raise GraphProjectionError("invalid temporal publication verified_event_count")
-    if not _HEX64.fullmatch(publication.verified_head_hash or ""):
+    if not _HEX64.fullmatch(pub.verified_head_hash or ""):
         raise GraphProjectionError("invalid temporal publication verified_head_hash")
 
+    validate_temporal_lineage(
+        pub.lineage.revisions, lineage_head_hash=pub.lineage.lineage_head_hash
+    )
+    if pub.versions != SUPPORTED_TEMPORAL_STATE_ROOT_VERSIONS:
+        raise GraphProjectionError("unsupported temporal publication versions")
+    if pub.state_root != compute_temporal_state_root(
+        pub.tenant_id, pub.engagement_id, pub.lineage, versions=pub.versions
+    ):
+        raise GraphProjectionError("temporal publication state root is inconsistent")
 
-def _validate_head_membership(publication: TemporalPublication) -> None:
-    final_group = publication.lineage.groups[-1]
-    if final_group.source_sequence > publication.verified_event_count:
+    fg = pub.lineage.groups[-1]
+    if fg.source_sequence > pub.verified_event_count:
         raise GraphProjectionError("lineage head exceeds verified anchor")
-    expected_ids = {
-        (r.node_id, r.scope_kind, r.canonical_value) for r in final_group.revisions
-    }
-    if not isinstance(publication.structural_head_nodes, tuple):
+    expected_ids = {(r.node_id, r.scope_kind, r.canonical_value) for r in fg.revisions}
+    if not isinstance(pub.structural_head_nodes, tuple) or len(pub.structural_head_nodes) != len(
+        expected_ids
+    ):
         raise GraphProjectionError("invalid structural head nodes")
-    if len(publication.structural_head_nodes) != len(expected_ids):
-        raise GraphProjectionError("structural head node count mismatch")
     actual_ids: set[tuple[str, str, str]] = set()
-    for node in publication.structural_head_nodes:
-        if not isinstance(node, ScopeRoot):
+    for n in pub.structural_head_nodes:
+        if not isinstance(n, ScopeRoot):
             raise GraphProjectionError("invalid structural head node")
-        identity = (node.node_id, node.scope_kind, node.canonical_value)
-        if identity in actual_ids:
+        iden = (n.node_id, n.scope_kind, n.canonical_value)
+        if iden in actual_ids:
             raise GraphProjectionError("duplicate structural head node")
-        actual_ids.add(identity)
+        actual_ids.add(iden)
     if actual_ids != expected_ids:
         raise GraphProjectionError("structural head nodes do not match lineage head")
-
-
-def validate_temporal_publication(publication: object) -> TemporalPublication:
-    """Validate internal consistency of a TemporalPublication. Fail closed."""
-    if not isinstance(publication, TemporalPublication):
-        raise GraphProjectionError("invalid temporal publication")
-    _validate_anchor(publication)
-    validate_temporal_lineage(
-        publication.lineage.revisions,
-        lineage_head_hash=publication.lineage.lineage_head_hash,
-    )
-    if publication.versions != SUPPORTED_TEMPORAL_STATE_ROOT_VERSIONS:
-        raise GraphProjectionError("unsupported temporal publication versions")
-    expected_root = compute_temporal_state_root(
-        publication.tenant_id,
-        publication.engagement_id,
-        publication.lineage,
-        versions=publication.versions,
-    )
-    if publication.state_root != expected_root:
-        raise GraphProjectionError("temporal publication state root is inconsistent")
-    _validate_head_membership(publication)
-    return publication
+    return pub

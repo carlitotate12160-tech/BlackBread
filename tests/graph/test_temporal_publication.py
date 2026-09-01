@@ -57,9 +57,7 @@ def _v1_attestation(**scope: tuple[str, ...]) -> EngagementAttested:
     )
 
 
-def _v2_attestation(
-    supersedes: str, **scope: tuple[str, ...]
-) -> EngagementAttestedV2:
+def _v2_attestation(supersedes: str, **scope: tuple[str, ...]) -> EngagementAttestedV2:
     return EngagementAttestedV2(
         manifest_hash="b" * 64,
         manifest_signature_ref="vault://test2",
@@ -103,7 +101,8 @@ class TestPublicationContract:
         projector = ScopeProjector()
         projector.consume(event)
         lineage = validate_temporal_lineage(
-            projector.revisions, lineage_head_hash=projector.lineage_head_hash,
+            projector.revisions,
+            lineage_head_hash=projector.lineage_head_hash,
         )
         pub = TemporalPublication(
             tenant_id=pub_engagement.tenant_id,
@@ -160,18 +159,20 @@ class TestV1OnlyPublication:
 
         # Verify persisted snapshot
         async with engine.connect() as conn:
-            await conn.execute(
-                text(f"SET blackbread.tenant_id = '{pub_engagement.tenant_id}'")
-            )
+            await conn.execute(text(f"SET blackbread.tenant_id = '{pub_engagement.tenant_id}'"))
             row = (
-                await conn.execute(
-                    text(
-                        "SELECT * FROM graph_temporal_projection_snapshots "
-                        "WHERE tenant_id = :tid AND engagement_id = :eid"
-                    ),
-                    {"tid": pub_engagement.tenant_id, "eid": pub_engagement.id},
+                (
+                    await conn.execute(
+                        text(
+                            "SELECT * FROM graph_temporal_projection_snapshots "
+                            "WHERE tenant_id = :tid AND engagement_id = :eid"
+                        ),
+                        {"tid": pub_engagement.tenant_id, "eid": pub_engagement.id},
+                    )
                 )
-            ).mappings().one()
+                .mappings()
+                .one()
+            )
             assert row["verified_event_count"] == 1
             assert row["verified_head_hash"] == result.publication.verified_head_hash
             assert row["state_root"] == result.publication.state_root
@@ -219,18 +220,20 @@ class TestV1OnlyPublication:
 
         # Verify head nodes in DB
         async with engine.connect() as conn:
-            await conn.execute(
-                text(f"SET blackbread.tenant_id = '{pub_engagement.tenant_id}'")
-            )
+            await conn.execute(text(f"SET blackbread.tenant_id = '{pub_engagement.tenant_id}'"))
             heads = (
-                await conn.execute(
-                    text(
-                        "SELECT * FROM graph_temporal_head_nodes "
-                        "WHERE tenant_id = :tid AND engagement_id = :eid"
-                    ),
-                    {"tid": pub_engagement.tenant_id, "eid": pub_engagement.id},
+                (
+                    await conn.execute(
+                        text(
+                            "SELECT * FROM graph_temporal_head_nodes "
+                            "WHERE tenant_id = :tid AND engagement_id = :eid"
+                        ),
+                        {"tid": pub_engagement.tenant_id, "eid": pub_engagement.id},
+                    )
                 )
-            ).mappings().all()
+                .mappings()
+                .all()
+            )
             head_node_ids = {h["node_id"] for h in heads}
             expected_ids = {
                 scope_root_id("root_domain", "example.com"),
@@ -302,31 +305,37 @@ class TestV1ToV2Publication:
 
         # Verify old.org stable root still exists, but head only has example.com
         async with engine.connect() as conn:
-            await conn.execute(
-                text(f"SET blackbread.tenant_id = '{pub_engagement.tenant_id}'")
-            )
+            await conn.execute(text(f"SET blackbread.tenant_id = '{pub_engagement.tenant_id}'"))
             roots = (
-                await conn.execute(
-                    text(
-                        "SELECT * FROM graph_temporal_scope_roots "
-                        "WHERE tenant_id = :tid AND engagement_id = :eid"
-                    ),
-                    {"tid": pub_engagement.tenant_id, "eid": pub_engagement.id},
+                (
+                    await conn.execute(
+                        text(
+                            "SELECT * FROM graph_temporal_scope_roots "
+                            "WHERE tenant_id = :tid AND engagement_id = :eid"
+                        ),
+                        {"tid": pub_engagement.tenant_id, "eid": pub_engagement.id},
+                    )
                 )
-            ).mappings().all()
+                .mappings()
+                .all()
+            )
             root_values = {r["canonical_value"] for r in roots}
             assert "old.org" in root_values  # stable identity preserved
             assert "example.com" in root_values
 
             heads = (
-                await conn.execute(
-                    text(
-                        "SELECT * FROM graph_temporal_head_nodes "
-                        "WHERE tenant_id = :tid AND engagement_id = :eid"
-                    ),
-                    {"tid": pub_engagement.tenant_id, "eid": pub_engagement.id},
+                (
+                    await conn.execute(
+                        text(
+                            "SELECT * FROM graph_temporal_head_nodes "
+                            "WHERE tenant_id = :tid AND engagement_id = :eid"
+                        ),
+                        {"tid": pub_engagement.tenant_id, "eid": pub_engagement.id},
+                    )
                 )
-            ).mappings().all()
+                .mappings()
+                .all()
+            )
             head_ids = {h["node_id"] for h in heads}
             assert scope_root_id("root_domain", "example.com") in head_ids
             assert scope_root_id("root_domain", "old.org") not in head_ids
@@ -379,7 +388,9 @@ class TestStalePublicationSemantics:
 
         # Advance ledger with a non-graph event
         stopped = EngagementStopped(
-            reason="operator_stop", stopped_by="op", disposition="graceful_stop",
+            reason="operator_stop",
+            stopped_by="op",
+            disposition="graceful_stop",
         )
         await append_payload(session, pub_engagement, stopped)
 
