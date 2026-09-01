@@ -93,7 +93,7 @@ async def test_cold_temporal_rebuild_is_deterministic_and_order_independent(
         )
     )
 
-    stopped = await graph_events.append(session, engagement, graph_events.stopped)
+    await graph_events.append(session, engagement, graph_events.stopped)
     after_noop = await rebuild_temporal_projection(
         engine,
         tenant_id=engagement.tenant_id,
@@ -102,8 +102,6 @@ async def test_cold_temporal_rebuild_is_deterministic_and_order_independent(
     )
     assert after_noop.state_root == first.state_root
     assert after_noop.effective_nodes == first.effective_nodes
-    assert after_noop.verified_event_count == first.verified_event_count + 1
-    assert after_noop.verified_head_hash == stopped.event_hash
 
 
 async def test_temporal_rebuild_requires_explicit_as_of(
@@ -319,8 +317,6 @@ async def test_temporal_networkx_view_contains_only_effective_scope(
     assert graph.graph == {
         "tenant_id": projection.tenant_id,
         "engagement_id": projection.engagement_id,
-        "verified_event_count": projection.verified_event_count,
-        "verified_head_hash": projection.verified_head_hash,
         "state_root": projection.state_root,
         "state_root_version": 2,
         "projector_version": 2,

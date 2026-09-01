@@ -37,8 +37,6 @@ def build_temporal_networkx_view(projection: TemporalProjection) -> "nx.DiGraph[
         {
             "tenant_id": projection.tenant_id,
             "engagement_id": projection.engagement_id,
-            "verified_event_count": projection.verified_event_count,
-            "verified_head_hash": projection.verified_head_hash,
             "state_root": projection.state_root,
             "state_root_version": versions.state_root_version,
             "projector_version": versions.projector_version,

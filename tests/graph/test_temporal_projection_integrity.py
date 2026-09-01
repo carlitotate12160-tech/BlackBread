@@ -70,8 +70,6 @@ def _projection() -> TemporalProjection:
     return TemporalProjection(
         tenant_id=_TENANT,
         engagement_id=_ENGAGEMENT,
-        verified_event_count=2,
-        verified_head_hash=second_hash,
         lineage=lineage,
         state_root=compute_temporal_state_root(_TENANT, _ENGAGEMENT, lineage),
         versions=SUPPORTED_TEMPORAL_STATE_ROOT_VERSIONS,
@@ -87,8 +85,6 @@ def _projection() -> TemporalProjection:
         ("state_root", "f" * 64),
         ("effective_attestation_event_hash", "f" * 64),
         ("effective_nodes", ()),
-        ("verified_event_count", 1),
-        ("verified_head_hash", "bad"),
     ],
 )
 def test_temporal_networkx_view_rejects_inconsistent_projection(field: str, value: object) -> None:

@@ -55,8 +55,6 @@ async def rebuild_temporal_projection(
     projection = TemporalProjection(
         tenant_id=tenant_id,
         engagement_id=engagement_id,
-        verified_event_count=verification.verified_event_count,
-        verified_head_hash=verification.verified_head_hash,
         lineage=lineage,
         state_root=compute_temporal_state_root(tenant_id, engagement_id, lineage),
         versions=SUPPORTED_TEMPORAL_STATE_ROOT_VERSIONS,

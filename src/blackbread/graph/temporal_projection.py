@@ -13,16 +13,11 @@ from blackbread.graph.temporal import (
     select_temporal_scope,
 )
 
-_HEX_DIGITS = frozenset("0123456789abcdef")
-_SHA256_HEX_LENGTH = 64
-
 
 @dataclass(frozen=True, slots=True)
 class TemporalProjection:
     tenant_id: str
     engagement_id: UUID
-    verified_event_count: int
-    verified_head_hash: str
     lineage: TemporalLineage
     state_root: str
     versions: TemporalStateRootVersions
@@ -75,17 +70,6 @@ def validate_temporal_projection(projection: object) -> TemporalProjection:
         raise GraphProjectionError("invalid temporal projection") from exc
     if projection.state_root != expected_root:
         raise GraphProjectionError("temporal projection state root is inconsistent")
-    valid_count = (
-        type(projection.verified_event_count) is int
-        and projection.verified_event_count >= projection.lineage.groups[-1].source_sequence
-    )
-    valid_head = (
-        isinstance(projection.verified_head_hash, str)
-        and len(projection.verified_head_hash) == _SHA256_HEX_LENGTH
-        and set(projection.verified_head_hash) <= _HEX_DIGITS
-    )
-    if not valid_count or not valid_head:
-        raise GraphProjectionError("temporal projection verified anchor is invalid")
     canonical_as_of = (
         projection.as_of == selection.as_of and projection.as_of.utcoffset() == timedelta(0)
     )
