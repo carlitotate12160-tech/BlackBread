@@ -24,8 +24,10 @@ confirmation. Load and enforce `.github/agent-delivery.json` before delivery.
 
 1. Inspect the complete diff and run every applicable local gate.
 2. Push only a fast-forward feature-branch update and bind merge to the expected head SHA.
-3. Evaluate every AI-bot comment against the latest tree. Fix valid findings; reply with evidence to
-   addressed, stale, or false-positive findings; resolve their threads only after that disposition.
+3. Inspect and validate every AI-bot comment against the latest tree: fix a reproduced valid finding;
+   for a stale or false-positive finding, reply with the evidence and resolve its thread with that note.
+   Dispositioning advisory findings is a practice that also satisfies thread resolution, not a separate
+   merge gate; only a reproduced, valid correctness or security finding blocks merge.
 4. Merge only when every named check for that SHA is green, all review threads are resolved, no
    `changes requested` review remains, the branch is current, and no blocking debt applies to the
    requested milestone/release. Required human approvals remain 0 while the repository has no

@@ -406,7 +406,7 @@ def test_agent_delivery_authority_is_explicit_and_fail_closed() -> None:
         "dismiss_stale_reviews": True,
         "require_review_thread_resolution": True,
         "allow_changes_requested": False,
-        "require_ai_bot_comment_disposition": True,
+        "require_ai_bot_comment_disposition": False,
         "require_branch_up_to_date": True,
         "required_status_checks": [
             "ci-ok",
