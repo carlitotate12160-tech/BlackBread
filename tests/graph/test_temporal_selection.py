@@ -286,3 +286,24 @@ def test_canonical_scope_identity_mismatch_fails_closed() -> None:
 
     with pytest.raises(GraphProjectionError, match="ScopeRoot identity"):
         validate_temporal_lineage((revision,), lineage_head_hash=revision.source_event_hash)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("manifest_hash", 7),
+        ("source_event_hash", 7),
+        ("predecessor_attestation_event_hash", 7),
+        ("source_sequence", "1"),
+        ("source_sequence", True),
+        ("source_schema_version", True),
+        ("valid_from", "bad"),
+        ("node_id", 7),
+    ],
+)
+def test_malformed_revision_field_types_fail_closed(field: str, value: object) -> None:
+    revision = _revision("1" * 64, 1, "example.com")
+    object.__setattr__(revision, field, value)
+
+    with pytest.raises(GraphProjectionError):
+        validate_temporal_lineage((revision,), lineage_head_hash="1" * 64)
