@@ -68,7 +68,7 @@ def ensure_runtime_role() -> None:
 @asynccontextmanager
 async def _admin_engine(db_name: str) -> AsyncIterator[AsyncEngine]:
     url = make_url(TEST_MIGRATION_DATABASE_URL).set(database=db_name)
-    engine = create_async_engine(str(url), pool_pre_ping=True)
+    engine = create_async_engine(url, pool_pre_ping=True)
     try:
         yield engine
     finally:
