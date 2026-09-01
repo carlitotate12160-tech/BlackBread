@@ -11,6 +11,8 @@ from blackbread.graph.temporal import (
 from blackbread.ledger.catalog import SCOPE_CANONICALIZATION_VERSION
 from blackbread.ledger.errors import LedgerValidationError
 from blackbread.ledger.hashing import canonical_json, canonical_timestamp, sha256_hex
+from blackbread.tenancy.context import TenantContext
+from blackbread.tenancy.errors import TenantContextError
 
 TEMPORAL_STATE_ROOT_VERSION = 2
 _DOMAIN = "blackbread.graph.temporal-scope-projection.state-root"
@@ -122,13 +124,11 @@ def compute_temporal_state_root(
     versions: TemporalStateRootVersions = SUPPORTED_TEMPORAL_STATE_ROOT_VERSIONS,
 ) -> str:
     supported = _validate_versions(versions)
-    invalid_tenant = (
-        not isinstance(tenant_id, str)
-        or not tenant_id
-        or tenant_id != tenant_id.strip()
-        or "\x00" in tenant_id
-    )
-    if invalid_tenant or not isinstance(engagement_id, UUID):
+    try:
+        tenant_id = TenantContext(tenant_id).tenant_id
+    except TenantContextError as exc:
+        raise GraphProjectionError("invalid projection binding") from exc
+    if not isinstance(engagement_id, UUID):
         raise GraphProjectionError("invalid projection binding")
     if not isinstance(lineage, TemporalLineage):
         raise GraphProjectionError("invalid temporal lineage")

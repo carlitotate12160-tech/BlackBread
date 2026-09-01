@@ -202,6 +202,15 @@ def test_state_root_v2_rejects_invalid_projection_binding(
         compute_temporal_state_root(tenant, engagement, _lineage(_history()))
 
 
+def test_state_root_v2_accepts_tenant_ids_allowed_by_tenancy_contract() -> None:
+    lineage = _lineage(_history())
+    with_leading_space = compute_temporal_state_root(" tenant-a", _ENGAGEMENT, lineage)
+    without_space = compute_temporal_state_root("tenant-a", _ENGAGEMENT, lineage)
+
+    assert with_leading_space != without_space
+    assert compute_temporal_state_root(_TENANT, _ENGAGEMENT, lineage) == without_space
+
+
 def test_state_root_v2_rejects_forged_lineage() -> None:
     lineage = _lineage(_history())
     object.__setattr__(lineage, "lineage_head_hash", "f" * 64)
