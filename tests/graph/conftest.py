@@ -236,7 +236,7 @@ def _alembic_env(db_name: str) -> dict[str, str]:
     base_url = make_url(TEST_MIGRATION_DATABASE_URL)
     lifecycle_url = base_url.set(database=db_name)
     env = os.environ.copy()
-    env["BLACKBREAD_DATABASE_URL"] = str(lifecycle_url)
+    env["BLACKBREAD_DATABASE_URL"] = lifecycle_url.render_as_string(hide_password=False)
     return env
 
 
@@ -259,7 +259,7 @@ async def lifecycle_runtime_engine(lifecycle_db: str) -> AsyncIterator[AsyncEngi
         username="blackbread_test_runtime",
         password=TEST_RUNTIME_PASSWORD,
     )
-    engine = create_async_engine(str(runtime_url), poolclass=NullPool, pool_pre_ping=False)
+    engine = create_async_engine(runtime_url, poolclass=NullPool, pool_pre_ping=False)
     try:
         yield engine
     finally:
