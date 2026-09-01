@@ -36,6 +36,11 @@ Do not defer a false claim exposed by the current API merely because a later mil
 
 ## Mergeability output
 
+The binding independent review for safety-critical paths is mandatory and cannot
+be waived by advisory bots or owner disposition alone. Final seal follows the
+repository owner, but only after the binding review is complete or dispositioned
+with evidence.
+
 Lead with `MERGEABLE` or `NOT MERGEABLE`, then report:
 
 - exact base and head;

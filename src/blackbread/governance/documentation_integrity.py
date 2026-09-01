@@ -9,6 +9,7 @@ forbids it; this module makes that rule enforceable in the size gate.
 from __future__ import annotations
 
 import ast
+import difflib
 import io
 import tokenize
 from collections.abc import Mapping
@@ -35,6 +36,11 @@ _IGNORED_CODE_TOKENS = frozenset(
         tokenize.ERRORTOKEN,
     }
 )
+
+# Minimum token-signature similarity for a head-only file to be treated as a
+# rename of a base-only file. Comparing code-token streams makes the check
+# insensitive to removed comments and docstrings.
+_RENAME_SIMILARITY_THRESHOLD = 0.80
 
 
 @dataclass(frozen=True, slots=True)
@@ -83,6 +89,19 @@ def _code_token_lines(source: str) -> set[int]:
     return rows
 
 
+def _token_signature(source: str) -> str:
+    parts: list[str] = []
+    try:
+        tokens = tokenize.tokenize(io.BytesIO(source.encode()).readline)
+    except (tokenize.TokenError, SyntaxError):
+        return ""
+    for token in tokens:
+        if token.type in _IGNORED_CODE_TOKENS:
+            continue
+        parts.append(token.string)
+    return " ".join(parts)
+
+
 def _module_shape(source: str, path: str) -> _ModuleShape:
     docstring_rows = _docstring_rows(source, path)
     comment_rows = _comment_rows(source)
@@ -110,16 +129,66 @@ def _stripping_violation(path: str, base: str, head: str) -> str | None:
     )
 
 
+def _in_scope(path: str) -> bool:
+    return path.startswith(("src/blackbread/", "tests/")) and path.endswith(".py")
+
+
+def _find_renames(
+    base_files: Mapping[str, str],
+    head_files: Mapping[str, str],
+) -> dict[str, str]:
+    """Match head-only paths against base-only paths using code-token similarity.
+
+    This catches module renames that would otherwise be treated as new files,
+    allowing documentation-integrity checks to see whether documentation was
+    stripped during the rename.
+    """
+    base_only = [p for p in base_files if _in_scope(p) and p not in head_files]
+    head_only = [p for p in head_files if _in_scope(p) and p not in base_files]
+    if not base_only or not head_only:
+        return {}
+
+    base_sigs = {p: _token_signature(base_files[p]) for p in base_only}
+    head_sigs = {p: _token_signature(head_files[p]) for p in head_only}
+
+    candidates: list[tuple[float, str, str]] = []
+    for head_path, head_sig in head_sigs.items():
+        if not head_sig:
+            continue
+        for base_path, base_sig in base_sigs.items():
+            if not base_sig:
+                continue
+            ratio = difflib.SequenceMatcher(None, base_sig, head_sig).ratio()
+            if ratio >= _RENAME_SIMILARITY_THRESHOLD:
+                candidates.append((ratio, head_path, base_path))
+
+    candidates.sort(reverse=True)
+    matched: dict[str, str] = {}
+    used_bases: set[str] = set()
+    for _ratio, head_path, base_path in candidates:
+        if head_path in matched or base_path in used_bases:
+            continue
+        matched[head_path] = base_path
+        used_bases.add(base_path)
+
+    return matched
+
+
 def evaluate_documentation_integrity(
     base_files: Mapping[str, str],
     head_files: Mapping[str, str],
 ) -> list[str]:
     violations: list[str] = []
+    renames = _find_renames(base_files, head_files)
     for path, head_source in sorted(head_files.items()):
         base_source = base_files.get(path)
         if base_source is None:
+            renamed_base = renames.get(path)
+            if renamed_base is not None:
+                base_source = base_files.get(renamed_base)
+        if base_source is None:
             continue
-        if not (path.startswith(("src/blackbread/", "tests/")) and path.endswith(".py")):
+        if not _in_scope(path):
             continue
         try:
             violation = _stripping_violation(path, base_source, head_source)

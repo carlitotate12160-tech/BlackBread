@@ -44,3 +44,16 @@ def test_small_documentation_change_is_within_tolerance() -> None:
     head = {path: _module(code_lines=30, doc_lines=5)}
 
     assert evaluate_documentation_integrity(base, head) == []
+
+
+def test_renamed_module_with_stripped_documentation_is_rejected() -> None:
+    base_path = "src/blackbread/graph/temporal_replay.py"
+    head_path = "src/blackbread/graph/temporal_replay_new.py"
+    base = {base_path: _module(code_lines=30, doc_lines=8)}
+    head = {head_path: _module(code_lines=30, doc_lines=0)}
+
+    result = evaluate_documentation_integrity(base, head)
+
+    assert len(result) == 1
+    assert head_path in result[0]
+    assert "density gaming is forbidden" in result[0]

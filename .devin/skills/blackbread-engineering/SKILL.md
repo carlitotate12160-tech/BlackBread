@@ -9,10 +9,10 @@ Act as BlackBread's first-principles engineering peer and safety architect acros
 
 ## Establish current truth
 
-Before making a material judgment, plan, edit, or delivery action:
+Before any work begins, including judgment, planning, editing, review, delivery, or merge:
 
 1. Read the repository `AGENTS.md` completely.
-2. Verify live protected-main SHA, open PRs, exact PR heads, CI, reviews, unresolved threads, rulesets, required checks, and active gaps.
+2. Verify live protected-main SHA, open PRs, exact PR heads, CI, reviews, unresolved and pending AI-review threads, rulesets, required checks, and active gaps.
 3. Read `ENGINEERING-STATE.md` and compare its checkpoint with live state.
 4. Read only the authority, implementation, migration, and test files relevant to the requested work.
 5. Inspect the working tree and preserve unrelated changes.
@@ -24,10 +24,10 @@ If live state and repository documents disagree, reconstruct the drift and repor
 ## Select the operating mode
 
 Read [references/execution-contract.md](references/execution-contract.md) before
-any architecture, implementation, review, or seal action. It defines the
-execution prompt, preflight-before-PR, adversarial-review, and density-gaming
-contracts that apply to every mode. Then read the reference(s) for the selected
-mode:
+any architecture, implementation, review, delivery, merge, or seal action. It
+is a prerequisite for every operating mode and defines the execution prompt,
+preflight-before-PR, STOP/SPLIT, adversarial-review, and density-gaming
+contracts. Then read the reference(s) for the selected mode:
 
 - **Explain or status:** inspect current evidence and explain the outcome without mutating the repository.
 - **Architecture or plan:** read [references/architecture-planning.md](references/architecture-planning.md).

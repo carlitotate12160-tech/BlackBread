@@ -34,8 +34,10 @@ skill.
    rejected (blockers remain, the slice must be split, or trust boundaries are
    unclear). Advisory bots are not polled, re-triggered, or looped to chase a
    cleaner review; trigger an exact-head review once per task, disposition the
-   findings, and let the binding independent reviewer (PR-Agent/DeepSeek for
-   safety-critical paths) or the repository owner decide the final seal.
+   findings, and complete the binding independent review (PR-Agent/DeepSeek for
+   safety-critical paths) before the final seal. The binding review is mandatory
+   for safety-critical paths and cannot be waived by advisory bots or owner
+   disposition alone.
 
 4. **Density-gaming contract.** Do not compress statements, delete comments or
    documentation, merge unrelated responsibilities into one module or function,
