@@ -45,23 +45,34 @@ class TemporalSelection:
 
 
 def _canonical_instant(value: datetime, label: str) -> datetime:
+    if not isinstance(value, datetime):
+        raise GraphProjectionError(f"{label} must be a timezone-aware datetime")
     try:
         canonical_timestamp(value)
         return value.astimezone(UTC)
-    except (LedgerValidationError, OverflowError, ValueError) as exc:
+    except (LedgerValidationError, OverflowError, TypeError, ValueError) as exc:
         message = f"{label} must be a canonically normalizable timezone-aware time"
         raise GraphProjectionError(message) from exc
+
+
+def _is_hex_digest(value: object) -> bool:
+    return isinstance(value, str) and _HEX.fullmatch(value) is not None
 
 
 def _validate_revision(revision: ScopeRevision) -> None:
     predecessor = revision.predecessor_attestation_event_hash
     if any(
-        _HEX.fullmatch(value) is None
-        for value in (revision.source_event_hash, revision.manifest_hash)
+        not _is_hex_digest(value) for value in (revision.source_event_hash, revision.manifest_hash)
     ):
         raise GraphProjectionError("revision provenance hash is invalid")
-    if predecessor is not None and _HEX.fullmatch(predecessor) is None:
+    if predecessor is not None and not _is_hex_digest(predecessor):
         raise GraphProjectionError("revision predecessor hash is invalid")
+    invalid_identity = not all(
+        isinstance(value, str)
+        for value in (revision.node_id, revision.scope_kind, revision.canonical_value)
+    )
+    if invalid_identity:
+        raise GraphProjectionError("revision ScopeRoot identity is invalid")
     if revision.node_id != scope_root_id(revision.scope_kind, revision.canonical_value):
         raise GraphProjectionError("revision ScopeRoot identity is not canonical")
     valid_from = _canonical_instant(revision.valid_from, "revision timestamp")
@@ -70,10 +81,15 @@ def _validate_revision(revision: ScopeRevision) -> None:
         raise GraphProjectionError("revision validity interval is invalid")
     expected_version = 1 if predecessor is None else 2
     invalid_source = (
-        revision.source_sequence < 1 or revision.source_schema_name != "engagement.attested"
+        type(revision.source_sequence) is not int
+        or revision.source_sequence < 1
+        or revision.source_schema_name != "engagement.attested"
+        or type(revision.source_schema_version) is not int
     )
     if invalid_source or revision.source_schema_version != expected_version:
         raise GraphProjectionError("revision attestation source is unsupported")
+    if not _is_hex_digest(revision.revision_id):
+        raise GraphProjectionError("revision identity hash is invalid")
     if revision.revision_id != replace(revision).revision_id:
         raise GraphProjectionError("revision identity does not match immutable fields")
 
@@ -127,10 +143,14 @@ def validate_temporal_lineage(
     materialized = tuple(revisions)
     if not materialized:
         raise GraphProjectionError("no attestation revisions")
+    if not _is_hex_digest(lineage_head_hash):
+        raise GraphProjectionError("lineage head hash is invalid")
+    for revision in materialized:
+        if not isinstance(revision, ScopeRevision):
+            raise GraphProjectionError("temporal lineage contains an invalid revision")
+        _validate_revision(revision)
     if len({item.revision_id for item in materialized}) != len(materialized):
         raise GraphProjectionError("duplicate revision identity")
-    for revision in materialized:
-        _validate_revision(revision)
     members: dict[str, list[ScopeRevision]] = {}
     for revision in materialized:
         members.setdefault(revision.source_event_hash, []).append(revision)

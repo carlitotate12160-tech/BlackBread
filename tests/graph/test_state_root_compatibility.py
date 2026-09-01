@@ -69,3 +69,21 @@ def test_state_root_v1_compatibility_vector_is_frozen() -> None:
         )
         == "9ec7fea31baec61c14a76a4353055450084969599ecba285a38fdf8f20068699"
     )
+
+
+@pytest.mark.parametrize("source_version", [2, True])
+def test_state_root_v1_rejects_v2_provenance(source_version: object) -> None:
+    node = ScopeRoot(
+        scope_root_id("root_domain", "example.com"),
+        "root_domain",
+        "example.com",
+        "a" * 64,
+        datetime(2026, 1, 1, tzinfo=UTC),
+        datetime(2026, 2, 1, tzinfo=UTC),
+        1,
+        "b" * 64,
+        source_schema_version=source_version,
+    )
+
+    with pytest.raises(GraphProjectionError, match="v1 state root requires v1 provenance"):
+        compute_state_root("tenant-a", UUID(int=100), (node,))

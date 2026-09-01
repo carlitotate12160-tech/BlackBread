@@ -86,6 +86,8 @@ class ProjectionRead(NamedTuple):
 
 
 def _node_state(node: ScopeRoot) -> list[object]:
+    if type(node.source_schema_version) is not int or node.source_schema_version != 1:
+        raise GraphProjectionError("v1 state root requires v1 provenance")
     if node.node_id != scope_root_id(node.scope_kind, node.canonical_value):
         raise GraphProjectionError("ScopeRoot identity is not canonical")
     invalid_source = node.source_sequence < 1 or _HEX.fullmatch(node.source_event_hash) is None
@@ -192,6 +194,10 @@ class ScopeProjector:
     @property
     def revisions(self) -> tuple[ScopeRevision, ...]:
         return self._revisions
+
+    @property
+    def lineage_head_hash(self) -> str | None:
+        return self._chain.head_hash
 
     def consume(self, event: AgentEvent) -> None:
         binding = event.tenant_id, event.engagement_id

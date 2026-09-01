@@ -8,8 +8,7 @@ and never overrides live GitHub, accepted architecture, delivery policy, tests, 
 * **State:** ACTIVE
 * **Current milestone:** M1 — Trust Spine
 * **Last verified:** 2026-09-01 UTC
-* **Protected main baseline:** `4c8cc80` (PR #40 — update engineering state baseline to PR #39 merge commit)
-* **Last merged PR:** `#41` (docs: fix preflight rule #10 and add GOV-GAP-006)
+* **Current branch:** `m1-3b2b-state-root-v2-rebuild`
 * **Active ruleset:** `main-branch-protection` (`21644438`)
 * **Contractual gate:** the live ruleset matches the machine contract. Required status checks are
   `ci-ok` (aggregator for `quality`, `tests`, `security`, `governance`) and `GitGuardian Security
@@ -17,9 +16,9 @@ and never overrides live GitHub, accepted architecture, delivery policy, tests, 
   stale-review dismissal, squash-only merge, and no extra approval for unattributed changes. Branch
   currency is required. `GOV-GAP-001` is CLOSED as of 2026-08-31; `GOV-GAP-006` is OPEN as of
   2026-08-31; see GAP-REGISTER.md.
-* **Note on `Protected main baseline`:** this SHA is hand-typed in this PR. `GOV-GAP-006` tracks
-  the required post-merge automation that will stamp the actual merged SHA; until then, always
-  verify the live `main` HEAD on GitHub.
+* **Note on baselines:** the protected `main` HEAD and last merged PR are never hand-typed here.
+  `GOV-GAP-006` tracks the post-merge automation that stamps the actual merged SHA. Always verify
+  the live `main` HEAD, PR list, and merge state on GitHub.
 
 These values are checkpoints to verify, not facts to trust without querying live GitHub.
 
@@ -41,6 +40,10 @@ Three governance PRs merged in sequence:
 
 The repository now has the protected-base size budget system (PR #31), the Decepticon-style quality
 gates (PR #32), and the PR-Agent/CodiumAI DeepSeek review integration (PR #38).
+
+PR-M1.3b2a was released in PR #42 (`aff7df4`). PR-M1.3b2b is the current active slice on branch
+`m1-3b2b-state-root-v2-rebuild`; it is scoped to state-root v2, verified temporal replay, and an
+immutable NetworkX view, with durable v2 publication deferred to PR-M1.3b3.
 
 ## What is now live on main
 
@@ -123,8 +126,8 @@ gates (PR #32), and the PR-Agent/CodiumAI DeepSeek review integration (PR #38).
 
 The repository owner split the former PR-M1.3b2 after its combined temporal-policy, state-root,
 PostgreSQL-replay, and NetworkX runtime diff exceeded both the 320-line architecture threshold and
-400-line hard cap. PR-M1.3b1 remains RELEASED; PR-M1.3b2a is ACTIVE; PR-M1.3b2b is the next selected
-slice; PR-M1.3b3 remains the durable-persistence slice after b2b.
+400-line hard cap. PR-M1.3b1 is RELEASED; PR-M1.3b2a is RELEASED; PR-M1.3b2b is ACTIVE;
+PR-M1.3b3 is the durable-persistence slice after b2b.
 
 ### PR-M1.3b1 (released)
 
@@ -167,11 +170,12 @@ current-head independent AI review required by the then-active binding review co
 dispositioned and resolved. A merge does not complete M1.3, M1/R0, `LEDGER-GAP-001`, or
 `GRAPH-GAP-001`.
 
-### PR-M1.3b2a (active)
+### PR-M1.3b2a (released)
 
 * **ID:** PR-M1.3b2a
 * **Title:** Deterministic Temporal ScopeRoot Selection
-* **State:** ACTIVE
+* **State:** RELEASED
+* **Released at:** `aff7df4` / PR #42
 * **Prerequisite:** PR-M1.3b1 RELEASED.
 * **Scope:** pure immutable validation of complete attestation-event groups and linear revision
   lineage, canonical explicit timezone-aware `as_of`, half-open validity, monotonic successor
@@ -190,18 +194,26 @@ dispositioned and resolved. A merge does not complete M1.3, M1/R0, `LEDGER-GAP-0
   and is explicitly deferred without an ARM64 result claim. B2a changes no capability, tool, image,
   or client-eligibility state, so the live ARM64 capability-qualification rule is not a per-PR gate.
 
-### PR-M1.3b2b (next selected)
+### PR-M1.3b2b (active)
 
 * **ID:** PR-M1.3b2b
 * **Title:** State-Root v2 + Verified Temporal Rebuild + Effective NetworkX View
-* **State:** DECIDED
-* **Prerequisite:** PR-M1.3b2a merged.
-* **Purpose:** bind full validated temporal history into state-root v2, include the scope
-  canonicalization version, harden v1 against v2 provenance, rebuild from a verified read-only
-  PostgreSQL snapshot, and construct an immutable effective-only NetworkX view without persistence.
-* **B1 disposition:** remains OPEN until b2b binds the canonicalization version into v2. The frozen v1
-  known-answer vector remains the mitigation; the v1 preimage will remain unchanged.
-* **Non-goals:** no migration `0006`, durable temporal lineage, or v2-head publication.
+* **State:** ACTIVE
+* **Prerequisite:** PR-M1.3b2a released at `aff7df4` / PR #42.
+* **Scope:** state-root v2 over the complete validated temporal lineage; bind the scope
+  canonicalization version; harden v1 to reject v2 provenance; verified, read-only, non-persistent
+  temporal rebuild from a PostgreSQL snapshot; immutable effective-only NetworkX view with zero edges.
+* **B1 disposition:** CLOSED for v2. The v2 canonical preimage includes
+  `scope_canonicalization_version`; the v1 known-answer vector and byte preimage remain unchanged for
+  v1-only histories; v1 `compute_state_root` rejects v2 provenance.
+* **Non-goals:** no migration `0006`; no durable temporal lineage persistence; no v2-head publication;
+  no new PostgreSQL schema; no target-facing or authorization changes.
+* **Intermediate reachability:** the temporal rebuild path is replay-only; it consumes already-admitted
+  v1/v2 events, produces no durable state, and grants no execution authority. The existing
+  `GRAPH-GAP-001` v2-head publication guard is preserved.
+* **Seal criteria:** focused state-root v2, compatibility, and temporal rebuild tests green; affected
+  graph/ledger suites green; all repository gates and budgets green; binding current-head
+  PR-Agent/DeepSeek review complete with all findings dispositioned.
 
 ### PR-M1.3b3 (selected after b2b)
 
@@ -216,9 +228,12 @@ dispositioned and resolved. A merge does not complete M1.3, M1/R0, `LEDGER-GAP-0
 ### M1.3b cross-cutting risks
 
 * **Append admission:** production exposes only generic `append_event`; no production command or
-  publisher currently writes `EngagementAttestedV2`. Atomic append-time predecessor admission is a
-  prerequisite before any future production v2 writer becomes reachable.
-* **B1:** OPEN and assigned to b2b; b2a makes no closure claim.
+  publisher currently writes `EngagementAttestedV2`. The b2b replay-only path consumes already-admitted
+  v1 and v2 events but does not introduce a v2 writer, so atomic append-time predecessor admission
+  remains unreachable from any production path.
+* **B1:** CLOSED for v2; the v2 state-root canonical preimage binds
+  `scope_canonicalization_version`, and v1 rejects v2 provenance. The v1 known-answer vector and
+  preimage remain unchanged.
 * **GRAPH-GAP-001:** OPEN for b3; migration `0005` remains v1-only and unchanged.
 * **LEDGER-GAP-001:** OPEN; M1/R0 and target-facing execution remain blocked.
 * **Total-consumer invariant:** unknown graph event schema/version still fails complete replay closed.

@@ -16,6 +16,7 @@ _HEX_DIGEST_PATTERN = r"^[0-9a-f]{64}$"
 _MAX_IPV4_COMPONENTS = 4
 _MAX_SCOPE_ENTRIES = 500
 _MIN_DOMAIN_LABELS = 2
+SCOPE_CANONICALIZATION_VERSION = 1
 
 
 def _canonical_text(value: str, field: str, maximum: int) -> str:
