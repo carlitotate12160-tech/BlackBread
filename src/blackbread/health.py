@@ -4,7 +4,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-EXPECTED_SCHEMA_REVISION = "0005_m1_scope_graph"
+EXPECTED_SCHEMA_REVISION = "0006_m1_temporal_scope_graph"
 UNDEFINED_TABLE_SQLSTATE = "42P01"
 
 
