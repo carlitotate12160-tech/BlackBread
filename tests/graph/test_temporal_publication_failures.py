@@ -288,38 +288,65 @@ class TestConcurrency:
         session: AsyncSession,
         append_payload: object,
         engine: AsyncEngine,
+        admin_session: AsyncSession,
     ) -> None:
-        """Two concurrent publishers are serialized by the FOR UPDATE lock."""
+        """Two concurrent publishers are serialized by the engagements FOR UPDATE row lock."""
         att = _attestation()
         await append_payload(session, fail_engagement, att)
 
-        first_acquired = asyncio.Event()
-        second_waiting = asyncio.Event()
-        proceed = asyncio.Event()
-
         original = _TemporalStore.lock_anchor
+        arrival = asyncio.Lock()
+        token = 0
+        p1_lock_acquired = asyncio.Event()
+        p2_in_lock_path = asyncio.Event()
+        release = asyncio.Event()
 
         async def instrumented(self: _TemporalStore) -> tuple[int, str]:
-            first_acquired.set()
-            second_waiting.set()
-            await proceed.wait()
+            nonlocal token
+            async with arrival:
+                my_token = token
+                token += 1
+            if my_token == 0:
+                result = await original(self)
+                p1_lock_acquired.set()
+                await p2_in_lock_path.wait()
+                await release.wait()
+                return result
+            await p1_lock_acquired.wait()
+            p2_in_lock_path.set()
             return await original(self)
 
         with mock.patch.object(_TemporalStore, "lock_anchor", instrumented):
-            tasks = [
-                asyncio.create_task(
-                    rebuild_and_publish_temporal_projection(
-                        engine,
-                        tenant_id=fail_engagement.tenant_id,
-                        engagement_id=fail_engagement.id,
+            t1 = asyncio.create_task(
+                rebuild_and_publish_temporal_projection(
+                    engine,
+                    tenant_id=fail_engagement.tenant_id,
+                    engagement_id=fail_engagement.id,
+                )
+            )
+            t2 = asyncio.create_task(
+                rebuild_and_publish_temporal_projection(
+                    engine,
+                    tenant_id=fail_engagement.tenant_id,
+                    engagement_id=fail_engagement.id,
+                )
+            )
+            await p1_lock_acquired.wait()
+            await p2_in_lock_path.wait()
+            await admin_session.execute(text("SELECT 1"))
+            waiting = (
+                await admin_session.execute(
+                    text(
+                        "SELECT count(*) FROM pg_stat_activity "
+                        "WHERE state = 'active' "
+                        "AND wait_event_type = 'Lock' "
+                        "AND query LIKE '%ledger_event_count%'"
                     )
                 )
-                for _ in range(2)
-            ]
-            await first_acquired.wait()
-            await second_waiting.wait()
-            proceed.set()
-            results = await asyncio.gather(*tasks)
+            ).scalar()
+            assert int(waiting or 0) >= 1, "publisher two is not waiting on the row lock"
+            release.set()
+            results = await asyncio.gather(t1, t2)
 
         assert all(isinstance(r, TemporalPublicationRead) for r in results)
         assert results[0].publication == results[1].publication
@@ -327,17 +354,15 @@ class TestConcurrency:
         assert results[1].is_current is True
 
         async with engine.connect() as conn:
-            await conn.execute(text(f"SET blackbread.tenant_id = '{fail_engagement.tenant_id}'"))
-            snap = (
-                await conn.execute(
-                    text(
-                        "SELECT 1 FROM graph_temporal_projection_snapshots "
-                        "WHERE tenant_id = :tid AND engagement_id = :eid"
-                    ),
-                    {"tid": fail_engagement.tenant_id, "eid": fail_engagement.id},
+            await conn.execute(
+                text("SELECT set_config('blackbread.tenant_id', :tid, true)"),
+                {"tid": fail_engagement.tenant_id},
+            )
+            for table, query in _TABLE_COUNT_QUERIES.items():
+                count = await conn.scalar(
+                    query, {"tid": fail_engagement.tenant_id, "eid": fail_engagement.id}
                 )
-            ).one_or_none()
-            assert snap is not None
+                assert int(count or 0) == 1, f"missing {table} for tenant"
 
 
 class TestRollbackCleanup:
@@ -393,8 +418,9 @@ class TestRollbackCleanup:
         self,
         session: AsyncSession,
         engine: AsyncEngine,
+        admin_session: AsyncSession,
     ) -> None:
-        """Publication with wrong tenant_id fails and writes nothing."""
+        """Publication with wrong tenant_id fails and writes nothing, observed by admin."""
         correct_tenant = "correct-tenant"
         await bind_tenant_context(session, TenantContext(correct_tenant))
         client = Client(name="acme", tenant_id=correct_tenant)
@@ -447,9 +473,9 @@ class TestRollbackCleanup:
         with pytest.raises(LedgerAccessError, match="engagement unavailable"):
             await _publish_temporal_publication(engine, forged)
 
-        # Nothing was written for the wrong tenant
-        async with engine.connect() as conn:
-            await conn.execute(text(f"SET blackbread.tenant_id = '{correct_tenant}'"))
-            for table, query in _TABLE_COUNT_QUERIES.items():
-                count = await conn.scalar(query, {"tid": "wrong-tenant"})
-                assert count == 0, f"wrong-tenant data in {table}"
+        # Admin observer confirms correct-tenant data and no wrong-tenant leakage
+        for table, query in _TABLE_COUNT_QUERIES.items():
+            correct_count = (await admin_session.execute(query, {"tid": correct_tenant})).scalar()
+            assert int(correct_count or 0) == 1, f"missing correct-tenant data in {table}"
+            wrong_count = (await admin_session.execute(query, {"tid": "wrong-tenant"})).scalar()
+            assert int(wrong_count or 0) == 0, f"wrong-tenant data in {table}"

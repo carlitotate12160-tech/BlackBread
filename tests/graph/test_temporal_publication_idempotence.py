@@ -10,6 +10,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 import pytest_asyncio
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from blackbread.graph.temporal_persistence import _publish_temporal_publication
@@ -171,7 +172,7 @@ class TestDurableIdempotence:
         await _published(engine, fail_engagement)
         assert await _head_rows(engine, pub) == expected
 
-    async def test_injected_head_row_rejected_or_repaired(
+    async def test_injected_head_row_rejected_by_fk(
         self,
         fail_engagement: Engagement,
         session: AsyncSession,
@@ -185,8 +186,11 @@ class TestDurableIdempotence:
         expected = await _expected_head_rows(pub)
 
         async with engine.connect() as conn:
-            await conn.execute(text(f"SET blackbread.tenant_id = '{pub.tenant_id}'"))
-            with pytest.raises(Exception):  # noqa: B017
+            await conn.execute(
+                text("SELECT set_config('blackbread.tenant_id', :tid, true)"),
+                {"tid": pub.tenant_id},
+            )
+            with pytest.raises(IntegrityError, match="fk_graph_temporal_head_revision"):
                 await conn.execute(
                     text(
                         "INSERT INTO graph_temporal_head_nodes "

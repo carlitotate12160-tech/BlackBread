@@ -282,6 +282,26 @@ class TestMigrationLifecycle:
                     {"tid": tenant},
                 )
                 assert int(count or 0) == 1
+                other = next(t for t in tenants if t != tenant)
+                other_count = await conn.scalar(
+                    text(
+                        "SELECT count(*) FROM graph_temporal_scope_revisions WHERE tenant_id = :tid"
+                    ),
+                    {"tid": other},
+                )
+                assert int(other_count or 0) == 0, f"{tenant} observed {other} rows"
+
+        async with _admin_engine(lifecycle_db) as admin, admin.begin() as conn:
+            total = await conn.scalar(text("SELECT count(*) FROM graph_temporal_scope_revisions"))
+            assert int(total or 0) == 2
+            for tenant in tenants:
+                cnt = await conn.scalar(
+                    text(
+                        "SELECT count(*) FROM graph_temporal_scope_revisions WHERE tenant_id = :tid"
+                    ),
+                    {"tid": tenant},
+                )
+                assert int(cnt or 0) == 1
 
         async with lifecycle_runtime_engine.begin() as conn:
             await conn.execute(text("SELECT set_config('blackbread.tenant_id', '', true)"))
