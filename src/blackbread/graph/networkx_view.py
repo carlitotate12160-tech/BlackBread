@@ -4,7 +4,10 @@ from types import MappingProxyType
 import networkx as nx
 
 from blackbread.graph.domain import ScopeProjection
-from blackbread.graph.temporal_replay import TemporalProjection
+from blackbread.graph.temporal_projection import (
+    TemporalProjection,
+    validate_temporal_projection,
+)
 
 _GRAPH_FIELDS = tuple(field for field in ScopeProjection.__annotations__ if field != "nodes")
 
@@ -27,6 +30,7 @@ def build_networkx_view(projection: ScopeProjection) -> "nx.DiGraph[str]":
 
 
 def build_temporal_networkx_view(projection: TemporalProjection) -> "nx.DiGraph[str]":
+    projection = validate_temporal_projection(projection)
     graph: nx.DiGraph[str] = nx.DiGraph()
     versions = projection.versions
     graph.graph.update(

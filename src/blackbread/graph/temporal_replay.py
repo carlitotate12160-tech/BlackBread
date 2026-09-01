@@ -1,50 +1,24 @@
-from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from blackbread.graph.domain import GraphProjectionError, ScopeProjector, ScopeRoot
-from blackbread.graph.revision import ScopeRevision
+from blackbread.graph.domain import GraphProjectionError, ScopeProjector
 from blackbread.graph.state_root import (
     SUPPORTED_TEMPORAL_STATE_ROOT_VERSIONS,
-    TemporalStateRootVersions,
     compute_temporal_state_root,
 )
 from blackbread.graph.temporal import (
-    TemporalLineage,
     select_temporal_scope,
     validate_temporal_lineage,
 )
+from blackbread.graph.temporal_projection import (
+    TemporalProjection,
+    validate_temporal_projection,
+)
 from blackbread.ledger.verify import replay_verified_snapshot
 from blackbread.tenancy import TenantContext, bind_tenant_context
-
-
-@dataclass(frozen=True, slots=True)
-class TemporalProjection:
-    tenant_id: str
-    engagement_id: UUID
-    verified_event_count: int
-    verified_head_hash: str
-    lineage: TemporalLineage
-    state_root: str
-    versions: TemporalStateRootVersions
-    as_of: datetime
-    effective_attestation_event_hash: str | None
-    effective_nodes: tuple[ScopeRoot, ...]
-
-    @property
-    def lineage_head_hash(self) -> str:
-        return self.lineage.lineage_head_hash
-
-    @property
-    def revisions(self) -> tuple[ScopeRevision, ...]:
-        return self.lineage.revisions
-
-    @property
-    def has_effective_authority(self) -> bool:
-        return self.effective_attestation_event_hash is not None
 
 
 async def rebuild_temporal_projection(
@@ -78,7 +52,7 @@ async def rebuild_temporal_projection(
         as_of=as_of,
         lineage_head_hash=lineage.lineage_head_hash,
     )
-    return TemporalProjection(
+    projection = TemporalProjection(
         tenant_id=tenant_id,
         engagement_id=engagement_id,
         verified_event_count=verification.verified_event_count,
@@ -90,3 +64,4 @@ async def rebuild_temporal_projection(
         effective_attestation_event_hash=selection.effective_attestation_event_hash,
         effective_nodes=selection.effective_nodes,
     )
+    return validate_temporal_projection(projection)
