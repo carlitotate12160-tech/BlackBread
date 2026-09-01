@@ -8,6 +8,7 @@ safety-critical path. It carries no review-policy semantics.
 SAFETY_CRITICAL_PATH_PARTS = (
     "src/blackbread/ledger/",
     "src/blackbread/conductor/",
+    "src/blackbread/graph/",
     "src/blackbread/policy/",
     "src/blackbread/opsec/",
     "src/blackbread/identity/",

@@ -8,7 +8,7 @@ and never overrides live GitHub, accepted architecture, delivery policy, tests, 
 * **State:** ACTIVE
 * **Current milestone:** M1 — Trust Spine
 * **Last verified:** 2026-09-01 UTC
-* **Current branch:** `gov-gap-006-state-update`
+* **Current branch:** `m1-3b3a-durable-temporal-publication`
 * **Active ruleset:** `main-branch-protection` (`21644438`)
 * **Contractual gate:** the live ruleset matches the machine contract. Required status checks are
   `ci-ok` (aggregator for `quality`, `tests`, `security`, `governance`) and `GitGuardian Security
@@ -217,15 +217,22 @@ dispositioned and resolved. A merge does not complete M1.3, M1/R0, `LEDGER-GAP-0
   graph/ledger suites green; all repository gates and budgets green; binding current-head
   PR-Agent/DeepSeek review complete with all findings dispositioned.
 
-### PR-M1.3b3 (active)
+### PR-M1.3b3a (active)
 
-* **ID:** PR-M1.3b3
-* **Title:** Durable Temporal Projection Lifecycle
-* **State:** ACTIVE
+* **ID:** PR-M1.3b3a
+* **Title:** Durable Temporal Publication
+* **State:** IMPLEMENTED (Awaiting PR/Merge)
 * **Prerequisite:** PR-M1.3b2b released at `f721f72` / PR #43.
-* **Purpose:** migration `0006`, immutable revision-lineage and stable-membership persistence, atomic
-  temporal publication, persisted state-root recomputation, truthful v2-head publication, and
-  `GRAPH-GAP-001` closure.
+* **Purpose:** migration `0006`, immutable revision-lineage and stable-membership persistence, and atomic temporal publication.
+* **Non-goals:** no cold-load reconstruction, no explicit `as_of` projection load, no NetworkX integration (deferred to b3b).
+
+### PR-M1.3b3b (planned)
+
+* **ID:** PR-M1.3b3b
+* **Title:** Verified Temporal Reconstruction
+* **State:** PLANNED
+* **Prerequisite:** PR-M1.3b3a
+* **Purpose:** Verified cold reconstruction, explicit `as_of` projection load, and `GRAPH-GAP-001` closure.
 
 ### M1.3b cross-cutting risks
 
