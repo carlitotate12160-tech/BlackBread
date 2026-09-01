@@ -11,7 +11,7 @@ name: CodeRabbit auto-trigger
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, ready_for_review]  # was: [opened, synchronize, reopened, ready_for_review]
     branches: [main]
 
 permissions:
