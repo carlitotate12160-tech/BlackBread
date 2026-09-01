@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import cast
 from uuid import UUID
 
 from sqlalchemy import text
@@ -147,7 +148,8 @@ class _TemporalStore:
 
     def _snapshot_matches(self, pub: TemporalPublication, snap: RowMapping) -> bool:
         final = pub.lineage.groups[-1]
-        return (
+        return cast(
+            bool,
             pub.verified_event_count == snap["verified_event_count"]
             and pub.verified_head_hash == snap["verified_head_hash"]
             and snap["ledger_hash_algorithm"] == "sha256"
@@ -157,7 +159,7 @@ class _TemporalStore:
             and snap["scope_canonicalization_version"] == SCOPE_CANONICALIZATION_VERSION
             and pub.state_root == snap["state_root"]
             and pub.lineage.lineage_head_hash == snap["lineage_head_hash"]
-            and final.source_sequence == snap["lineage_head_sequence"]
+            and final.source_sequence == snap["lineage_head_sequence"],
         )
 
     async def _verify_immutable_history(self, pub: TemporalPublication, *, exact: bool) -> None:
