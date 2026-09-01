@@ -8,8 +8,6 @@ and never overrides live GitHub, accepted architecture, delivery policy, tests, 
 * **State:** ACTIVE
 * **Current milestone:** M1 — Trust Spine
 * **Last verified:** 2026-09-01 UTC
-* **Protected main baseline:** `aff7df4` (PR #42 — deterministic temporal ScopeRoot selection, M1.3b2a)
-* **Last merged PR:** `#42` (feat: add deterministic temporal ScopeRoot selection)
 * **Current branch:** `m1-3b2b-state-root-v2-rebuild`
 * **Active ruleset:** `main-branch-protection` (`21644438`)
 * **Contractual gate:** the live ruleset matches the machine contract. Required status checks are
@@ -18,9 +16,9 @@ and never overrides live GitHub, accepted architecture, delivery policy, tests, 
   stale-review dismissal, squash-only merge, and no extra approval for unattributed changes. Branch
   currency is required. `GOV-GAP-001` is CLOSED as of 2026-08-31; `GOV-GAP-006` is OPEN as of
   2026-08-31; see GAP-REGISTER.md.
-* **Note on `Protected main baseline`:** this SHA is hand-typed in this PR. `GOV-GAP-006` tracks
-  the required post-merge automation that will stamp the actual merged SHA; until then, always
-  verify the live `main` HEAD on GitHub.
+* **Note on baselines:** the protected `main` HEAD and last merged PR are never hand-typed here.
+  `GOV-GAP-006` tracks the post-merge automation that stamps the actual merged SHA. Always verify
+  the live `main` HEAD, PR list, and merge state on GitHub.
 
 These values are checkpoints to verify, not facts to trust without querying live GitHub.
 
