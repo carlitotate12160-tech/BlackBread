@@ -1,0 +1,6 @@
+interface:
+  display_name: "BlackBread Engineering"
+  short_description: "Architect, implement, review, and seal BlackBread"
+  default_prompt: "Use $blackbread-engineering to verify live BlackBread state and handle the requested work safely."
+policy:
+  allow_implicit_invocation: true
