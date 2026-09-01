@@ -7,9 +7,9 @@ and never overrides live GitHub, accepted architecture, delivery policy, tests, 
 
 * **State:** ACTIVE
 * **Current milestone:** M1 — Trust Spine
-* **Last verified:** 2026-08-31 UTC
+* **Last verified:** 2026-09-01 UTC
 * **Protected main baseline:** `4c8cc80` (PR #40 — update engineering state baseline to PR #39 merge commit)
-* **Last merged PR:** `#40` (docs: update engineering state baseline to PR #39 merge commit)
+* **Last merged PR:** `#41` (docs: fix preflight rule #10 and add GOV-GAP-006)
 * **Active ruleset:** `main-branch-protection` (`21644438`)
 * **Contractual gate:** the live ruleset matches the machine contract. Required status checks are
   `ci-ok` (aggregator for `quality`, `tests`, `security`, `governance`) and `GitGuardian Security
@@ -121,9 +121,10 @@ gates (PR #32), and the PR-Agent/CodiumAI DeepSeek review integration (PR #38).
 
 ## Selected M1.3b slices
 
-The repository owner has split PR-M1.3b into three sequential sub-slices. PR-M1.3a, PR-M1.3b1, and
-PR #38 are now live on `main`. PR-M1.3b2 is the next selected slice and becomes ACTIVE only when the
-owner explicitly starts it.
+The repository owner split the former PR-M1.3b2 after its combined temporal-policy, state-root,
+PostgreSQL-replay, and NetworkX runtime diff exceeded both the 320-line architecture threshold and
+400-line hard cap. PR-M1.3b1 remains RELEASED; PR-M1.3b2a is ACTIVE; PR-M1.3b2b is the next selected
+slice; PR-M1.3b3 remains the durable-persistence slice after b2b.
 
 ### PR-M1.3b1 (released)
 
@@ -166,52 +167,61 @@ current-head independent AI review required by the then-active binding review co
 dispositioned and resolved. A merge does not complete M1.3, M1/R0, `LEDGER-GAP-001`, or
 `GRAPH-GAP-001`.
 
-### PR-M1.3b2 (next selected)
+### PR-M1.3b2a (active)
 
-* **ID:** PR-M1.3b2
-* **Title:** Temporal Selection + State-Root v2
+* **ID:** PR-M1.3b2a
+* **Title:** Deterministic Temporal ScopeRoot Selection
+* **State:** ACTIVE
+* **Prerequisite:** PR-M1.3b1 RELEASED.
+* **Scope:** pure immutable validation of complete attestation-event groups and linear revision
+  lineage, canonical explicit timezone-aware `as_of`, half-open validity, monotonic successor
+  activation, deterministic gap/expiry behavior, and complete-group effective ScopeRoot selection.
+* **Failure modes:** naive or non-normalizable time, malformed revision identity or provenance,
+  inconsistent group metadata, duplicate revisions or membership, duplicate source sequence,
+  missing/non-linear predecessor, non-monotonic activation, and non-admitted lineage head all fail
+  closed.
+* **Non-goals:** no state-root v2, canonicalization-version change, v1 hardening, PostgreSQL replay,
+  NetworkX view, persistence, migration, publication, or target-facing behavior.
+* **Intermediate reachability:** the pure selector is not wired into replay or publication and grants
+  no execution authority. The existing `GRAPH-GAP-001` v2-head publication guard is unchanged.
+* **Seal criteria:** focused positive/negative temporal tests, affected compatibility suites, all
+  repository gates and budgets green, and binding current-head PR-Agent/DeepSeek review complete.
+* **Platform qualification:** Oracle ARM64 is unavailable in the current implementation environment
+  and is explicitly deferred without an ARM64 result claim. B2a changes no capability, tool, image,
+  or client-eligibility state, so the live ARM64 capability-qualification rule is not a per-PR gate.
+
+### PR-M1.3b2b (next selected)
+
+* **ID:** PR-M1.3b2b
+* **Title:** State-Root v2 + Verified Temporal Rebuild + Effective NetworkX View
 * **State:** DECIDED
-* **Prerequisite:** PR-M1.3b1 merged and `GRAPH-GAP-001` still OPEN (b3 will close it).
-* **Purpose:** clock-free temporal selection and v2 state root binding the full supersession history.
-* **Activation condition:** after PR #38 (AI review tooling) merges and the owner explicitly starts
-  M1.3b2.
+* **Prerequisite:** PR-M1.3b2a merged.
+* **Purpose:** bind full validated temporal history into state-root v2, include the scope
+  canonicalization version, harden v1 against v2 provenance, rebuild from a verified read-only
+  PostgreSQL snapshot, and construct an immutable effective-only NetworkX view without persistence.
+* **B1 disposition:** remains OPEN until b2b binds the canonicalization version into v2. The frozen v1
+  known-answer vector remains the mitigation; the v1 preimage will remain unchanged.
+* **Non-goals:** no migration `0006`, durable temporal lineage, or v2-head publication.
 
-### M1.3b split plan (recorded contract)
+### PR-M1.3b3 (selected after b2b)
 
-#### PR-M1.3b2 — Temporal Selection + State-Root v2
-
+* **ID:** PR-M1.3b3
+* **Title:** Durable Temporal Projection Lifecycle
 * **State:** DECIDED
-* **Prerequisite:** b1 merged (uses its revision representation).
-* **Contract sections:** C + D, plus NetworkX `as_of` view.
-* **Purpose:** clock-free temporal selection and v2 state root binding the full supersession history
-  (stable identities, every immutable revision, predecessor linkage, lineage head, exact provenance,
-  schema/version, and scope-canonicalization/catalog version).
-* **Non-goals at b2:** no new persistence schema; no `0006` migration; publication still uses existing
-  `0005` tables.
-
-#### PR-M1.3b3 — Durable Temporal Projection Lifecycle
-
-* **State:** DECIDED
-* **Prerequisite:** b2 merged (needs the v2 root + revision lineage semantics it must persist).
-* **Contract sections:** E + the persistence half of F.
-* **Purpose:** immutable attestation-revision lineage + stable membership persisted separately from
-  the replaceable materialized head; atomic publish preserves history; `read()` recomputes the v2
-  history-binding root from persisted lineage; close `GRAPH-GAP-001` and enable truthful v2-head
-  publication.
-* **Files:** new `migrations/versions/0006_m1_temporal_scope_graph.py` (excluded from runtime budget),
-  `graph/persistence.py` (+lineage read/publish, v2 read recompute, upgrade path).
+* **Prerequisite:** PR-M1.3b2b merged.
+* **Purpose:** migration `0006`, immutable revision-lineage and stable-membership persistence, atomic
+  temporal publication, persisted state-root recomputation, truthful v2-head publication, and
+  `GRAPH-GAP-001` closure.
 
 ### M1.3b cross-cutting risks
 
-* **B1 closure (still OPEN on `main`):** the state-root v1 preimage still omits the scope
-  canonicalization/catalog version. PR-M1.3b2 is the correct place to close it structurally by
-  pinning that version into the state-root v2 preimage with its own RED test. Until then it is a
-  registered risk, mitigated only by the v1 golden vector.
-* **Total-consumer invariant (M1.3a N4):** `ScopeProjector.consume()` must explicitly transition or
-  no-op every future `agent_events` schema/version; an unknown input fails full replay closed.
-* **Domain-only b1 amendment:** `GRAPH-GAP-001` records the owner-selected fail-closed boundary. A v2
-  attestation is ledger-durable and domain-replayable, but existing `0005` tables cannot truthfully
-  store its source version. Temporal lineage and v2-head persistence remain b3 work.
+* **Append admission:** production exposes only generic `append_event`; no production command or
+  publisher currently writes `EngagementAttestedV2`. Atomic append-time predecessor admission is a
+  prerequisite before any future production v2 writer becomes reachable.
+* **B1:** OPEN and assigned to b2b; b2a makes no closure claim.
+* **GRAPH-GAP-001:** OPEN for b3; migration `0005` remains v1-only and unchanged.
+* **LEDGER-GAP-001:** OPEN; M1/R0 and target-facing execution remain blocked.
+* **Total-consumer invariant:** unknown graph event schema/version still fails complete replay closed.
 
 ## Open blockers
 
