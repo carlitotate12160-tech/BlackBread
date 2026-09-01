@@ -1,8 +1,3 @@
-"""Durable temporal publication PostgreSQL adapter.
-
-B3a scope: publish-only. Cold reconstruction is b3b.
-"""
-
 from __future__ import annotations
 
 from collections.abc import Sequence

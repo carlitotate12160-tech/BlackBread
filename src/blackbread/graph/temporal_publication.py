@@ -1,9 +1,3 @@
-"""Durable temporal publication contract.
-
-Pure domain types for persisting a verified temporal projection.
-No SQL, ledger replay, as_of selection, NetworkX, or authorization.
-"""
-
 from __future__ import annotations
 
 import re
@@ -24,8 +18,6 @@ _HEX64 = re.compile(r"^[0-9a-f]{64}$")
 
 @dataclass(frozen=True, slots=True)
 class TemporalPublication:
-    """Immutable durable publication binding a verified ledger anchor to a temporal lineage."""
-
     tenant_id: str
     engagement_id: UUID
     verified_event_count: int
@@ -37,14 +29,11 @@ class TemporalPublication:
 
 
 class TemporalPublicationRead(NamedTuple):
-    """Wrap a publication with ledger freshness."""
-
     publication: TemporalPublication
     is_current: bool
 
 
 def validate_temporal_publication(pub: object) -> TemporalPublication:
-    """Validate internal consistency of a TemporalPublication. Fail closed."""
     if not isinstance(pub, TemporalPublication):
         raise GraphProjectionError("invalid temporal publication")
     if not isinstance(pub.tenant_id, str) or not pub.tenant_id.strip():
