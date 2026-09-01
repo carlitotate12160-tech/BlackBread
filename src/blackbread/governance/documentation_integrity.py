@@ -42,6 +42,12 @@ _IGNORED_CODE_TOKENS = frozenset(
 # insensitive to removed comments and docstrings.
 _RENAME_SIMILARITY_THRESHOLD = 0.80
 
+# When documentation is removed together with executable code, the code shrink
+# must be at least this fraction of the documentation loss. This prevents the
+# one-line-trick bypass: removing a single assignment does not justify stripping
+# a large docstring.
+_CODE_SHRINK_TO_DOC_LOSS_MIN_RATIO = 0.5
+
 
 @dataclass(frozen=True, slots=True)
 class _ModuleShape:
@@ -116,11 +122,12 @@ def _module_shape(source: str, path: str) -> _ModuleShape:
 def _stripping_violation(path: str, base: str, head: str) -> str | None:
     before = _module_shape(base, path)
     after = _module_shape(head, path)
-    if after.code_lines < before.code_lines:
-        return None
     lost = before.documentation_lines - after.documentation_lines
     ratio_floor = before.documentation_lines * DOCUMENTATION_LOSS_MIN_RATIO
-    if lost <= DOCUMENTATION_LOSS_MIN_LINES or lost <= ratio_floor:
+    if lost <= DOCUMENTATION_LOSS_MIN_LINES and lost <= ratio_floor:
+        return None
+    code_lost = before.code_lines - after.code_lines
+    if code_lost > 0 and code_lost >= lost * _CODE_SHRINK_TO_DOC_LOSS_MIN_RATIO:
         return None
     return (
         f"{path}: documentation dropped by {lost} lines while code did not shrink "

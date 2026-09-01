@@ -57,3 +57,14 @@ def test_renamed_module_with_stripped_documentation_is_rejected() -> None:
     assert len(result) == 1
     assert head_path in result[0]
     assert "density gaming is forbidden" in result[0]
+
+
+def test_trivial_code_reduction_does_not_bypass_doc_strip() -> None:
+    path = "src/blackbread/graph/temporal_replay.py"
+    base = {path: _module(code_lines=20, doc_lines=20)}
+    head = {path: _module(code_lines=19, doc_lines=0)}
+
+    result = evaluate_documentation_integrity(base, head)
+
+    assert len(result) == 1
+    assert "density gaming is forbidden" in result[0]
