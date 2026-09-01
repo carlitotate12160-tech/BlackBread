@@ -21,106 +21,61 @@ from blackbread.ledger.errors import LedgerAccessError
 from blackbread.tenancy import TenantContext, bind_tenant_context
 
 _ANCHOR = text(
-    "SELECT ledger_event_count, ledger_head_hash "
-    "FROM engagements "
-    "WHERE tenant_id = :tenant_id AND id = :engagement_id "
-    "FOR UPDATE"
+    "SELECT ledger_event_count, ledger_head_hash FROM engagements WHERE tenant_id = :tenant_id AND id = :engagement_id FOR UPDATE"  # noqa: E501
 )
 _SELECT_SNAPSHOT = text(
-    "SELECT * FROM graph_temporal_projection_snapshots "
-    "WHERE tenant_id = :tenant_id AND engagement_id = :engagement_id"
+    "SELECT * FROM graph_temporal_projection_snapshots WHERE tenant_id = :tenant_id AND engagement_id = :engagement_id"  # noqa: E501
 )
 _SELECT_ROOTS = text(
-    "SELECT * FROM graph_temporal_scope_roots "
-    "WHERE tenant_id = :tenant_id AND engagement_id = :engagement_id"
+    "SELECT * FROM graph_temporal_scope_roots WHERE tenant_id = :tenant_id AND engagement_id = :engagement_id"  # noqa: E501
 )
 _SELECT_REVISIONS = text(
-    "SELECT * FROM graph_temporal_scope_revisions "
-    "WHERE tenant_id = :tenant_id AND engagement_id = :engagement_id "
-    "ORDER BY source_sequence, revision_id"
+    "SELECT * FROM graph_temporal_scope_revisions WHERE tenant_id = :tenant_id AND engagement_id = :engagement_id ORDER BY source_sequence, revision_id"  # noqa: E501
 )
 _SELECT_HEADS = text(
-    "SELECT * FROM graph_temporal_head_nodes "
-    "WHERE tenant_id = :tenant_id AND engagement_id = :engagement_id"
+    "SELECT * FROM graph_temporal_head_nodes WHERE tenant_id = :tenant_id AND engagement_id = :engagement_id"  # noqa: E501
 )
 _DEFER_HEAD_FK = text("SET CONSTRAINTS fk_graph_temporal_head_lineage DEFERRED")
 _FORCE_HEAD_FK = text("SET CONSTRAINTS fk_graph_temporal_head_lineage IMMEDIATE")
 _INSERT_ROOT = text(
-    "INSERT INTO graph_temporal_scope_roots "
-    "(tenant_id, engagement_id, node_id, node_family, scope_kind, canonical_value) "
-    "VALUES (:tenant_id, :engagement_id, :node_id, 'ScopeRoot', :scope_kind, :canonical_value) "
-    "ON CONFLICT (tenant_id, engagement_id, node_id) DO NOTHING"
+    "INSERT INTO graph_temporal_scope_roots (tenant_id, engagement_id, node_id, node_family, scope_kind, canonical_value) VALUES (:tenant_id, :engagement_id, :node_id, 'ScopeRoot', :scope_kind, :canonical_value) ON CONFLICT (tenant_id, engagement_id, node_id) DO NOTHING"  # noqa: E501
 )
 _INSERT_REVISION = text(
-    "INSERT INTO graph_temporal_scope_revisions "
-    "(tenant_id, engagement_id, revision_id, node_id, scope_kind, canonical_value, "
-    "manifest_hash, valid_from, valid_until, source_sequence, source_event_hash, "
-    "source_schema_name, source_schema_version, predecessor_attestation_event_hash) "
-    "VALUES (:tenant_id, :engagement_id, :revision_id, :node_id, :scope_kind, :canonical_value, "
-    ":manifest_hash, :valid_from, :valid_until, :source_sequence, :source_event_hash, "
-    ":source_schema_name, :source_schema_version, :predecessor_attestation_event_hash) "
-    "ON CONFLICT (tenant_id, engagement_id, revision_id) DO NOTHING"
+    "INSERT INTO graph_temporal_scope_revisions (tenant_id, engagement_id, revision_id, node_id, scope_kind, canonical_value, manifest_hash, valid_from, valid_until, source_sequence, source_event_hash, source_schema_name, source_schema_version, predecessor_attestation_event_hash) VALUES (:tenant_id, :engagement_id, :revision_id, :node_id, :scope_kind, :canonical_value, :manifest_hash, :valid_from, :valid_until, :source_sequence, :source_event_hash, :source_schema_name, :source_schema_version, :predecessor_attestation_event_hash) ON CONFLICT (tenant_id, engagement_id, revision_id) DO NOTHING"  # noqa: E501
 )
 _UPSERT_SNAPSHOT = text(
-    "INSERT INTO graph_temporal_projection_snapshots "
-    "(tenant_id, engagement_id, verified_event_count, verified_head_hash, "
-    "ledger_hash_algorithm, ledger_hash_version, temporal_projector_version, "
-    "state_root_version, scope_canonicalization_version, state_root, "
-    "lineage_head_hash, lineage_head_sequence) "
-    "VALUES (:tenant_id, :engagement_id, :verified_event_count, :verified_head_hash, "
-    "'sha256', 1, 2, 2, 1, :state_root, :lineage_head_hash, :lineage_head_sequence) "
-    "ON CONFLICT (tenant_id, engagement_id) DO UPDATE SET "
-    "verified_event_count = EXCLUDED.verified_event_count, "
-    "verified_head_hash = EXCLUDED.verified_head_hash, "
-    "state_root = EXCLUDED.state_root, "
-    "lineage_head_hash = EXCLUDED.lineage_head_hash, "
-    "lineage_head_sequence = EXCLUDED.lineage_head_sequence"
+    "INSERT INTO graph_temporal_projection_snapshots (tenant_id, engagement_id, verified_event_count, verified_head_hash, ledger_hash_algorithm, ledger_hash_version, temporal_projector_version, state_root_version, scope_canonicalization_version, state_root, lineage_head_hash, lineage_head_sequence) VALUES (:tenant_id, :engagement_id, :verified_event_count, :verified_head_hash, 'sha256', 1, 2, 2, 1, :state_root, :lineage_head_hash, :lineage_head_sequence) ON CONFLICT (tenant_id, engagement_id) DO UPDATE SET verified_event_count = EXCLUDED.verified_event_count, verified_head_hash = EXCLUDED.verified_head_hash, state_root = EXCLUDED.state_root, lineage_head_hash = EXCLUDED.lineage_head_hash, lineage_head_sequence = EXCLUDED.lineage_head_sequence"  # noqa: E501
 )
 _DELETE_HEADS = text(
-    "DELETE FROM graph_temporal_head_nodes "
-    "WHERE tenant_id = :tenant_id AND engagement_id = :engagement_id"
+    "DELETE FROM graph_temporal_head_nodes WHERE tenant_id = :tenant_id AND engagement_id = :engagement_id"  # noqa: E501
 )
 _INSERT_HEAD = text(
-    "INSERT INTO graph_temporal_head_nodes "
-    "(tenant_id, engagement_id, node_id, revision_id, source_event_hash) "
-    "VALUES (:tenant_id, :engagement_id, :node_id, :revision_id, :source_event_hash)"
-)
-
-_REVISION_FIELDS = (
-    "revision_id",
-    "node_id",
-    "scope_kind",
-    "canonical_value",
-    "manifest_hash",
-    "valid_from",
-    "valid_until",
-    "source_sequence",
-    "source_event_hash",
-    "source_schema_name",
-    "source_schema_version",
-    "predecessor_attestation_event_hash",
+    "INSERT INTO graph_temporal_head_nodes (tenant_id, engagement_id, node_id, revision_id, source_event_hash) VALUES (:tenant_id, :engagement_id, :node_id, :revision_id, :source_event_hash)"  # noqa: E501
 )
 
 
 def _revision_fields(rev: ScopeRevision) -> dict[str, object]:
-    return {name: getattr(rev, name) for name in _REVISION_FIELDS}
+    return {
+        k: getattr(rev, k)
+        for k in (
+            "revision_id",
+            "node_id",
+            "scope_kind",
+            "canonical_value",
+            "manifest_hash",
+            "valid_from",
+            "valid_until",
+            "source_sequence",
+            "source_event_hash",
+            "source_schema_name",
+            "source_schema_version",
+            "predecessor_attestation_event_hash",
+        )
+    }
 
 
 def _row_matches_revision(row: RowMapping, rev: ScopeRevision) -> bool:
-    fields = _revision_fields(rev)
-    return all(row[key] == fields[key] for key in fields)
-
-
-def _root_key(node_id: str, scope_kind: str, canonical_value: str) -> tuple[str, str, str]:
-    return node_id, scope_kind, canonical_value
-
-
-def _row_matches_root(row: RowMapping, root: tuple[str, str, str]) -> bool:
-    return bool(
-        row["node_id"] == root[0]
-        and row["scope_kind"] == root[1]
-        and row["canonical_value"] == root[2]
-    )
+    return all(row[k] == v for k, v in _revision_fields(rev).items())
 
 
 class _TemporalStore:
@@ -166,10 +121,7 @@ class _TemporalStore:
         await self._ensure_heads(pub)
 
     async def _update(
-        self,
-        pub: TemporalPublication,
-        snap: RowMapping,
-        is_current: bool,
+        self, pub: TemporalPublication, snap: RowMapping, is_current: bool
     ) -> TemporalPublicationRead:
         existing_count = snap["verified_event_count"]
         if pub.verified_event_count < existing_count:
@@ -184,17 +136,14 @@ class _TemporalStore:
             return TemporalPublicationRead(pub, is_current)
         await self._verify_immutable_history(pub, exact=False)
         await self._conn.execute(_UPSERT_SNAPSHOT, self._snapshot_params(pub))
-        if self._lineage_changed(pub, snap) or self._state_root_changed(pub, snap):
+        if (
+            pub.lineage.lineage_head_hash != snap["lineage_head_hash"]
+            or pub.state_root != snap["state_root"]
+        ):
             await self._insert_roots(pub)
             await self._insert_revisions(pub)
         await self._ensure_heads(pub)
         return TemporalPublicationRead(pub, is_current)
-
-    def _lineage_changed(self, pub: TemporalPublication, snap: RowMapping) -> bool:
-        return bool(pub.lineage.lineage_head_hash != snap["lineage_head_hash"])
-
-    def _state_root_changed(self, pub: TemporalPublication, snap: RowMapping) -> bool:
-        return bool(pub.state_root != snap["state_root"])
 
     def _snapshot_matches(self, pub: TemporalPublication, snap: RowMapping) -> bool:
         final = pub.lineage.groups[-1]
@@ -211,20 +160,15 @@ class _TemporalStore:
             and final.source_sequence == snap["lineage_head_sequence"]
         )
 
-    async def _verify_immutable_history(
-        self,
-        pub: TemporalPublication,
-        *,
-        exact: bool,
-    ) -> None:
+    async def _verify_immutable_history(self, pub: TemporalPublication, *, exact: bool) -> None:
         expected_roots = {
-            _root_key(r.node_id, r.scope_kind, r.canonical_value)
+            (r.node_id, r.scope_kind, r.canonical_value)
             for g in pub.lineage.groups
             for r in g.revisions
         }
         existing_roots = await self.existing_roots()
         existing_root_keys = {
-            _root_key(r["node_id"], r["scope_kind"], r["canonical_value"]) for r in existing_roots
+            (r["node_id"], r["scope_kind"], r["canonical_value"]) for r in existing_roots
         }
         if exact and existing_root_keys != expected_roots:
             raise GraphProjectionError("publication immutable stable root mismatch")
@@ -236,7 +180,7 @@ class _TemporalStore:
         existing_revision_ids = {r["revision_id"] for r in existing_revisions}
         if exact and existing_revision_ids != set(expected_revisions):
             raise GraphProjectionError("publication immutable revision mismatch")
-        if not exact and not existing_revision_ids.issubset(expected_revisions):
+        if not exact and not existing_revision_ids.issubset(set(expected_revisions)):
             raise GraphProjectionError("publication truncates persisted history")
         for row in existing_revisions:
             rid = row["revision_id"]
@@ -262,7 +206,11 @@ class _TemporalStore:
                 if result.rowcount == 0:
                     rows = await self.existing_roots()
                     match = next((r for r in rows if r["node_id"] == rev.node_id), None)
-                    if match is None or not _row_matches_root(match, _root_key_from_rev(rev)):
+                    if match is None or not (
+                        match["node_id"] == rev.node_id
+                        and match["scope_kind"] == rev.scope_kind
+                        and match["canonical_value"] == rev.canonical_value
+                    ):
                         raise GraphProjectionError("stable root identity conflict")
 
     async def _insert_revisions(self, pub: TemporalPublication) -> None:
@@ -276,25 +224,28 @@ class _TemporalStore:
                     if match is None or not _row_matches_revision(match, rev):
                         raise GraphProjectionError("revision identity conflict")
 
-    def _expected_head_rows(self, pub: TemporalPublication) -> list[dict[str, object]]:
-        final = pub.lineage.groups[-1]
-        return [
-            {
-                "node_id": rev.node_id,
-                "revision_id": rev.revision_id,
-                "source_event_hash": final.source_event_hash,
-            }
-            for rev in final.revisions
-        ]
-
     async def _ensure_heads(self, pub: TemporalPublication) -> None:
-        expected = self._expected_head_rows(pub)
-        existing = await self.existing_heads()
-        if _head_rows_equal(existing, expected):
+        final = pub.lineage.groups[-1]
+        expected_set = {
+            (rev.node_id, rev.revision_id, final.source_event_hash) for rev in final.revisions
+        }
+        existing_set = {
+            (r["node_id"], r["revision_id"], r["source_event_hash"])
+            for r in await self.existing_heads()
+        }
+        if existing_set == expected_set:
             return
         await self._conn.execute(_DELETE_HEADS, self._key)
-        for params in expected:
-            await self._conn.execute(_INSERT_HEAD, {**self._key, **params})
+        for rev in final.revisions:
+            await self._conn.execute(
+                _INSERT_HEAD,
+                {
+                    **self._key,
+                    "node_id": rev.node_id,
+                    "revision_id": rev.revision_id,
+                    "source_event_hash": final.source_event_hash,
+                },
+            )
         await self._conn.execute(_FORCE_HEAD_FK)
 
     def _snapshot_params(self, pub: TemporalPublication) -> dict[str, object]:
@@ -309,24 +260,9 @@ class _TemporalStore:
         }
 
 
-def _root_key_from_rev(rev: ScopeRevision) -> tuple[str, str, str]:
-    return _root_key(rev.node_id, rev.scope_kind, rev.canonical_value)
-
-
-def _head_rows_equal(
-    existing: Sequence[RowMapping],
-    expected: Sequence[dict[str, object]],
-) -> bool:
-    existing_set = {(r["node_id"], r["revision_id"], r["source_event_hash"]) for r in existing}
-    expected_set = {(e["node_id"], e["revision_id"], e["source_event_hash"]) for e in expected}
-    return existing_set == expected_set
-
-
 async def _publish_temporal_publication(
-    engine: AsyncEngine,
-    publication: TemporalPublication,
+    engine: AsyncEngine, publication: TemporalPublication
 ) -> TemporalPublicationRead:
-    """Validate and atomically persist a temporal publication."""
     validate_temporal_publication(publication)
     async with engine.begin() as connection:
         await bind_tenant_context(connection, TenantContext(publication.tenant_id))
