@@ -82,7 +82,7 @@ def _comment_rows(source: str) -> set[int]:
     return rows
 
 
-def _code_token_lines(source: str) -> set[int]:
+def _code_token_lines(source: str, docstring_rows: set[int]) -> set[int]:
     rows: set[int] = set()
     try:
         tokens = tokenize.tokenize(io.BytesIO(source.encode()).readline)
@@ -90,6 +90,11 @@ def _code_token_lines(source: str) -> set[int]:
         return rows
     for token in tokens:
         if token.type in _IGNORED_CODE_TOKENS:
+            # Only string literals that are part of an AST docstring are ignored.
+            # Multiline string constants (SQL, templates, embedded data) are code.
+            if token.type == tokenize.STRING and token.start[0] not in docstring_rows:
+                rows.update(range(token.start[0], token.end[0] + 1))
+                continue
             continue
         rows.update(range(token.start[0], token.end[0] + 1))
     return rows
@@ -111,7 +116,7 @@ def _token_signature(source: str) -> str:
 def _module_shape(source: str, path: str) -> _ModuleShape:
     docstring_rows = _docstring_rows(source, path)
     comment_rows = _comment_rows(source)
-    code_rows = _code_token_lines(source)
+    code_rows = _code_token_lines(source, docstring_rows)
     documentation_rows = docstring_rows | comment_rows
     return _ModuleShape(
         code_lines=len(code_rows),
