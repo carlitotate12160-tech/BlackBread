@@ -1,0 +1,27 @@
+# BlackBread — Windsurf / Cascade rules (pointer; the full rules live in the repo)
+
+Converse in Bahasa Indonesia; English for code, schemas, and IDE/agent prompts.
+
+Authority order: AGENTS.md -> ADR-FINAL-002.md §0 -> PRD.md -> .devin/rules/blackbread.md ->
+config/capability-registry.json -> GAP-REGISTER.md. Read live GitHub + ENGINEERING-STATE.md before
+acting; never work from chat memory. How-to lives in .devin/skills/blackbread-engineering/ (SKILL.md
++ references/). Lower authority may strengthen but never weaken higher; on any conflict, STOP and
+report — do not choose the easier rule.
+
+Run every implementation as the 12-stage delivery spine (SKILL.md, "Delivery lifecycle — the spine"):
+1 LIVE BASELINE  2 SLICE/DESIGN GATE  3 BOUNDED EXECUTION CONTRACT  4 TDD RED -> MINIMUM GREEN
+5 SELF-REVIEW COMPLETE DIFF  6 LOCAL HARD PREFLIGHT ALL GREEN  7 OPEN READY PR
+8 ONE EXACT-HEAD ADVERSARIAL REVIEW  9 ONE COHESIVE CORRECTION  10 FINAL CURRENT-HEAD SEAL
+11 (owner) SQUASH MERGE  12 VERIFY PROTECTED MAIN.
+Do not skip or reorder a stage. Opening a PR before local preflight is green is a task failure.
+
+One vertical slice per PR. Strict TDD (RED first). Deterministic code owns safety, scope, budgets,
+and gates; the LLM emits typed proposals only, never executes or gates. No placeholder code. Advisory
+bot findings are validated, not gated — only a reproduced, valid finding blocks; the binding
+PR-Agent/DeepSeek review is mandatory for safety-critical paths. If a fix touches more than two files,
+redesign the interface, do not patch. Documented != implemented != verified != released.
+
+When writing an implementation prompt, fill
+.devin/skills/blackbread-engineering/references/execution-prompt-template.md (file-map table,
+per-defect proof obligations, single STOP/SPLIT list). Verify Oracle ARM64 only (uv sync + make
+check); never bare pytest. Never emit the old Agent-Alpha idiom (PHASE:, §12.x, agent_alpha/ paths).

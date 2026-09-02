@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import NamedTuple
 from uuid import UUID
 
@@ -16,11 +17,16 @@ from blackbread.graph.state_root import (
 from blackbread.graph.temporal import (
     TEMPORAL_PROJECTOR_VERSION,
     TemporalLineage,
+    select_temporal_scope,
     validate_temporal_lineage,
 )
 from blackbread.graph.temporal_persistence import (
     TemporalSnapshot,
     load_temporal_snapshot,
+)
+from blackbread.graph.temporal_projection import (
+    TemporalProjection,
+    validate_temporal_projection,
 )
 from blackbread.ledger.catalog import SCOPE_CANONICALIZATION_VERSION
 
@@ -138,3 +144,33 @@ async def load_temporal_projection(
     if cold is None:
         return None
     return _reconstruct(cold)
+
+
+async def load_temporal_projection_as_of(
+    engine: AsyncEngine,
+    *,
+    tenant_id: str,
+    engagement_id: UUID,
+    as_of: datetime,
+) -> TemporalProjection | None:
+    cold = await load_temporal_projection(engine, tenant_id=tenant_id, engagement_id=engagement_id)
+    if cold is None:
+        return None
+
+    selection = select_temporal_scope(
+        cold.lineage.revisions,
+        as_of=as_of,
+        lineage_head_hash=cold.lineage.lineage_head_hash,
+    )
+
+    projection = TemporalProjection(
+        tenant_id=tenant_id,
+        engagement_id=engagement_id,
+        lineage=cold.lineage,
+        state_root=cold.state_root,
+        versions=cold.versions,
+        as_of=selection.as_of,
+        effective_attestation_event_hash=selection.effective_attestation_event_hash,
+        effective_nodes=selection.effective_nodes,
+    )
+    return validate_temporal_projection(projection)

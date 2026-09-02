@@ -227,34 +227,34 @@ dispositioned and resolved. A merge does not complete M1.3, M1/R0, `LEDGER-GAP-0
 * **Purpose:** migration `0006`, immutable revision-lineage and stable-membership persistence, and atomic temporal publication.
 * **Non-goals:** no cold-load reconstruction, no explicit `as_of` projection load, no NetworkX integration (deferred to b3b).
 
-### PR-M1.3b3b-1 (active)
+### PR-M1.3b3b-1 (released)
 
 * **ID:** PR-M1.3b3b-1
 * **Title:** Verified Temporal Cold Reconstruction + GRAPH-GAP-001 Closure
-* **State:** IMPLEMENTED
+* **State:** RELEASED
+* **Released at:** `05a4b84` / PR #48
 * **Prerequisite:** PR-M1.3b3a released at `7afa10f` / PR #45.
 * **Purpose:** verified cold reconstruction from durable PostgreSQL temporal rows (`load_temporal_projection`),
   state-root v2 recompute and fail-closed verification against stored snapshot, v1 scope-path guard reword
   confirming v2 provenance rejection, and `GRAPH-GAP-001` closure.
 * **Closure evidence:** real-PostgreSQL cold-rebuild proofs in `tests/graph/test_temporal_reconstruction.py`;
-  v2 temporal publish path proven working; v1 scope path confirmed rejecting v2 provenance.
+  v2 temporal publish path proven working; v1 scope path confirmed rejecting v2 provenance. `GRAPH-GAP-001` gap closed.
 * **Non-goals:** no explicit `as_of` durable projection load (b3b-2), no NetworkX cold-load integration (b3b-3).
 
-### PR-M1.3b3b-2 (planned)
+### PR-M1.3b3b-2+3 (active)
 
-* **ID:** PR-M1.3b3b-2
-* **Title:** Explicit `as_of` Durable Projection Load
-* **State:** PLANNED
-* **Prerequisite:** PR-M1.3b3b-1
-* **Purpose:** Extend `load_temporal_projection` to support explicit `as_of` temporal queries from durable state.
+* **ID:** PR-M1.3b3b-2+3
+* **Title:** Durable Point-in-Time (as_of) Projection Load + Effective NetworkX Cold-Load View
+* **State:** IMPLEMENTED
+* **Prerequisite:** PR-M1.3b3b-1 released at `05a4b84` / PR #48.
+* **Purpose:** Add an `as_of`-aware durable load over cold-reconstructed lineage (`load_temporal_projection_as_of`), and build the effective NetworkX view from it (`load_temporal_networkx_view_as_of`). Read-only; no schema; no publication change.
+* **Non-goals:** no schema change; no change to the durable write/publication path; no changes to authorization/Policy Kernel.
 
-### PR-M1.3b3b-3 (planned)
+### PR-M1.3b3b-3
 
 * **ID:** PR-M1.3b3b-3
 * **Title:** NetworkX Cold-Load Integration
-* **State:** PLANNED
-* **Prerequisite:** PR-M1.3b3b-2
-* **Purpose:** Wire cold-reconstructed temporal projections to NetworkX immutable views.
+* **State:** SUPERSEDED by PR-M1.3b3b-2+3
 
 ### M1.3b cross-cutting risks
 
