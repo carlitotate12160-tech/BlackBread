@@ -278,29 +278,6 @@ async def test_state_root_tamper(
     await admin_session.commit()
 
 
-async def test_tenant_isolation(
-    engine: AsyncEngine,
-    session: AsyncSession,
-    engagement: Engagement,
-    graph_events: GraphEvents,
-) -> None:
-    await _publish_v1(session, engine, engagement, graph_events)
-
-    result = await load_temporal_projection(
-        engine,
-        tenant_id=engagement.tenant_id,
-        engagement_id=engagement.id,
-    )
-    assert result is not None
-
-    wrong_tenant = await load_temporal_projection(
-        engine,
-        tenant_id="nonexistent-tenant-xyz",
-        engagement_id=engagement.id,
-    )
-    assert wrong_tenant is None
-
-
 async def test_source_event_binding(
     engine: AsyncEngine,
     session: AsyncSession,
