@@ -72,16 +72,24 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
         run: |
-          # Per ADR-FINAL-002 Amendment A-001: V4-Pro for safety-critical, V4-Flash otherwise.
-          # Default to V4-Flash (advisory) when label is absent — safe direction (under-spend).
-          LABELS=$(gh pr view "$PR_NUMBER" --json labels --jq '[.labels[].name] | join(",")' 2>/dev/null || echo "")
-          if echo "$LABELS" | grep -qi "safety-critical"; then
+          set -euo pipefail
+          CHANGED_FILES=$(gh pr diff "$PR_NUMBER" --name-only)
+          PATH_REQUIRES_BINDING=$(
+            printf '%s\n' "$CHANGED_FILES" |
+              PYTHONPATH=src python -c 'import sys; from blackbread.governance.safety_paths import paths_require_binding_review; print(str(paths_require_binding_review([line.rstrip("\n") for line in sys.stdin])).lower())'
+          )
+          HAS_LABEL=$(gh pr view "$PR_NUMBER" --json labels --jq '[.labels[].name == "safety-critical"] | any')
+          if [[ "$PATH_REQUIRES_BINDING" == "true" && "$HAS_LABEL" != "true" ]]; then
+            echo "::error::Safety-critical changed path requires the safety-critical label."
+            exit 1
+          fi
+          if [[ "$HAS_LABEL" == "true" ]]; then
             echo "model=deepseek/deepseek-v4-pro" >> "$GITHUB_OUTPUT"
-            echo "fallback=deepseek/deepseek-v4-flash" >> "$GITHUB_OUTPUT"
+            echo 'fallback_models=[]' >> "$GITHUB_OUTPUT"
             echo "Selected V4-Pro (binding, safety-critical label present)"
           else
             echo "model=deepseek/deepseek-v4-flash" >> "$GITHUB_OUTPUT"
-            echo "fallback=deepseek/deepseek-v4-pro" >> "$GITHUB_OUTPUT"
+            echo 'fallback_models=[]' >> "$GITHUB_OUTPUT"
             echo "Selected V4-Flash (advisory, no safety-critical label)"
           fi
 
@@ -92,7 +100,7 @@ jobs:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           DEEPSEEK_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           CONFIG__MODEL: ${{ steps.select_model.outputs.model }}
-          CONFIG__FALLBACK_MODELS: ${{ format('["{0}"]', steps.select_model.outputs.fallback) }}
+          CONFIG__FALLBACK_MODELS: ${{ steps.select_model.outputs.fallback_models }}
           GITHUB_ACTION_CONFIG__AUTO_REVIEW: "true"
           GITHUB_ACTION_CONFIG__AUTO_DESCRIBE: "false"
           GITHUB_ACTION_CONFIG__AUTO_IMPROVE: "false"

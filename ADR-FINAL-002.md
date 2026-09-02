@@ -911,3 +911,31 @@ This amendment is accepted by the repository owner on 2026-09-02. It amends
 the AI-review model selection in `.devin/rules/blackbread.md` line 82 and
 `BRANCH-PROTECTION.md` line 26. It does not weaken any hard invariant in
 Section 0 or the safety-critical binding review contract.
+
+---
+
+## 42. Amendment A-002 — Fail-Closed Binding-Review Classification (Accepted 2026-09-02)
+
+### Context
+
+Amendment A-001 used an owner-applied label as the sole model-selection input and treated a missing
+label as advisory. That collapsed an absent label and a failed label lookup into the same state and
+did not detect a safety-critical changed path whose label had been omitted. It also permitted an
+advisory model as the fallback for a binding review.
+
+### Decision
+
+The PR-Agent workflow derives safety-critical status from the canonical repository path classifier
+and retrieves the exact `safety-critical` label independently. A changed safety-critical path without
+the exact label fails the workflow before PR-Agent runs. Failure to retrieve either changed paths or
+labels also fails the workflow. An owner may label an otherwise non-critical PR to request the
+stricter model, but may not use label absence to weaken path-derived classification.
+
+Binding V4-Pro review has no advisory-model fallback. V4-Pro unavailability therefore remains an
+explicit binding-review failure rather than producing an apparently successful V4-Flash review.
+
+### Scope
+
+This amendment changes only review-tier classification and failure semantics. It does not make
+PR-Agent a required GitHub status check, change the required first-party checks, or alter any
+target-facing capability.

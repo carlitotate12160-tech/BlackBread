@@ -24,8 +24,9 @@ must enforce the following default path:
   activated.
 - **AI review:** PR-Agent (CodiumAI) is auto-triggered via `.github/workflows/pr-agent.yml` on
   non-draft PRs (opened, reopened, ready_for_review) using a DeepSeek API key. Per ADR-FINAL-002
-  Amendment A-001, PR-Agent uses a tiered model: `deepseek/deepseek-v4-pro` for PRs labeled
-  `safety-critical` (binding review), `deepseek/deepseek-v4-flash` for all other PRs (advisory).
+  Amendments A-001 and A-002, PR-Agent uses `deepseek/deepseek-v4-pro` when canonical changed-path
+  classification requires binding review and the exact `safety-critical` label is present; lookup or
+  label mismatches fail closed. Other PRs use `deepseek/deepseek-v4-flash` for advisory review.
   For **safety-critical** PRs, the current-head PR-Agent review is binding and must be complete
   with all actionable findings disposed before merge; the owner triggers it via `/review` comment
   at the final head. For **non-safety-critical** PRs, CodeRabbit is the primary advisory reviewer,
