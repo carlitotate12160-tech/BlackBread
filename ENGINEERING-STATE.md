@@ -8,7 +8,7 @@ and never overrides live GitHub, accepted architecture, delivery policy, tests, 
 * **State:** ACTIVE
 * **Current milestone:** M1 — Trust Spine
 * **Last verified:** 2026-09-02 UTC
-* **Current branch:** `m1-3b3b1-cold-reconstruction`
+* **Current branch:** `m1-3b3b-harden`
 * **Active ruleset:** `main-branch-protection` (`21644438`)
 * **Contractual gate:** the live ruleset matches the machine contract. Required status checks are
   `ci-ok` (aggregator for `quality`, `tests`, `security`, `governance`) and `GitGuardian Security
@@ -161,7 +161,7 @@ PR-M1.3b3 is ACTIVE.
   Lone-v1 publication remains unchanged; a v2 head fails closed before publication until b3 closes
   `GRAPH-GAP-001`.
 
-### M1.3b1 seal gate
+### PR-M1.3b1 seal gate
 
 PR-M1.3b1 may merge only when the v2 payload is fully registered, the supersession validator rejects
 all negative cases, the identity/revision split keeps `ScopeProjector` deterministic, v2 ledger replay
@@ -241,14 +241,24 @@ dispositioned and resolved. A merge does not complete M1.3, M1/R0, `LEDGER-GAP-0
   v2 temporal publish path proven working; v1 scope path confirmed rejecting v2 provenance. `GRAPH-GAP-001` gap closed.
 * **Non-goals:** no explicit `as_of` durable projection load (b3b-2), no NetworkX cold-load integration (b3b-3).
 
-### PR-M1.3b3b-2+3 (active)
+### PR-M1.3b3b-2+3 (released)
 
 * **ID:** PR-M1.3b3b-2+3
 * **Title:** Durable Point-in-Time (as_of) Projection Load + Effective NetworkX Cold-Load View
-* **State:** IMPLEMENTED
+* **State:** RELEASED
+* **Released at:** `ac86548` / PR #49
 * **Prerequisite:** PR-M1.3b3b-1 released at `05a4b84` / PR #48.
 * **Purpose:** Add an `as_of`-aware durable load over cold-reconstructed lineage (`load_temporal_projection_as_of`), and build the effective NetworkX view from it (`load_temporal_networkx_view_as_of`). Read-only; no schema; no publication change.
 * **Non-goals:** no schema change; no change to the durable write/publication path; no changes to authorization/Policy Kernel.
+
+### PR-M1.3b3b-HARDEN (active)
+
+* **ID:** PR-M1.3b3b-HARDEN
+* **Title:** Cold reconstruction integrity: verify stable-roots + real cross-tenant isolation
+* **State:** IMPLEMENTED
+* **Prerequisite:** PR-M1.3b3b-2+3 released at `ac86548` / PR #49.
+* **Purpose:** verify cold.roots against the lineage-derived stable-root identity set (F1); add tenant defense-in-depth assert (F4); prove real cross-tenant isolation (F3).
+* **Non-goals:** no schema change; no publication change; no valid-input behavior change.
 
 ### PR-M1.3b3b-3
 

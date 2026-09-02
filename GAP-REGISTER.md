@@ -260,3 +260,14 @@ has no live effect; it is retained only as rollback evidence:
     detection, tenant isolation, source-event binding, v2 temporal-path publication, and v1 scope-path
     rejection of v2 provenance.
 - **Verification:** `tests/graph/test_temporal_reconstruction.py` (real PostgreSQL).
+
+## GRAPH-GAP-002 — Cold-reconstruction integrity: stable-roots unverified
+
+- **Status:** CLOSED
+- **Severity:** P1 architecture
+- **Owner:** trust-spine
+- **Target milestone:** M1.3b3b-HARDEN
+- **Blocks:** none
+- **Closed at:** 2026-09-02
+- **Closure evidence:** Added F1 checks to verify `cold.roots` against the lineage-derived stable-root identity set. Added F4 defense-in-depth tenant assertion in `_reconstruct`. Proved via `test_stable_roots_tamper` and `test_real_cross_tenant_isolation`.
+- **Verification:** `tests/graph/test_temporal_reconstruction.py` (real PostgreSQL).

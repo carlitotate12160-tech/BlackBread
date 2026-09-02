@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import datetime
 from typing import NamedTuple
 from uuid import UUID
@@ -82,6 +83,18 @@ def _verify_head_membership(
         raise GraphProjectionError("reconstructed head membership does not match stored heads")
 
 
+def _verify_stable_roots(
+    lineage: TemporalLineage,
+    roots: Sequence[RowMapping],
+) -> None:
+    expected = {
+        (r.node_id, r.scope_kind, r.canonical_value) for g in lineage.groups for r in g.revisions
+    }
+    actual = {(r["node_id"], r["scope_kind"], r["canonical_value"]) for r in roots}
+    if actual != expected:
+        raise GraphProjectionError("reconstructed stable roots do not match lineage")
+
+
 class ColdReconstruction(NamedTuple):
     lineage: TemporalLineage
     state_root: str
@@ -92,8 +105,10 @@ class ColdReconstruction(NamedTuple):
     lineage_head_sequence: int
 
 
-def _reconstruct(cold: TemporalSnapshot) -> ColdReconstruction:
+def _reconstruct(cold: TemporalSnapshot, expected_tenant_id: str) -> ColdReconstruction:
     snap = cold.snapshot
+    if snap["tenant_id"] != expected_tenant_id:
+        raise GraphProjectionError("snapshot tenant_id does not match requested tenant_id")
     _verify_snapshot_versions(snap)
 
     revisions = tuple(_revision_from_row(row) for row in cold.revisions)
@@ -114,6 +129,7 @@ def _reconstruct(cold: TemporalSnapshot) -> ColdReconstruction:
     if recomputed != stored_root:
         raise GraphProjectionError("recomputed state-root v2 does not match stored snapshot")
 
+    _verify_stable_roots(lineage, cold.roots)
     _verify_head_membership(lineage, list(cold.heads))
 
     expected_sequence = lineage.groups[-1].source_sequence
@@ -143,7 +159,7 @@ async def load_temporal_projection(
     cold = await load_temporal_snapshot(engine, tenant_id=tenant_id, engagement_id=engagement_id)
     if cold is None:
         return None
-    return _reconstruct(cold)
+    return _reconstruct(cold, expected_tenant_id=tenant_id)
 
 
 async def load_temporal_projection_as_of(
