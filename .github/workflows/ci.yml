@@ -69,6 +69,8 @@ jobs:
       - run: uv run pip-audit
       - uses: ./.github/actions/install-gitleaks
       - run: ./gitleaks git --redact --no-banner --gitleaks-ignore-path .gitleaksignore
+      - name: Infrastructure-exposure leak scan
+        run: uv run python scripts/check_infra_leak.py
 
   governance:
     name: governance
