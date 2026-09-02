@@ -238,12 +238,14 @@ has no live effect; it is retained only as rollback evidence:
 
 ## GRAPH-GAP-001 — Attestation v2 head lacks a truthful durable projection schema
 
-- **Status:** OPEN
+- **Status:** CLOSED
 - **Severity:** P1 architecture
 - **Owner:** trust-spine
 - **Target milestone:** M1.3b3
 - **Blocks:** M1.3 completion, R0, and every target-facing release
-- **Proposed closure evidence (PR #48):**
+- **Closed at:** 2026-09-02
+- **Released at:** `05a4b84cc8a926354a5fdeead218e73ab5e39bad` / PR #48
+- **Closure evidence (released in PR #48):**
   - Migration `0006_m1_temporal_scope_graph` (PR #45 / b3a) added the temporal persistence schema
     with immutable revision-lineage, stable-root, and atomic publication tables, plus RLS tenant
     isolation and exact-provenance enforcement triggers.
@@ -260,6 +262,7 @@ has no live effect; it is retained only as rollback evidence:
     detection, tenant isolation, source-event binding, v2 temporal-path publication, and v1 scope-path
     rejection of v2 provenance.
 - **Verification:** `tests/graph/test_temporal_reconstruction.py` (real PostgreSQL).
+- **Compensating control:** N/A.
 
 ## GRAPH-GAP-002 — Cold-reconstruction integrity: stable-roots unverified
 
@@ -269,5 +272,5 @@ has no live effect; it is retained only as rollback evidence:
 - **Target milestone:** M1.3b3b-HARDEN
 - **Blocks:** none
 - **Closed at:** 2026-09-02
-- **Closure evidence:** Added F1 checks to verify `cold.roots` against the lineage-derived stable-root identity set. Added F4 defense-in-depth tenant assertion in `_reconstruct`. Proved via `test_stable_roots_tamper` and `test_real_cross_tenant_isolation`.
-- **Verification:** `tests/graph/test_temporal_reconstruction.py` (real PostgreSQL).
+- **Closure evidence:** Added F1 checks to verify `cold.roots` against the lineage-derived stable-root identity set. Added F4 defense-in-depth tenant assertion in `_reconstruct`. Proved via the extra, missing, and altered stable-root tamper tests plus `test_real_cross_tenant_isolation`.
+- **Verification:** `tests/graph/test_temporal_reconstruction_integrity.py` (real PostgreSQL).

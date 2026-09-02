@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import uuid
+from unittest.mock import AsyncMock
 
 import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from blackbread.graph.domain import GraphProjectionError
+from blackbread.graph.temporal_persistence import load_temporal_snapshot
 from blackbread.graph.temporal_reconstruction import load_temporal_projection
 from blackbread.models.core import Engagement
 from blackbread.tenancy import TenantContext, bind_tenant_context
@@ -119,6 +121,37 @@ async def test_real_cross_tenant_isolation(  # noqa: PLR0913, PLR0917
     assert a_loads_b is None
 
 
+async def test_snapshot_tenant_must_match_requested_tenant(
+    engine: AsyncEngine,
+    session: AsyncSession,
+    engagement: Engagement,
+    graph_events: GraphEvents,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _publish_v1(session, engine, engagement, graph_events)
+    snapshot = await load_temporal_snapshot(
+        engine,
+        tenant_id=engagement.tenant_id,
+        engagement_id=engagement.id,
+    )
+    assert snapshot is not None
+
+    monkeypatch.setattr(
+        "blackbread.graph.temporal_reconstruction.load_temporal_snapshot",
+        AsyncMock(return_value=snapshot),
+    )
+
+    with pytest.raises(
+        GraphProjectionError,
+        match="snapshot tenant_id does not match requested tenant_id",
+    ):
+        await load_temporal_projection(
+            engine,
+            tenant_id="tenant-b-forged-snapshot",
+            engagement_id=engagement.id,
+        )
+
+
 async def test_stable_roots_extra_root_tamper(
     engine: AsyncEngine,
     session: AsyncSession,
@@ -155,30 +188,30 @@ async def test_stable_roots_extra_root_tamper(
     )
     await admin_session.commit()
 
-    with pytest.raises(
-        GraphProjectionError,
-        match="reconstructed stable roots do not match lineage",
-    ):
-        await load_temporal_projection(
-            engine,
-            tenant_id=engagement.tenant_id,
-            engagement_id=engagement.id,
+    try:
+        with pytest.raises(
+            GraphProjectionError,
+            match="reconstructed stable roots do not match lineage",
+        ):
+            await load_temporal_projection(
+                engine,
+                tenant_id=engagement.tenant_id,
+                engagement_id=engagement.id,
+            )
+    finally:
+        await admin_session.execute(
+            text(
+                "DELETE FROM graph_temporal_scope_roots "
+                "WHERE tenant_id = :tid AND engagement_id = :eid "
+                "AND node_id = :nid AND canonical_value = 'tampered.example'"
+            ),
+            {
+                "tid": engagement.tenant_id,
+                "eid": engagement.id,
+                "nid": fake_node_id,
+            },
         )
-
-    # Remove the fake root to restore integrity
-    await admin_session.execute(
-        text(
-            "DELETE FROM graph_temporal_scope_roots "
-            "WHERE tenant_id = :tid AND engagement_id = :eid "
-            "AND node_id = :nid AND canonical_value = 'tampered.example'"
-        ),
-        {
-            "tid": engagement.tenant_id,
-            "eid": engagement.id,
-            "nid": fake_node_id,
-        },
-    )
-    await admin_session.commit()
+        await admin_session.commit()
 
     # Reconstruct again should succeed
     restored = await load_temporal_projection(
@@ -235,29 +268,29 @@ async def test_stable_roots_missing_root_tamper(
     await admin_session.execute(text("ALTER TABLE graph_temporal_scope_roots ENABLE TRIGGER ALL"))
     await admin_session.commit()
 
-    with pytest.raises(
-        GraphProjectionError,
-        match="reconstructed stable roots do not match lineage",
-    ):
-        await load_temporal_projection(
-            engine, tenant_id=engagement.tenant_id, engagement_id=engagement.id
+    try:
+        with pytest.raises(
+            GraphProjectionError,
+            match="reconstructed stable roots do not match lineage",
+        ):
+            await load_temporal_projection(
+                engine, tenant_id=engagement.tenant_id, engagement_id=engagement.id
+            )
+    finally:
+        await admin_session.execute(
+            text(
+                "INSERT INTO graph_temporal_scope_roots "
+                "(tenant_id, engagement_id, node_id, node_family, scope_kind, canonical_value) "
+                "VALUES (:tid, :eid, :nid, :nf, :sk, :cv)"
+            ),
+            {
+                **key,
+                "nf": saved["node_family"],
+                "sk": saved["scope_kind"],
+                "cv": saved["canonical_value"],
+            },
         )
-
-    # Restore the deleted root; reconstruction succeeds again.
-    await admin_session.execute(
-        text(
-            "INSERT INTO graph_temporal_scope_roots "
-            "(tenant_id, engagement_id, node_id, node_family, scope_kind, canonical_value) "
-            "VALUES (:tid, :eid, :nid, :nf, :sk, :cv)"
-        ),
-        {
-            **key,
-            "nf": saved["node_family"],
-            "sk": saved["scope_kind"],
-            "cv": saved["canonical_value"],
-        },
-    )
-    await admin_session.commit()
+        await admin_session.commit()
 
     restored = await load_temporal_projection(
         engine, tenant_id=engagement.tenant_id, engagement_id=engagement.id
@@ -306,25 +339,29 @@ async def test_stable_roots_altered_root_tamper(
     await admin_session.execute(text("ALTER TABLE graph_temporal_scope_roots ENABLE TRIGGER ALL"))
     await admin_session.commit()
 
-    with pytest.raises(
-        GraphProjectionError,
-        match="reconstructed stable roots do not match lineage",
-    ):
-        await load_temporal_projection(
-            engine, tenant_id=engagement.tenant_id, engagement_id=engagement.id
+    try:
+        with pytest.raises(
+            GraphProjectionError,
+            match="reconstructed stable roots do not match lineage",
+        ):
+            await load_temporal_projection(
+                engine, tenant_id=engagement.tenant_id, engagement_id=engagement.id
+            )
+    finally:
+        await admin_session.execute(
+            text("ALTER TABLE graph_temporal_scope_roots DISABLE TRIGGER ALL")
         )
-
-    # Restore the original canonical_value; reconstruction succeeds again.
-    await admin_session.execute(text("ALTER TABLE graph_temporal_scope_roots DISABLE TRIGGER ALL"))
-    await admin_session.execute(
-        text(
-            "UPDATE graph_temporal_scope_roots SET canonical_value = :cv "
-            "WHERE tenant_id = :tid AND engagement_id = :eid AND node_id = :nid"
-        ),
-        {**key, "cv": original_value},
-    )
-    await admin_session.execute(text("ALTER TABLE graph_temporal_scope_roots ENABLE TRIGGER ALL"))
-    await admin_session.commit()
+        await admin_session.execute(
+            text(
+                "UPDATE graph_temporal_scope_roots SET canonical_value = :cv "
+                "WHERE tenant_id = :tid AND engagement_id = :eid AND node_id = :nid"
+            ),
+            {**key, "cv": original_value},
+        )
+        await admin_session.execute(
+            text("ALTER TABLE graph_temporal_scope_roots ENABLE TRIGGER ALL")
+        )
+        await admin_session.commit()
 
     restored = await load_temporal_projection(
         engine, tenant_id=engagement.tenant_id, engagement_id=engagement.id
