@@ -21,6 +21,27 @@ Uploaded project files and prior conversation are continuity aids, not live impl
 
 If live state and repository documents disagree, reconstruct the drift and report it before editing. Do not silently choose the easier source.
 
+## Delivery lifecycle — the spine
+
+Every implementation slice runs this ordered lifecycle. Do not skip or reorder a stage; opening a PR
+before local preflight is green is a task failure. Each stage owns no rule here — follow the named
+reference:
+
+1. LIVE BASELINE — verify live GitHub, read the checkpoint for drift only (see *Establish current truth* above; `references/architecture-planning.md`).
+2. SLICE / DESIGN GATE — one `ACCEPT` / `ACCEPT WITH CHANGES` / `REJECT` with evidence; derive the smallest sealable slice (`references/architecture-planning.md`).
+3. BOUNDED EXECUTION CONTRACT — allowed/forbidden files, proof obligations, budget, STOP/SPLIT (`references/execution-contract.md` §1; fill `references/execution-prompt-template.md`).
+4. TDD: RED -> MINIMUM GREEN — a test failing for the intended reason first, then the minimum coherent change (`references/implementation-delivery.md`).
+5. SELF-REVIEW COMPLETE DIFF — inspect the whole diff for scope expansion, control weakening, and false status claims (`references/implementation-delivery.md`).
+6. LOCAL HARD PREFLIGHT ALL GREEN — focused + affected + real-PostgreSQL suites, `make check`, size/coverage/diff budgets, live state still matches the slice (`references/execution-contract.md` §2).
+7. OPEN READY PR — feature branch, conventional commit, normal push, no force-push (`.github/agent-delivery.json`; `references/implementation-delivery.md`).
+8. ONE EXACT-HEAD ADVERSARIAL REVIEW — trigger once at the exact head; advisory findings are validated, not gated; the binding PR-Agent/DeepSeek review is mandatory for safety-critical paths (`references/adversarial-review.md`; `references/execution-contract.md` §3).
+9. ONE COHESIVE CORRECTION — at most one correction cycle, all evidence rebound to the new exact head (`references/execution-contract.md` §3).
+10. FINAL CURRENT-HEAD SEAL — `MERGEABLE` or `NOT MERGEABLE` with every claim bound to the exact head (`references/adversarial-review.md`).
+11. SQUASH MERGE — owner-only, squash method (`.github/agent-delivery.json`); the agent hands off at the seal and never merges.
+12. VERIFY PROTECTED MAIN — confirm `main` advanced and sync the deployment target (`AGENTS.md`; `DEPLOYMENT-STATE.md`).
+
+Stages 1-10 are the implementation owner's; 11-12 belong to the repository owner and automation.
+
 ## Select the operating mode
 
 Read [references/execution-contract.md](references/execution-contract.md) before

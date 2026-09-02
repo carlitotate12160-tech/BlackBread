@@ -243,16 +243,20 @@ has no live effect; it is retained only as rollback evidence:
 - **Owner:** trust-spine
 - **Target milestone:** M1.3b3
 - **Blocks:** M1.3 completion, R0, and every target-facing release
-- **Current evidence:** migration `0005_m1_scope_graph` constrains `graph_nodes` source provenance to
-  `engagement.attested` v1. A v2 replacement head cannot be stored truthfully without a new temporal
-  lineage schema; substituting v1 provenance would violate the source-event FK and exact-payload
-  trigger. The owner selected a domain-only M1.3b1 amendment after this conflict was verified.
-- **Required closure:** M1.3b3 adds the accepted temporal persistence migration, persists immutable
-  revision lineage and stable membership separately from the materialized head, and enables atomic
-  v2-head publication without weakening exact source provenance.
-- **Verification:** a real PostgreSQL cold-rebuild test must prove v1 and v2 publication, retained,
-  removed, and added revision durability, state-root v2 recomputation, tenant isolation, and exact
-  source-event binding.
-- **Compensating control:** v2 events are durably admitted to the ledger and domain replay is
-  deterministic, but `rebuild_scope_projection()` fails closed before publication when the effective
-  head is v2. Lone-v1 publication remains unchanged.
+- **Proposed closure evidence (PR #48):**
+  - Migration `0006_m1_temporal_scope_graph` (PR #45 / b3a) added the temporal persistence schema
+    with immutable revision-lineage, stable-root, and atomic publication tables, plus RLS tenant
+    isolation and exact-provenance enforcement triggers.
+  - `rebuild_and_publish_temporal_projection()` (b3a) persists v2-head publications durably through
+    the temporal path without weakening exact source-event provenance.
+  - `load_temporal_projection()` (b3b-1) performs a verified cold reconstruction from durable
+    PostgreSQL rows: reassembles `TemporalLineage`, recomputes state-root v2, and verifies it equals
+    the stored snapshot — fail-closed on any mismatch (tampered state-root, altered/missing/injected
+    revision, or head membership mismatch).
+  - The v1 scope path (`rebuild_scope_projection`) correctly rejects v2 provenance with a permanent
+    routing message; v2 heads publish exclusively through the durable temporal path.
+  - Real-PostgreSQL cold-rebuild proofs in `tests/graph/test_temporal_reconstruction.py` verify: v1
+    cold-rebuild, v2 cold-rebuild, revision durability with tamper detection, state-root tamper
+    detection, tenant isolation, source-event binding, v2 temporal-path publication, and v1 scope-path
+    rejection of v2 provenance.
+- **Verification:** `tests/graph/test_temporal_reconstruction.py` (real PostgreSQL).
