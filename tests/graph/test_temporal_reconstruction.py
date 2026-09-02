@@ -26,6 +26,7 @@ from blackbread.ledger.catalog import (
 )
 from blackbread.ledger.event import AgentEvent
 from blackbread.models.core import Engagement
+from tests.graph.conftest import _seed_engagement
 
 FIXED_TIME = datetime(2026, 8, 30, 12, tzinfo=UTC)
 
@@ -279,8 +280,9 @@ async def test_state_root_tamper(
     await admin_session.commit()
 
 
-async def test_real_cross_tenant_isolation(
+async def test_real_cross_tenant_isolation(  # noqa: PLR0913, PLR0917
     engine: AsyncEngine,
+    admin_engine: AsyncEngine,
     session: AsyncSession,
     admin_session: AsyncSession,
     engagement: Engagement,
@@ -292,17 +294,7 @@ async def test_real_cross_tenant_isolation(
     tenant_b = "tenant-b-real"
     eng_b_id = uuid.uuid4()
 
-    dummy_hash = "a" * 64
-    client_b_id = uuid.uuid4()
-
-    await admin_session.execute(
-        text(
-            "INSERT INTO engagements (id, client_id, tenant_id, "
-            "ledger_event_count, ledger_head_hash) "
-            "VALUES (:eid, :cid, :tid, 0, 'dummy')"
-        ),
-        {"eid": eng_b_id, "cid": client_b_id, "tid": tenant_b},
-    )
+    await _seed_engagement(admin_engine, tenant_b, eng_b_id)
 
     # We must insert into graph_temporal_projection_snapshots directly to prove isolation
     await admin_session.execute(
@@ -314,7 +306,7 @@ async def test_real_cross_tenant_isolation(
             "lineage_head_hash, lineage_head_sequence) "
             "VALUES (:tid, :eid, 1, :hash, 'sha256', 1, 2, 2, 1, :hash, :hash, 1)"
         ),
-        {"tid": tenant_b, "eid": eng_b_id, "hash": dummy_hash},
+        {"tid": tenant_b, "eid": eng_b_id, "hash": "a" * 64},
     )
     await admin_session.commit()
 
