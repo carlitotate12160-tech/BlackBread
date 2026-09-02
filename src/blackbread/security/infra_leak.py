@@ -78,6 +78,12 @@ SSH_ALIAS_ALLOWLIST = frozenset(
     }
 )
 
+SELF_EXCLUSION_PREFIXES = (
+    "src/blackbread/security/",
+    "tests/test_infra_leak.py",
+    "scripts/check_infra_leak.py",
+)
+
 
 @dataclass(frozen=True)
 class InfraLeakViolation:
@@ -175,6 +181,8 @@ def scan_repository(
     tracked = _list_tracked_files(root)
     violations: list[InfraLeakViolation] = []
     for rel in tracked:
+        if any(rel.startswith(prefix) for prefix in SELF_EXCLUSION_PREFIXES):
+            continue
         path = root / rel
         if not path.is_file():
             continue
