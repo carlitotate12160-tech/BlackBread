@@ -100,14 +100,17 @@ def _code_token_lines(source: str, docstring_rows: set[int]) -> set[int]:
     return rows
 
 
-def _token_signature(source: str) -> str:
+def _token_signature(source: str, path: str) -> str:
     parts: list[str] = []
     try:
+        docstring_rows = _docstring_rows(source, path)
         tokens = tokenize.tokenize(io.BytesIO(source.encode()).readline)
     except (tokenize.TokenError, SyntaxError):
         return ""
     for token in tokens:
         if token.type in _IGNORED_CODE_TOKENS:
+            if token.type == tokenize.STRING and token.start[0] not in docstring_rows:
+                parts.append(token.string)
             continue
         parts.append(token.string)
     return " ".join(parts)
@@ -129,7 +132,7 @@ def _stripping_violation(path: str, base: str, head: str) -> str | None:
     after = _module_shape(head, path)
     lost = before.documentation_lines - after.documentation_lines
     ratio_floor = before.documentation_lines * DOCUMENTATION_LOSS_MIN_RATIO
-    if lost <= DOCUMENTATION_LOSS_MIN_LINES and lost <= ratio_floor:
+    if lost <= DOCUMENTATION_LOSS_MIN_LINES or lost <= ratio_floor:
         return None
     code_lost = before.code_lines - after.code_lines
     if code_lost > 0 and code_lost >= lost * _CODE_SHRINK_TO_DOC_LOSS_MIN_RATIO:
@@ -160,8 +163,8 @@ def _find_renames(
     if not base_only or not head_only:
         return {}
 
-    base_sigs = {p: _token_signature(base_files[p]) for p in base_only}
-    head_sigs = {p: _token_signature(head_files[p]) for p in head_only}
+    base_sigs = {p: _token_signature(base_files[p], p) for p in base_only}
+    head_sigs = {p: _token_signature(head_files[p], p) for p in head_only}
 
     candidates: list[tuple[float, str, str]] = []
     for head_path, head_sig in head_sigs.items():
