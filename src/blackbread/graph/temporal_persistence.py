@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import cast
 from uuid import UUID
 
@@ -271,3 +272,35 @@ async def _publish_temporal_publication(
         await connection.execute(_DEFER_HEAD_FK)
         store = _TemporalStore(connection, publication.tenant_id, publication.engagement_id)
         return await store.publish(publication)
+
+
+@dataclass(frozen=True, slots=True)
+class TemporalSnapshot:
+    snapshot: RowMapping
+    roots: Sequence[RowMapping]
+    revisions: Sequence[RowMapping]
+    heads: Sequence[RowMapping]
+
+
+async def load_temporal_snapshot(
+    engine: AsyncEngine,
+    *,
+    tenant_id: str,
+    engagement_id: UUID,
+) -> TemporalSnapshot | None:
+    async with engine.connect() as acquired:
+        connection = await acquired.execution_options(isolation_level="REPEATABLE READ")
+        async with connection.begin():
+            await connection.execute(text("SET TRANSACTION READ ONLY"))
+            await bind_tenant_context(connection, TenantContext(tenant_id))
+            key: dict[str, object] = {
+                "tenant_id": tenant_id,
+                "engagement_id": engagement_id,
+            }
+            snap = (await connection.execute(_SELECT_SNAPSHOT, key)).mappings().one_or_none()
+            if snap is None:
+                return None
+            roots = (await connection.execute(_SELECT_ROOTS, key)).mappings().all()
+            revisions = (await connection.execute(_SELECT_REVISIONS, key)).mappings().all()
+            heads = (await connection.execute(_SELECT_HEADS, key)).mappings().all()
+            return TemporalSnapshot(snap, roots, revisions, heads)

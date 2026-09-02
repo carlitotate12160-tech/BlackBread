@@ -7,8 +7,8 @@ and never overrides live GitHub, accepted architecture, delivery policy, tests, 
 
 * **State:** ACTIVE
 * **Current milestone:** M1 — Trust Spine
-* **Last verified:** 2026-09-01 UTC
-* **Current branch:** `m1-3b3a-durable-temporal-publication`
+* **Last verified:** 2026-09-02 UTC
+* **Current branch:** `m1-3b3b1-cold-reconstruction`
 * **Active ruleset:** `main-branch-protection` (`21644438`)
 * **Contractual gate:** the live ruleset matches the machine contract. Required status checks are
   `ci-ok` (aggregator for `quality`, `tests`, `security`, `governance`) and `GitGuardian Security
@@ -217,22 +217,44 @@ dispositioned and resolved. A merge does not complete M1.3, M1/R0, `LEDGER-GAP-0
   graph/ledger suites green; all repository gates and budgets green; binding current-head
   PR-Agent/DeepSeek review complete with all findings dispositioned.
 
-### PR-M1.3b3a (active)
+### PR-M1.3b3a (released)
 
 * **ID:** PR-M1.3b3a
 * **Title:** Durable Temporal Publication
-* **State:** IMPLEMENTED (Awaiting PR/Merge)
+* **State:** RELEASED
+* **Released at:** `7afa10f` / PR #45
 * **Prerequisite:** PR-M1.3b2b released at `f721f72` / PR #43.
 * **Purpose:** migration `0006`, immutable revision-lineage and stable-membership persistence, and atomic temporal publication.
 * **Non-goals:** no cold-load reconstruction, no explicit `as_of` projection load, no NetworkX integration (deferred to b3b).
 
-### PR-M1.3b3b (planned)
+### PR-M1.3b3b-1 (active)
 
-* **ID:** PR-M1.3b3b
-* **Title:** Verified Temporal Reconstruction
+* **ID:** PR-M1.3b3b-1
+* **Title:** Verified Temporal Cold Reconstruction + GRAPH-GAP-001 Closure
+* **State:** IMPLEMENTED
+* **Prerequisite:** PR-M1.3b3a released at `7afa10f` / PR #45.
+* **Purpose:** verified cold reconstruction from durable PostgreSQL temporal rows (`load_temporal_projection`),
+  state-root v2 recompute and fail-closed verification against stored snapshot, v1 scope-path guard reword
+  confirming v2 provenance rejection, and `GRAPH-GAP-001` closure.
+* **Closure evidence:** real-PostgreSQL cold-rebuild proofs in `tests/graph/test_temporal_reconstruction.py`;
+  v2 temporal publish path proven working; v1 scope path confirmed rejecting v2 provenance.
+* **Non-goals:** no explicit `as_of` durable projection load (b3b-2), no NetworkX cold-load integration (b3b-3).
+
+### PR-M1.3b3b-2 (planned)
+
+* **ID:** PR-M1.3b3b-2
+* **Title:** Explicit `as_of` Durable Projection Load
 * **State:** PLANNED
-* **Prerequisite:** PR-M1.3b3a
-* **Purpose:** Verified cold reconstruction, explicit `as_of` projection load, and `GRAPH-GAP-001` closure.
+* **Prerequisite:** PR-M1.3b3b-1
+* **Purpose:** Extend `load_temporal_projection` to support explicit `as_of` temporal queries from durable state.
+
+### PR-M1.3b3b-3 (planned)
+
+* **ID:** PR-M1.3b3b-3
+* **Title:** NetworkX Cold-Load Integration
+* **State:** PLANNED
+* **Prerequisite:** PR-M1.3b3b-2
+* **Purpose:** Wire cold-reconstructed temporal projections to NetworkX immutable views.
 
 ### M1.3b cross-cutting risks
 
@@ -243,7 +265,8 @@ dispositioned and resolved. A merge does not complete M1.3, M1/R0, `LEDGER-GAP-0
 * **B1:** CLOSED for v2; the v2 state-root canonical preimage binds
   `scope_canonicalization_version`, and v1 rejects v2 provenance. The v1 known-answer vector and
   preimage remain unchanged.
-* **GRAPH-GAP-001:** OPEN for b3; migration `0005` remains v1-only and unchanged.
+* **GRAPH-GAP-001:** CLOSED for b3b-1; the durable temporal path publishes v2 heads, cold-rebuild
+  proofs verify state-root v2 recomputation, and the v1 scope path correctly rejects v2 provenance.
 * **LEDGER-GAP-001:** OPEN; M1/R0 and target-facing execution remain blocked.
 * **Total-consumer invariant:** unknown graph event schema/version still fails complete replay closed.
 
@@ -252,13 +275,14 @@ dispositioned and resolved. A merge does not complete M1.3, M1/R0, `LEDGER-GAP-0
 The following remain OPEN unless live closure evidence proves otherwise:
 
 * LEDGER-GAP-001 (R0 trust-spine integration remains incomplete)
-* GRAPH-GAP-001 (v2 head publication awaits the b3 temporal persistence schema)
 
 ## Closed blockers
 
 * GOV-GAP-001 (live ruleset conformance verified against the machine contract on 2026-08-31 —
   `ci-ok` and `GitGuardian Security Checks` are required in `main-branch-protection`, plus the
   documented solo-developer pull-request controls; see GAP-REGISTER.md for the captured snapshot).
+* GRAPH-GAP-001 (closed 2026-09-02; durable temporal publication + cold-rebuild proofs + v1 guard
+  reword; see GAP-REGISTER.md for full closure evidence).
 
 Former GOV-GAP-002 through GOV-GAP-005 are CLOSED (WITHDRAWN) with the AI-review gate removal; see
 GAP-REGISTER.md. No session may infer closure from this work-state document.

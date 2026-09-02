@@ -469,7 +469,7 @@ async def test_existing_v2_head_publication_remains_blocked(
 ) -> None:
     await _append_history(session, engagement, graph_events)
 
-    with pytest.raises(GraphProjectionError, match="GRAPH-GAP-001"):
+    with pytest.raises(GraphProjectionError, match="v1 scope path does not accept v2 provenance"):
         await rebuild_scope_projection(
             engine, tenant_id=engagement.tenant_id, engagement_id=engagement.id
         )
