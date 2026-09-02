@@ -928,8 +928,8 @@ advisory model as the fallback for a binding review.
 The PR-Agent workflow derives safety-critical status from the canonical repository path classifier
 and retrieves the exact `safety-critical` label independently. A changed safety-critical path without
 the exact label fails the workflow before PR-Agent runs. Failure to retrieve either changed paths or
-labels also fails the workflow. An owner may label an otherwise non-critical PR to request the
-stricter model, but may not use label absence to weaken path-derived classification.
+labels also fails the workflow. Path classification and the label must agree in both directions;
+neither label presence nor label absence can override the canonical classifier.
 
 Binding V4-Pro review has no advisory-model fallback. V4-Pro unavailability therefore remains an
 explicit binding-review failure rather than producing an apparently successful V4-Flash review.

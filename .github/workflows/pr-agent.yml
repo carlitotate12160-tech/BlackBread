@@ -79,8 +79,8 @@ jobs:
               PYTHONPATH=src python -c 'import sys; from blackbread.governance.safety_paths import paths_require_binding_review; print(str(paths_require_binding_review([line.rstrip("\n") for line in sys.stdin])).lower())'
           )
           HAS_LABEL=$(gh pr view "$PR_NUMBER" --json labels --jq '[.labels[].name == "safety-critical"] | any')
-          if [[ "$PATH_REQUIRES_BINDING" == "true" && "$HAS_LABEL" != "true" ]]; then
-            echo "::error::Safety-critical changed path requires the safety-critical label."
+          if [[ "$PATH_REQUIRES_BINDING" != "$HAS_LABEL" ]]; then
+            echo "::error::Changed-path classification and safety-critical label must agree."
             exit 1
           fi
           if [[ "$HAS_LABEL" == "true" ]]; then

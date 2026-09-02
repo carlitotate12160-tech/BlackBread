@@ -36,6 +36,8 @@ def _is_safety_critical_path(path: str) -> bool:
         if part.endswith((".json", ".py")):
             if path == part:
                 return True
-        elif path.startswith(part):
+        elif (part.endswith("/") and path.startswith(part)) or (
+            path in (part, f"{part}.py") or path.startswith(f"{part}/")
+        ):
             return True
     return False
