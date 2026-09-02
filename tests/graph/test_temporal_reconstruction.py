@@ -292,6 +292,8 @@ async def test_real_cross_tenant_isolation(
     tenant_b = "tenant-b-real"
     eng_b_id = uuid.uuid4()
 
+    dummy_hash = "a" * 64
+
     # We must insert into graph_temporal_projection_snapshots directly to prove isolation
     await admin_session.execute(
         text(
@@ -300,9 +302,9 @@ async def test_real_cross_tenant_isolation(
             "ledger_hash_algorithm, ledger_hash_version, temporal_projector_version, "
             "state_root_version, scope_canonicalization_version, state_root, "
             "lineage_head_hash, lineage_head_sequence) "
-            "VALUES (:tid, :eid, 1, 'dummy', 'sha256', 1, 2, 2, 1, 'rootb', 'lineageb', 1)"
+            "VALUES (:tid, :eid, 1, :hash, 'sha256', 1, 2, 2, 1, :hash, :hash, 1)"
         ),
-        {"tid": tenant_b, "eid": eng_b_id},
+        {"tid": tenant_b, "eid": eng_b_id, "hash": dummy_hash},
     )
     await admin_session.commit()
 
@@ -434,17 +436,18 @@ async def test_stable_roots_tamper(
 
     victim_rev = result.lineage.revisions[0]
 
-    # Delete one root
+    # Insert an extra fake root to simulate a tamper
     await admin_session.execute(
         text(
-            "DELETE FROM graph_temporal_scope_roots "
-            "WHERE tenant_id = :tid AND engagement_id = :eid "
-            "AND node_id = :nid"
+            "INSERT INTO graph_temporal_scope_roots (tenant_id, engagement_id, node_id, "
+            "node_family, scope_kind, canonical_value) "
+            "VALUES (:tid, :eid, :nid, 'ScopeRoot', :skind, 'tampered-value')"
         ),
         {
             "tid": engagement.tenant_id,
             "eid": engagement.id,
             "nid": victim_rev.node_id,
+            "skind": victim_rev.scope_kind,
         },
     )
     await admin_session.commit()
@@ -459,19 +462,17 @@ async def test_stable_roots_tamper(
             engagement_id=engagement.id,
         )
 
-    # Restore root
+    # Remove the fake root to restore integrity
     await admin_session.execute(
         text(
-            "INSERT INTO graph_temporal_scope_roots (tenant_id, engagement_id, node_id, "
-            "node_family, scope_kind, canonical_value) "
-            "VALUES (:tid, :eid, :nid, 'ScopeRoot', :skind, :cval)"
+            "DELETE FROM graph_temporal_scope_roots "
+            "WHERE tenant_id = :tid AND engagement_id = :eid "
+            "AND node_id = :nid AND canonical_value = 'tampered-value'"
         ),
         {
             "tid": engagement.tenant_id,
             "eid": engagement.id,
             "nid": victim_rev.node_id,
-            "skind": victim_rev.scope_kind,
-            "cval": victim_rev.canonical_value,
         },
     )
     await admin_session.commit()
