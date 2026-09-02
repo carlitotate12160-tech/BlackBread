@@ -70,7 +70,10 @@ async def test_as_of_canonical_boundary(
 
     with pytest.raises(GraphProjectionError, match="canonically normalizable timezone-aware time"):
         await load_temporal_projection_as_of(
-            engine, tenant_id=engagement.tenant_id, engagement_id=engagement.id, as_of=datetime.now()
+            engine,
+            tenant_id=engagement.tenant_id,
+            engagement_id=engagement.id,
+            as_of=datetime.now(),
         )
 
 
