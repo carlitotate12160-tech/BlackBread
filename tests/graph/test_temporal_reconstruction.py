@@ -293,13 +293,15 @@ async def test_real_cross_tenant_isolation(
     eng_b_id = uuid.uuid4()
 
     dummy_hash = "a" * 64
+    client_b_id = uuid.uuid4()
 
     await admin_session.execute(
         text(
-            "INSERT INTO engagements (id, tenant_id, ledger_event_count, ledger_head_hash) "
-            "VALUES (:eid, :tid, 0, 'dummy')"
+            "INSERT INTO engagements (id, client_id, tenant_id, "
+            "ledger_event_count, ledger_head_hash) "
+            "VALUES (:eid, :cid, :tid, 0, 'dummy')"
         ),
-        {"eid": eng_b_id, "tid": tenant_b},
+        {"eid": eng_b_id, "cid": client_b_id, "tid": tenant_b},
     )
 
     # We must insert into graph_temporal_projection_snapshots directly to prove isolation
@@ -443,6 +445,7 @@ async def test_stable_roots_tamper(
     assert len(result.lineage.revisions) > 0
 
     victim_rev = result.lineage.revisions[0]
+    fake_node_id = "f" * 64
 
     # Insert an extra fake root to simulate a tamper
     await admin_session.execute(
@@ -454,7 +457,7 @@ async def test_stable_roots_tamper(
         {
             "tid": engagement.tenant_id,
             "eid": engagement.id,
-            "nid": victim_rev.node_id,
+            "nid": fake_node_id,
             "skind": victim_rev.scope_kind,
         },
     )
@@ -480,7 +483,7 @@ async def test_stable_roots_tamper(
         {
             "tid": engagement.tenant_id,
             "eid": engagement.id,
-            "nid": victim_rev.node_id,
+            "nid": fake_node_id,
         },
     )
     await admin_session.commit()
