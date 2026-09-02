@@ -12,7 +12,6 @@ from blackbread.graph.domain import GraphProjectionError, scope_root_id
 from blackbread.graph.replay import rebuild_scope_projection
 from blackbread.graph.temporal_persistence import load_temporal_snapshot
 from blackbread.graph.temporal_reconstruction import (
-    ColdReconstruction,
     load_temporal_projection,
 )
 from blackbread.graph.temporal_replay import (
@@ -22,7 +21,6 @@ from blackbread.ledger import EventPayload
 from blackbread.ledger.catalog import (
     EngagementAttested,
     EngagementAttestedV2,
-    EngagementMode,
     EngagementScope,
 )
 from blackbread.ledger.event import AgentEvent
@@ -178,13 +176,13 @@ async def test_revision_durability(
             "UPDATE graph_temporal_scope_revisions "
             "SET manifest_hash = :bad "
             "WHERE tenant_id = :tid AND engagement_id = :eid "
-            "AND revision_id = :rid"
+            "AND source_event_hash = :seh"
         ),
         {
             "bad": "f" * 64,
             "tid": engagement.tenant_id,
             "eid": engagement.id,
-            "rid": victim.revision_id,
+            "seh": victim.source_event_hash,
         },
     )
     await admin_session.commit()
@@ -204,13 +202,13 @@ async def test_revision_durability(
             "UPDATE graph_temporal_scope_revisions "
             "SET manifest_hash = :good "
             "WHERE tenant_id = :tid AND engagement_id = :eid "
-            "AND revision_id = :rid"
+            "AND source_event_hash = :seh"
         ),
         {
             "good": victim.manifest_hash,
             "tid": engagement.tenant_id,
             "eid": engagement.id,
-            "rid": victim.revision_id,
+            "seh": victim.source_event_hash,
         },
     )
     await admin_session.commit()
