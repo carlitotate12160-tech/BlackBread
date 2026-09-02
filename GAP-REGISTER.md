@@ -238,13 +238,12 @@ has no live effect; it is retained only as rollback evidence:
 
 ## GRAPH-GAP-001 — Attestation v2 head lacks a truthful durable projection schema
 
-- **Status:** CLOSED
+- **Status:** OPEN
 - **Severity:** P1 architecture
 - **Owner:** trust-spine
 - **Target milestone:** M1.3b3
 - **Blocks:** M1.3 completion, R0, and every target-facing release
-- **Closed at:** 2026-09-02
-- **Closure evidence:**
+- **Proposed closure evidence (PR #48):**
   - Migration `0006_m1_temporal_scope_graph` (PR #45 / b3a) added the temporal persistence schema
     with immutable revision-lineage, stable-root, and atomic publication tables, plus RLS tenant
     isolation and exact-provenance enforcement triggers.

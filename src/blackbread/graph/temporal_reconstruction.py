@@ -110,6 +110,13 @@ def _reconstruct(cold: TemporalSnapshot) -> ColdReconstruction:
 
     _verify_head_membership(lineage, list(cold.heads))
 
+    expected_sequence = lineage.groups[-1].source_sequence
+    if expected_sequence != snap["lineage_head_sequence"]:
+        raise GraphProjectionError(
+            f"lineage head sequence mismatch: expected {expected_sequence}, "
+            f"got {snap['lineage_head_sequence']} in snapshot"
+        )
+
     return ColdReconstruction(
         lineage=lineage,
         state_root=recomputed,
@@ -117,7 +124,7 @@ def _reconstruct(cold: TemporalSnapshot) -> ColdReconstruction:
         verified_event_count=snap["verified_event_count"],
         verified_head_hash=snap["verified_head_hash"],
         lineage_head_hash=lineage_head_hash,
-        lineage_head_sequence=snap["lineage_head_sequence"],
+        lineage_head_sequence=expected_sequence,
     )
 
 
