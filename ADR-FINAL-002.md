@@ -850,3 +850,64 @@ The platform operates covertly, emulating APT tradecraft (patience, stealth, ide
 Commodity tools are wrapped behind typed adapters and a single stealth-shaping egress gateway; proprietary development is concentrated on target identity, credential intelligence, authorization differential testing, evidence resolution, runtime capability composition, capability qualification, attack-path reasoning, session custody, OPSEC/stealth, deception awareness, defensive-outcome correlation, and sanitized field learning. The Exploit phase is held until a pre-production safety range validates do-no-harm and scope adherence.
 
 The initial commercial exit is one cross-verified, evidence-backed payable finding on an authorized real target, delivered as the Recon-only product tier. Distributed brokers, autonomous specialist swarms, graph databases, Go execution workers, C2 frameworks, source-IP rotation, and adaptive learning are deferred until field evidence demonstrates a need.
+
+---
+
+## 41. Amendment A-001 — Tiered PR-Agent Model (Accepted 2026-09-02)
+
+### Context
+
+The original AI-review contract (Section "Repository delivery authority" in
+`.devin/rules/blackbread.md` and `BRANCH-PROTECTION.md`) hardcoded
+`deepseek/deepseek-v4-pro` as the single PR-Agent model for all pull requests.
+In practice this caused disproportionate token spend: the flagship V4-Pro model
+($0.522/M blended) was used for every PR, including non-safety-critical changes
+(docs, governance, tests, tooling) where the binding review requirement does not
+apply. Combined with the double-trigger defect (synchronize + HANDLE_PUSH_TRIGGER
+both firing on every push), DeepSeek API token consumption was unsustainable for
+a solo-developer project.
+
+### Decision
+
+PR-Agent uses a **tiered model selection** based on the `safety-critical` label:
+
+- **PRs labeled `safety-critical`**: `deepseek/deepseek-v4-pro` (flagship).
+  The current-head review remains **binding** and must be complete with all
+  actionable findings disposed before merge. This satisfies the existing
+  safety-critical review contract unchanged.
+- **PRs without the `safety-critical` label**: `deepseek/deepseek-v4-flash`
+  ($0.168/M blended, ~3x cheaper). The review is **advisory** — a reproduced,
+  valid correctness or security finding still blocks merge until fixed, but the
+  review itself is not a binding gate. CodeRabbit remains the primary advisory
+  reviewer for non-safety-critical PRs; PR-Agent (V4-Flash) is fallback advisory.
+
+### Compensating control
+
+The binding safety-critical review is preserved by **label gating**, not by
+model tier. The `safety-critical` label is applied by the owner when the PR
+touches: Policy Kernel, scope denial, OPSEC heat/stop, Authentication Risk
+Governor, Target Identity Guard, ledger hashing, prompt-injection gates, or any
+path enumerated in the safety-critical coverage threshold in `pyproject.toml`.
+A PR that should be safety-critical but is not labeled is a process error; the
+owner is the sole label authority. The workflow `if` condition checks for the
+label and selects the model accordingly; a missing label defaults to V4-Flash
+(advisory), which is the safe direction — it under-spends, it does not
+over-claim binding review.
+
+### What this amendment does NOT change
+
+- The binding current-head PR-Agent review for safety-critical PRs is unchanged
+  in requirement; only the model-selection mechanism is added.
+- CodeRabbit remains primary advisory for non-safety-critical PRs.
+- No advisory reviewer (CodeRabbit, Sourcery, Codex, Bito) may satisfy the
+  binding safety-critical requirement; only PR-Agent with V4-Pro at the current
+  head does.
+- The "trigger once at the exact head" contract is unchanged; the trigger
+  optimization (PR #51) is a separate config change, not part of this amendment.
+
+### Authority
+
+This amendment is accepted by the repository owner on 2026-09-02. It amends
+the AI-review model selection in `.devin/rules/blackbread.md` line 82 and
+`BRANCH-PROTECTION.md` line 26. It does not weaken any hard invariant in
+Section 0 or the safety-critical binding review contract.
