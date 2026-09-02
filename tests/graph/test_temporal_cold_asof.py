@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 import pytest
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
+from blackbread.graph.domain import GraphProjectionError
 from blackbread.graph.networkx_view import (
     build_temporal_networkx_view,
     load_temporal_networkx_view_as_of,
@@ -67,12 +68,9 @@ async def test_as_of_canonical_boundary(
 ) -> None:
     await _publish_v2(session, engine, engagement, graph_events)
 
-    with pytest.raises(ValueError, match="as_of must be timezone-aware"):
+    with pytest.raises(GraphProjectionError, match="canonically normalizable timezone-aware time"):
         await load_temporal_projection_as_of(
-            engine,
-            tenant_id=engagement.tenant_id,
-            engagement_id=engagement.id,
-            as_of=datetime.now(),
+            engine, tenant_id=engagement.tenant_id, engagement_id=engagement.id, as_of=datetime.now()
         )
 
 
