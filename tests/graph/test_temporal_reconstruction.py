@@ -26,7 +26,7 @@ from blackbread.ledger.catalog import (
 )
 from blackbread.ledger.event import AgentEvent
 from blackbread.models.core import Engagement
-from tests.graph.conftest import _seed_engagement
+from tests.graph.conftest import _seed_attestation_event, _seed_engagement
 
 FIXED_TIME = datetime(2026, 8, 30, 12, tzinfo=UTC)
 
@@ -295,6 +295,7 @@ async def test_real_cross_tenant_isolation(  # noqa: PLR0913, PLR0917
     eng_b_id = uuid.uuid4()
 
     await _seed_engagement(admin_engine, tenant_b, eng_b_id)
+    event_hash = await _seed_attestation_event(admin_engine, tenant_b, eng_b_id)
 
     # We must insert into graph_temporal_projection_snapshots directly to prove isolation
     await admin_session.execute(
@@ -306,7 +307,7 @@ async def test_real_cross_tenant_isolation(  # noqa: PLR0913, PLR0917
             "lineage_head_hash, lineage_head_sequence) "
             "VALUES (:tid, :eid, 1, :hash, 'sha256', 1, 2, 2, 1, :hash, :hash, 1)"
         ),
-        {"tid": tenant_b, "eid": eng_b_id, "hash": "a" * 64},
+        {"tid": tenant_b, "eid": eng_b_id, "hash": event_hash},
     )
     await admin_session.commit()
 
