@@ -18,6 +18,11 @@ def _module_with_payload(character: str, doc_lines: int) -> str:
     return f'{docstring}PAYLOAD = "{character * 256}"\n'
 
 
+def _module_with_inline_payload(character: str, doc_lines: int) -> str:
+    doc = "\n".join(f"line {index}" for index in range(doc_lines))
+    return f'"""\n{doc}\n"""; PAYLOAD = "{character * 256}"\n'
+
+
 def test_docstring_stripping_while_code_flat_is_rejected() -> None:
     path = "src/blackbread/graph/temporal_replay.py"
     base = {path: _module(code_lines=20, doc_lines=20)}
@@ -88,6 +93,28 @@ def test_distinct_string_payloads_are_not_matched_as_a_rename() -> None:
     head = {head_path: _module_with_payload("Z", doc_lines=0)}
 
     assert evaluate_documentation_integrity(base, head) == []
+
+
+def test_inline_string_payloads_are_not_matched_as_a_rename() -> None:
+    base_path = "src/blackbread/graph/old_adapter.py"
+    head_path = "src/blackbread/graph/new_adapter.py"
+    base = {base_path: _module_with_inline_payload("A", doc_lines=20)}
+    head = {head_path: _module_with_inline_payload("Z", doc_lines=1)}
+
+    assert evaluate_documentation_integrity(base, head) == []
+
+
+def test_syntax_error_in_renamed_module_is_reported() -> None:
+    base_path = "src/blackbread/graph/old_adapter.py"
+    head_path = "src/blackbread/graph/new_adapter.py"
+    base = {base_path: _module(code_lines=20, doc_lines=20)}
+    head = {head_path: "def invalid(:\n"}
+
+    result = evaluate_documentation_integrity(base, head)
+
+    assert len(result) == 1
+    assert head_path in result[0]
+    assert "syntax error prevents documentation-integrity check" in result[0]
 
 
 def test_trivial_code_reduction_does_not_bypass_doc_strip() -> None:

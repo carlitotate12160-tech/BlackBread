@@ -55,9 +55,18 @@ class _ModuleShape:
     documentation_lines: int
 
 
-def _docstring_rows(source: str, path: str) -> set[int]:
+type _SourceSpan = tuple[tuple[int, int], tuple[int, int]]
+
+
+def _character_position(lines: list[str], line: int, byte_column: int) -> tuple[int, int]:
+    prefix = lines[line - 1].encode()[:byte_column]
+    return line, len(prefix.decode())
+
+
+def _docstring_spans(source: str, path: str) -> set[_SourceSpan]:
     tree = ast.parse(source, filename=path)
-    rows: set[int] = set()
+    lines = source.splitlines(keepends=True)
+    spans: set[_SourceSpan] = set()
     documented = (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
     for node in ast.walk(tree):
         if not isinstance(node, documented):
@@ -66,8 +75,19 @@ def _docstring_rows(source: str, path: str) -> set[int]:
             continue
         expression = node.body[0]
         end_line = expression.end_lineno or expression.lineno
-        rows.update(range(expression.lineno, end_line + 1))
-    return rows
+        end_column = expression.end_col_offset or expression.col_offset
+        start = _character_position(lines, expression.lineno, expression.col_offset)
+        end = _character_position(lines, end_line, end_column)
+        spans.add((start, end))
+    return spans
+
+
+def _docstring_rows(source: str, path: str) -> set[int]:
+    return {
+        row
+        for (start_row, _), (end_row, _) in _docstring_spans(source, path)
+        for row in range(start_row, end_row + 1)
+    }
 
 
 def _comment_rows(source: str) -> set[int]:
@@ -103,13 +123,16 @@ def _code_token_lines(source: str, docstring_rows: set[int]) -> set[int]:
 def _token_signature(source: str, path: str) -> str:
     parts: list[str] = []
     try:
-        docstring_rows = _docstring_rows(source, path)
+        docstring_spans = _docstring_spans(source, path)
         tokens = tokenize.tokenize(io.BytesIO(source.encode()).readline)
     except (tokenize.TokenError, SyntaxError):
         return ""
     for token in tokens:
         if token.type in _IGNORED_CODE_TOKENS:
-            if token.type == tokenize.STRING and token.start[0] not in docstring_rows:
+            is_docstring = any(
+                start <= token.start and token.end <= end for start, end in docstring_spans
+            )
+            if token.type == tokenize.STRING and not is_docstring:
                 parts.append(token.string)
             continue
         parts.append(token.string)
@@ -189,13 +212,33 @@ def _find_renames(
     return matched
 
 
+def _find_syntax_violations(
+    head_files: Mapping[str, str],
+) -> tuple[set[str], list[str]]:
+    invalid_paths: set[str] = set()
+    violations: list[str] = []
+    for path, head_source in sorted(head_files.items()):
+        if not _in_scope(path):
+            continue
+        try:
+            ast.parse(head_source, filename=path)
+        except SyntaxError as exc:
+            invalid_paths.add(path)
+            violations.append(
+                f"{path}: syntax error prevents documentation-integrity check ({exc})"
+            )
+    return invalid_paths, violations
+
+
 def evaluate_documentation_integrity(
     base_files: Mapping[str, str],
     head_files: Mapping[str, str],
 ) -> list[str]:
-    violations: list[str] = []
+    invalid_paths, violations = _find_syntax_violations(head_files)
     renames = _find_renames(base_files, head_files)
     for path, head_source in sorted(head_files.items()):
+        if path in invalid_paths:
+            continue
         base_source = base_files.get(path)
         if base_source is None:
             renamed_base = renames.get(path)
