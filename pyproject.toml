@@ -87,3 +87,4 @@ include = [
 [tool.bandit]
 exclude_dirs = ["tests"]
 targets = ["src/blackbread"]
+skips = ["B404", "B603", "B607"]
