@@ -1,8 +1,8 @@
 """Canonical list of safety-critical source paths.
 
-This list is the single source consumed by governance tests to prove that every
-safety-critical coverage module named in ``pyproject.toml`` is recognized as a
-safety-critical path. It carries no review-policy semantics.
+This list is the single source consumed by governance tests and the PR-Agent
+workflow classifier. Every safety-critical coverage module named in
+``pyproject.toml`` must be recognized here.
 """
 
 SAFETY_CRITICAL_PATH_PARTS = (
@@ -25,3 +25,19 @@ SAFETY_CRITICAL_PATH_PARTS = (
     "src/blackbread/models/core.py",
     "config/capability-registry.json",
 )
+
+
+def paths_require_binding_review(paths: list[str]) -> bool:
+    return any(_is_safety_critical_path(path) for path in paths)
+
+
+def _is_safety_critical_path(path: str) -> bool:
+    for part in SAFETY_CRITICAL_PATH_PARTS:
+        if part.endswith((".json", ".py")):
+            if path == part:
+                return True
+        elif (part.endswith("/") and path.startswith(part)) or (
+            path in (part, f"{part}.py") or path.startswith(f"{part}/")
+        ):
+            return True
+    return False
