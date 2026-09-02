@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import uuid
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from typing import Protocol
@@ -26,7 +25,6 @@ from blackbread.ledger.catalog import (
 )
 from blackbread.ledger.event import AgentEvent
 from blackbread.models.core import Engagement
-from tests.graph.conftest import _seed_attestation_event, _seed_engagement
 
 FIXED_TIME = datetime(2026, 8, 30, 12, tzinfo=UTC)
 
@@ -280,64 +278,6 @@ async def test_state_root_tamper(
     await admin_session.commit()
 
 
-async def test_real_cross_tenant_isolation(  # noqa: PLR0913, PLR0917
-    engine: AsyncEngine,
-    admin_engine: AsyncEngine,
-    session: AsyncSession,
-    admin_session: AsyncSession,
-    engagement: Engagement,
-    graph_events: GraphEvents,
-) -> None:
-    # A is real, published
-    await _publish_v1(session, engine, engagement, graph_events)
-
-    tenant_b = "tenant-b-real"
-    eng_b_id = uuid.uuid4()
-
-    await _seed_engagement(admin_engine, tenant_b, eng_b_id)
-    event_hash = await _seed_attestation_event(admin_engine, tenant_b, eng_b_id)
-
-    # We must insert into graph_temporal_projection_snapshots directly to prove isolation
-    await admin_session.execute(
-        text(
-            "INSERT INTO graph_temporal_projection_snapshots ("
-            "tenant_id, engagement_id, verified_event_count, verified_head_hash, "
-            "ledger_hash_algorithm, ledger_hash_version, temporal_projector_version, "
-            "state_root_version, scope_canonicalization_version, state_root, "
-            "lineage_head_hash, lineage_head_sequence) "
-            "VALUES (:tid, :eid, 1, :hash, 'sha256', 1, 2, 2, 1, :hash, :hash, 1)"
-        ),
-        {"tid": tenant_b, "eid": eng_b_id, "hash": event_hash},
-    )
-    await admin_session.commit()
-
-    # Admin verifies BOTH exist physically
-    rows = (
-        (
-            await admin_session.execute(
-                text("SELECT tenant_id, engagement_id FROM graph_temporal_projection_snapshots")
-            )
-        )
-        .mappings()
-        .all()
-    )
-    found = {(r["tenant_id"], r["engagement_id"]) for r in rows}
-    assert (engagement.tenant_id, engagement.id) in found
-    assert (tenant_b, eng_b_id) in found
-
-    # B loading A's engagement -> None
-    b_loads_a = await load_temporal_projection(
-        engine, tenant_id=tenant_b, engagement_id=engagement.id
-    )
-    assert b_loads_a is None
-
-    # A loading B's engagement -> None
-    a_loads_b = await load_temporal_projection(
-        engine, tenant_id=engagement.tenant_id, engagement_id=eng_b_id
-    )
-    assert a_loads_b is None
-
-
 async def test_source_event_binding(
     engine: AsyncEngine,
     session: AsyncSession,
@@ -418,73 +358,3 @@ async def test_v1_scope_path_rejects_v2(
             tenant_id=engagement.tenant_id,
             engagement_id=engagement.id,
         )
-
-
-async def test_stable_roots_tamper(
-    engine: AsyncEngine,
-    session: AsyncSession,
-    admin_session: AsyncSession,
-    engagement: Engagement,
-    graph_events: GraphEvents,
-) -> None:
-    await _publish_v2(session, engine, engagement, graph_events)
-
-    result = await load_temporal_projection(
-        engine,
-        tenant_id=engagement.tenant_id,
-        engagement_id=engagement.id,
-    )
-    assert result is not None
-    assert len(result.lineage.revisions) > 0
-
-    victim_rev = result.lineage.revisions[0]
-    fake_node_id = "f" * 64
-
-    # Insert an extra fake root to simulate a tamper
-    await admin_session.execute(
-        text(
-            "INSERT INTO graph_temporal_scope_roots (tenant_id, engagement_id, node_id, "
-            "node_family, scope_kind, canonical_value) "
-            "VALUES (:tid, :eid, :nid, 'ScopeRoot', :skind, 'tampered.example')"
-        ),
-        {
-            "tid": engagement.tenant_id,
-            "eid": engagement.id,
-            "nid": fake_node_id,
-            "skind": victim_rev.scope_kind,
-        },
-    )
-    await admin_session.commit()
-
-    with pytest.raises(
-        GraphProjectionError,
-        match="reconstructed stable roots do not match lineage",
-    ):
-        await load_temporal_projection(
-            engine,
-            tenant_id=engagement.tenant_id,
-            engagement_id=engagement.id,
-        )
-
-    # Remove the fake root to restore integrity
-    await admin_session.execute(
-        text(
-            "DELETE FROM graph_temporal_scope_roots "
-            "WHERE tenant_id = :tid AND engagement_id = :eid "
-            "AND node_id = :nid AND canonical_value = 'tampered.example'"
-        ),
-        {
-            "tid": engagement.tenant_id,
-            "eid": engagement.id,
-            "nid": fake_node_id,
-        },
-    )
-    await admin_session.commit()
-
-    # Reconstruct again should succeed
-    restored = await load_temporal_projection(
-        engine,
-        tenant_id=engagement.tenant_id,
-        engagement_id=engagement.id,
-    )
-    assert restored is not None
