@@ -250,13 +250,11 @@ dispositioned and resolved. A merge does not complete M1.3, M1/R0, `LEDGER-GAP-0
 * **Purpose:** Add an `as_of`-aware durable load over cold-reconstructed lineage (`load_temporal_projection_as_of`), and build the effective NetworkX view from it (`load_temporal_networkx_view_as_of`). Read-only; no schema; no publication change.
 * **Non-goals:** no schema change; no change to the durable write/publication path; no changes to authorization/Policy Kernel.
 
-### PR-M1.3b3b-3 (planned)
+### PR-M1.3b3b-3
 
 * **ID:** PR-M1.3b3b-3
 * **Title:** NetworkX Cold-Load Integration
-* **State:** PLANNED
-* **Prerequisite:** PR-M1.3b3b-2
-* **Purpose:** Wire cold-reconstructed temporal projections to NetworkX immutable views.
+* **State:** SUPERSEDED by PR-M1.3b3b-2+3
 
 ### M1.3b cross-cutting risks
 

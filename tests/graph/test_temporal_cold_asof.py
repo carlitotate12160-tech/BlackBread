@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
@@ -74,6 +74,14 @@ async def test_as_of_canonical_boundary(
             tenant_id=engagement.tenant_id,
             engagement_id=engagement.id,
             as_of=datetime.now(),
+        )
+
+    with pytest.raises(GraphProjectionError, match="canonically normalizable timezone-aware time"):
+        await load_temporal_projection_as_of(
+            engine,
+            tenant_id=engagement.tenant_id,
+            engagement_id=engagement.id,
+            as_of=datetime.now(timezone(timedelta(hours=2))),
         )
 
 

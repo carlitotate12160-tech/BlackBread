@@ -38,7 +38,7 @@ Semua operasi Oracle dilakukan dari WSL, bukan dari PowerShell/Windows langsung.
 
 ```bash
 wsl
-ssh oracle-alpha "cd ~/blackbread && git pull"
+ssh oracle-alpha "cd ~/blackbread && git fetch origin && git merge --ff-only origin/main && [ \"\$(git rev-parse HEAD)\" = \"\$(git rev-parse origin/main)\" ] || exit 1"
 ssh oracle-alpha "cd ~/blackbread && docker compose up -d --build"
 ```
 
