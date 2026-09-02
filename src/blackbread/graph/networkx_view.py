@@ -1,12 +1,18 @@
 from dataclasses import asdict
+from datetime import datetime
 from types import MappingProxyType
+from uuid import UUID
 
 import networkx as nx
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 from blackbread.graph.domain import ScopeProjection
 from blackbread.graph.temporal_projection import (
     TemporalProjection,
     validate_temporal_projection,
+)
+from blackbread.graph.temporal_reconstruction import (
+    load_temporal_projection_as_of,
 )
 
 _GRAPH_FIELDS = tuple(field for field in ScopeProjection.__annotations__ if field != "nodes")
@@ -51,3 +57,21 @@ def build_temporal_networkx_view(projection: TemporalProjection) -> "nx.DiGraph[
     for node in projection.effective_nodes:
         graph.add_node(node.node_id, **binding, **asdict(node))
     return _freeze(graph)
+
+
+async def load_temporal_networkx_view_as_of(
+    engine: AsyncEngine,
+    *,
+    tenant_id: str,
+    engagement_id: UUID,
+    as_of: datetime,
+) -> "nx.DiGraph[str] | None":
+    projection = await load_temporal_projection_as_of(
+        engine,
+        tenant_id=tenant_id,
+        engagement_id=engagement_id,
+        as_of=as_of,
+    )
+    if projection is None:
+        return None
+    return build_temporal_networkx_view(projection)
