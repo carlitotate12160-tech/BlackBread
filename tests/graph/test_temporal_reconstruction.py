@@ -294,6 +294,14 @@ async def test_real_cross_tenant_isolation(
 
     dummy_hash = "a" * 64
 
+    await admin_session.execute(
+        text(
+            "INSERT INTO engagements (id, tenant_id, ledger_event_count, ledger_head_hash) "
+            "VALUES (:eid, :tid, 0, 'dummy')"
+        ),
+        {"eid": eng_b_id, "tid": tenant_b},
+    )
+
     # We must insert into graph_temporal_projection_snapshots directly to prove isolation
     await admin_session.execute(
         text(
@@ -441,7 +449,7 @@ async def test_stable_roots_tamper(
         text(
             "INSERT INTO graph_temporal_scope_roots (tenant_id, engagement_id, node_id, "
             "node_family, scope_kind, canonical_value) "
-            "VALUES (:tid, :eid, :nid, 'ScopeRoot', :skind, 'tampered-value')"
+            "VALUES (:tid, :eid, :nid, 'ScopeRoot', :skind, 'tampered.example')"
         ),
         {
             "tid": engagement.tenant_id,
@@ -467,7 +475,7 @@ async def test_stable_roots_tamper(
         text(
             "DELETE FROM graph_temporal_scope_roots "
             "WHERE tenant_id = :tid AND engagement_id = :eid "
-            "AND node_id = :nid AND canonical_value = 'tampered-value'"
+            "AND node_id = :nid AND canonical_value = 'tampered.example'"
         ),
         {
             "tid": engagement.tenant_id,
