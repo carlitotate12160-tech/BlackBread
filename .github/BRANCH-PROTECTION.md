@@ -23,13 +23,17 @@ must enforce the following default path:
   `quality` CI job (Ruff lint, Ruff format, mypy, McCabe complexity); GitHub Code Quality is not yet
   activated.
 - **AI review:** PR-Agent (CodiumAI) is auto-triggered via `.github/workflows/pr-agent.yml` on
-  every non-draft PR using a DeepSeek API key. For **safety-critical** PRs, the current-head
-  PR-Agent review is binding and must be complete with all actionable findings disposed before
-  merge. For **non-safety-critical** PRs, CodeRabbit is the primary advisory reviewer, auto-triggered
-  via `coderabbit-trigger.yml` (PAT-owned comment). If CodeRabbit is rate-limited or unavailable,
-  PR-Agent may provide fallback advisory review; if neither is available, the owner dispositions the
-  absence explicitly in the PR. Every actionable AI-bot comment must be dispositioned before merge.
-  Neither AI reviewer is a required status check; the mandatory first-party CI gate is `ci-ok`
+  non-draft PRs (opened, reopened, ready_for_review) using a DeepSeek API key. Per ADR-FINAL-002
+  Amendments A-001 and A-002, PR-Agent uses `deepseek/deepseek-v4-pro` when canonical changed-path
+  classification requires binding review and the exact `safety-critical` label is present; lookup or
+  label mismatches fail closed. Other PRs use `deepseek/deepseek-v4-flash` for advisory review.
+  For **safety-critical** PRs, the current-head PR-Agent review is binding and must be complete
+  with all actionable findings disposed before merge; the owner triggers it via `/review` comment
+  at the final head. For **non-safety-critical** PRs, CodeRabbit is the primary advisory reviewer,
+  auto-triggered via `coderabbit-trigger.yml` (PAT-owned comment). If CodeRabbit is rate-limited or
+  unavailable, PR-Agent may provide fallback advisory review; if neither is available, the owner
+  dispositions the absence explicitly in the PR. Every actionable AI-bot comment must be
+  dispositioned before merge. Neither AI reviewer is a required status check; the mandatory first-party CI gate is `ci-ok`
   (aggregating `quality`, `tests`, `security`, `governance`) plus `GitGuardian Security Checks`,
   review-thread resolution, and branch currency.
 - Linear history; branch deletion, force-push, direct push to `main`, and non-fast-forward updates

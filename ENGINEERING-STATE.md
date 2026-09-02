@@ -24,6 +24,12 @@ These values are checkpoints to verify, not facts to trust without querying live
 
 ## Current decision
 
+The repository owner selected a bounded governance correction after the tiered PR-Agent model change:
+canonical changed-path classification must prevent an omitted `safety-critical` label from selecting
+advisory review, GitHub lookup failures must fail closed, label identity must match exactly, and a
+binding V4-Pro review must not fall back to an advisory model. This correction changes no required
+status check and no target-facing capability.
+
 Three governance PRs merged in sequence:
 
 * **PR #31** (Alpha): protected-base size budgets — `quality-budget` workflow, `size_budget.py`

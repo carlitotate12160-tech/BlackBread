@@ -8,13 +8,22 @@
 # For non-safety-critical PRs, CodeRabbit is the primary advisory reviewer and
 # PR-Agent may provide fallback. The workflow is not a required status check.
 #
+# Trigger policy: auto-review fires once per PR lifecycle (opened, reopened,
+# ready_for_review) — NOT on every synchronize/push. This aligns with the
+# "trigger once at the exact head" contract and avoids redundant DeepSeek token
+# spend on intermediate commits. For safety-critical PRs, the binding
+# current-head review is triggered manually via `/review` comment by the owner
+# at the final head before merge. HANDLE_PUSH_TRIGGER is disabled to prevent
+# the double-review that occurred when both the synchronize event and the
+# push-trigger handler fired on the same commit.
+#
 # Security note: PR-Agent sends the PR diff to DeepSeek's API. The repository
 # owner is responsible for the data-handling terms of that API key.
 name: PR Agent DeepSeek
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, reopened, ready_for_review]
     branches: [main]
   issue_comment:
     types: [created]
@@ -57,16 +66,42 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
 
+      - name: Select model based on safety-critical label
+        id: select_model
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+        run: |
+          set -euo pipefail
+          CHANGED_FILES=$(gh pr diff "$PR_NUMBER" --name-only)
+          PATH_REQUIRES_BINDING=$(
+            printf '%s\n' "$CHANGED_FILES" |
+              PYTHONPATH=src python -c 'import sys; from blackbread.governance.safety_paths import paths_require_binding_review; print(str(paths_require_binding_review([line.rstrip("\n") for line in sys.stdin])).lower())'
+          )
+          HAS_LABEL=$(gh pr view "$PR_NUMBER" --json labels --jq '[.labels[].name == "safety-critical"] | any')
+          if [[ "$PATH_REQUIRES_BINDING" != "$HAS_LABEL" ]]; then
+            echo "::error::Changed-path classification and safety-critical label must agree."
+            exit 1
+          fi
+          if [[ "$HAS_LABEL" == "true" ]]; then
+            echo "model=deepseek/deepseek-v4-pro" >> "$GITHUB_OUTPUT"
+            echo 'fallback_models=[]' >> "$GITHUB_OUTPUT"
+            echo "Selected V4-Pro (binding, safety-critical label present)"
+          else
+            echo "model=deepseek/deepseek-v4-flash" >> "$GITHUB_OUTPUT"
+            echo 'fallback_models=[]' >> "$GITHUB_OUTPUT"
+            echo "Selected V4-Flash (advisory, no safety-critical label)"
+          fi
+
       - name: Run PR Agent
         uses: The-PR-Agent/pr-agent@ab6ec54bfeb37933ddb74259338752e9272016c6
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           DEEPSEEK_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-          CONFIG__MODEL: "deepseek/deepseek-v4-pro"
-          CONFIG__FALLBACK_MODELS: '["deepseek/deepseek-v4-flash"]'
+          CONFIG__MODEL: ${{ steps.select_model.outputs.model }}
+          CONFIG__FALLBACK_MODELS: ${{ steps.select_model.outputs.fallback_models }}
           GITHUB_ACTION_CONFIG__AUTO_REVIEW: "true"
           GITHUB_ACTION_CONFIG__AUTO_DESCRIBE: "false"
           GITHUB_ACTION_CONFIG__AUTO_IMPROVE: "false"
-          GITHUB_ACTION_CONFIG__HANDLE_PUSH_TRIGGER: "true"
-          GITHUB_ACTION_CONFIG__PUSH_COMMANDS: '["/review"]'
+          GITHUB_ACTION_CONFIG__HANDLE_PUSH_TRIGGER: "false"

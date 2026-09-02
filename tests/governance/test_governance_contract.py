@@ -153,7 +153,7 @@ EXPECTED_RUFF_RULES = {
 REQUIRED_CI_COMMANDS = {
     "quality": ("uv run ruff check .", "uv run ruff format --check .", "uv run mypy"),
     "tests": ("uv run pytest", "check_safety_coverage.py"),
-    "security": ("uv run bandit", "uv run pip-audit", "./gitleaks git"),
+    "security": ("uv run bandit", "uv run pip-audit", "./gitleaks git", "check_infra_leak.py"),
     "governance": ("uv lock --check", "uv run pytest tests/governance --no-cov"),
 }
 
