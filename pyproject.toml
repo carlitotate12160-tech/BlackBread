@@ -74,6 +74,7 @@ skip_covered = true
 [tool.coverage.safety_critical]
 fail_under = 90
 include = [
+  "blackbread.conductor.*",
   "blackbread.policy.*",
   "blackbread.opsec.*",
   "blackbread.scope.*",
