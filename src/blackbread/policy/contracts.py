@@ -1,3 +1,9 @@
+"""Policy decision contracts for deny-only evaluation results.
+
+Defines immutable, versioned, deny-only PolicyDecision v1. ALLOW, APPROVAL_REQUIRED,
+lease, work order, and executable token are unrepresentable in this schema version.
+"""
+
 from __future__ import annotations
 
 from typing import Literal
@@ -28,6 +34,8 @@ class PolicyContractError(ValueError):
 
 
 class PolicyDecision(BaseModel):
+    """Immutable, versioned, deny-only policy decision with strict validation."""
+
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
 
     schema_name: Literal["policy.decision"]

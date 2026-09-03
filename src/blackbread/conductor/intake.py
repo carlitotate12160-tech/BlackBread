@@ -1,3 +1,10 @@
+"""Pure deterministic deny-only proposal intake.
+
+Evaluates action proposals and returns deny-only policy decisions. Every valid
+proposal is denied (PROPOSAL_EXPIRED at/after expiry, else TRUST_SPINE_NOT_READY).
+No database, filesystem, network, registry, framework, or wall-clock access.
+"""
+
 from __future__ import annotations
 
 from collections.abc import Mapping
@@ -19,6 +26,7 @@ from blackbread.policy.contracts import (
 
 
 def _deny_reason(proposal: ActionProposal, decided_at: datetime) -> DenyReason:
+    """Determine the deny reason: PROPOSAL_EXPIRED if expired, else TRUST_SPINE_NOT_READY."""
     if decided_at >= proposal.expires_at:
         return "PROPOSAL_EXPIRED"
     return "TRUST_SPINE_NOT_READY"
@@ -30,6 +38,7 @@ def evaluate_proposal(
     decision_id: UUID,
     decided_at: datetime,
 ) -> PolicyDecision:
+    """Evaluate a validated action proposal and return a deny-only policy decision."""
     if not isinstance(decision_id, UUID):
         raise ConductorContractError("decision_id must be a UUID")
     try:
@@ -58,5 +67,6 @@ def intake_proposal(
     decision_id: UUID,
     decided_at: datetime,
 ) -> PolicyDecision:
+    """Parse, validate, and evaluate an untrusted raw proposal, returning a deny-only decision."""
     proposal = ActionProposal.from_untrusted(raw)
     return evaluate_proposal(proposal, decision_id=decision_id, decided_at=decided_at)

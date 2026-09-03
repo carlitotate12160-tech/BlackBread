@@ -1,3 +1,10 @@
+"""Conductor action proposal contracts with strict validation and deterministic digests.
+
+Defines immutable, versioned ActionProposal with proposal-owned value objects
+(GraphVersionReference, TargetReference, ParameterEnvelope, ResourceEstimates,
+BudgetRequest) and a deterministic proposal digest over a versioned canonical preimage.
+"""
+
 from __future__ import annotations
 
 import json
@@ -49,6 +56,7 @@ class ConductorContractError(ValueError):
 
 
 def _canonical_text(value: str) -> str:
+    """Validate and return canonical text: non-blank, trimmed, no NUL characters."""
     if not value or value != value.strip():
         raise ValueError("value must be non-blank with no surrounding whitespace")
     if "\x00" in value:
@@ -57,6 +65,7 @@ def _canonical_text(value: str) -> str:
 
 
 def require_utc(value: datetime) -> datetime:
+    """Validate and return a timezone-aware UTC datetime."""
     if value.tzinfo is None or value.utcoffset() != timedelta(0):
         raise ValueError("timestamp must be timezone-aware UTC")
     return value
@@ -81,6 +90,8 @@ class _StrictModel(BaseModel):
 
 
 class GraphVersionReference(_StrictModel):
+    """Immutable reference to a specific graph state root and ledger anchor."""
+
     state_root_version: Annotated[int, Field(ge=1, le=MAX_SCHEMA_VERSION)]
     projector_version: Annotated[int, Field(ge=1, le=MAX_SCHEMA_VERSION)]
     state_root: HexDigest
@@ -89,11 +100,15 @@ class GraphVersionReference(_StrictModel):
 
 
 class TargetReference(_StrictModel):
+    """Immutable reference to a target scope (domain, host, address, or cloud tenant)."""
+
     target_kind: TargetKind
     canonical_value: CanonicalText
 
 
 class ResourceEstimates(_StrictModel):
+    """Immutable resource estimates for a proposed action: risk, cost, information gain, and noise."""
+
     risk: Ratio
     cost: Annotated[float, Field(ge=0.0, le=MAX_COST, allow_inf_nan=False)]
     information_gain: Ratio
@@ -101,16 +116,21 @@ class ResourceEstimates(_StrictModel):
 
 
 class BudgetRequest(_StrictModel):
+    """Immutable budget request specifying target request count and deadline."""
+
     target_requests: Annotated[int, Field(ge=0, le=MAX_BUDGET_REQUESTS)]
     deadline_seconds: Annotated[int, Field(ge=1, le=MAX_DEADLINE_SECONDS)]
 
 
 class ParameterEnvelope(_StrictModel):
+    """Immutable parameter envelope with a schema reference and canonical JSON parameters."""
+
     input_schema_ref: SchemaRef
     parameters: Mapping[str, object]
     _canonical_parameters: str = PrivateAttr()
 
     def model_post_init(self, context: object) -> None:
+        """Validate and canonicalize parameters after initialization."""
         del context
         try:
             encoded = canonical_json(dict(self.parameters), max_bytes=MAX_PARAMETER_BYTES)
@@ -121,10 +141,13 @@ class ParameterEnvelope(_StrictModel):
 
     @property
     def canonical_parameters(self) -> str:
+        """Return the canonical JSON representation of the parameters."""
         return self._canonical_parameters
 
 
 class ActionProposal(_StrictModel):
+    """Immutable, versioned action proposal with deterministic digest and strict validation."""
+
     schema_name: Literal["conductor.action_proposal"]
     schema_version: SchemaVersionOne
     proposal_id: UUID
@@ -149,20 +172,24 @@ class ActionProposal(_StrictModel):
 
     @model_validator(mode="after")
     def _check_validity_window(self) -> ActionProposal:
+        """Validate that expires_at is strictly after created_at."""
         if self.expires_at <= self.created_at:
             raise ValueError("expires_at must be strictly after created_at")
         return self
 
     def model_post_init(self, context: object) -> None:
+        """Compute the proposal digest after initialization."""
         del context
         object.__setattr__(self, "_digest", _compute_proposal_digest(self))
 
     @property
     def proposal_digest(self) -> str:
+        """Return the deterministic SHA-256 digest of the proposal."""
         return self._digest
 
     @classmethod
     def from_untrusted(cls, raw: Mapping[str, object]) -> ActionProposal:
+        """Parse and validate an action proposal from untrusted raw input."""
         if not isinstance(raw, Mapping):
             raise ConductorContractError("raw proposal must be a mapping")
         try:
@@ -173,6 +200,7 @@ class ActionProposal(_StrictModel):
 
 
 def _proposal_preimage(proposal: ActionProposal) -> list[object]:
+    """Construct the canonical preimage for proposal digest computation."""
     estimates = proposal.estimates
     budget = proposal.requested_budget
     graph = proposal.graph_version
@@ -211,5 +239,6 @@ def _proposal_preimage(proposal: ActionProposal) -> list[object]:
 
 
 def _compute_proposal_digest(proposal: ActionProposal) -> str:
+    """Compute the deterministic SHA-256 digest for an action proposal."""
     preimage = _proposal_preimage(proposal)
     return sha256_hex(f"{_DIGEST_DOMAIN}\x00{canonical_json(preimage)}")
