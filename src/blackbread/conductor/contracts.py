@@ -39,6 +39,7 @@ MAX_KEY_LENGTH = 200
 MAX_TEXT_LENGTH = 500
 MAX_PRECONDITION_REFS = 64
 MAX_PARAMETER_BYTES = 65_536
+MAX_PROPOSAL_BYTES = 131_072
 MAX_SCHEMA_VERSION = 2_147_483_647
 MAX_LEDGER_EVENT_COUNT = 9_223_372_036_854_775_807
 MAX_COST = 1_000_000.0
@@ -68,6 +69,14 @@ def require_utc(value: datetime) -> datetime:
     """Validate and return a timezone-aware UTC datetime."""
     if value.tzinfo is None or value.utcoffset() != timedelta(0):
         raise ValueError("timestamp must be timezone-aware UTC")
+    return value
+
+
+def _deep_freeze(value: object) -> object:
+    if isinstance(value, dict):
+        return MappingProxyType({key: _deep_freeze(item) for key, item in value.items()})
+    if isinstance(value, list):
+        return tuple(_deep_freeze(item) for item in value)
     return value
 
 
@@ -107,7 +116,7 @@ class TargetReference(_StrictModel):
 
 
 class ResourceEstimates(_StrictModel):
-    """Immutable resource estimates for a proposed action: risk, cost, information gain, and noise."""
+    """Immutable risk, cost, information-gain, and OPSEC-noise estimates for a proposal."""
 
     risk: Ratio
     cost: Annotated[float, Field(ge=0.0, le=MAX_COST, allow_inf_nan=False)]
@@ -137,7 +146,7 @@ class ParameterEnvelope(_StrictModel):
         except LedgerValidationError as exc:
             raise ConductorContractError("proposal parameters are not canonical JSON") from exc
         object.__setattr__(self, "_canonical_parameters", encoded)
-        object.__setattr__(self, "parameters", MappingProxyType(json.loads(encoded)))
+        object.__setattr__(self, "parameters", _deep_freeze(json.loads(encoded)))
 
     @property
     def canonical_parameters(self) -> str:
@@ -193,7 +202,7 @@ class ActionProposal(_StrictModel):
         if not isinstance(raw, Mapping):
             raise ConductorContractError("raw proposal must be a mapping")
         try:
-            encoded = canonical_json(dict(raw))
+            encoded = canonical_json(dict(raw), max_bytes=MAX_PROPOSAL_BYTES)
             return cls.model_validate_json(encoded, strict=True)
         except (ValidationError, LedgerValidationError, ConductorContractError) as exc:
             raise ConductorContractError("raw proposal failed validation") from exc

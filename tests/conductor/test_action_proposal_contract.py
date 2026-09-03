@@ -289,11 +289,30 @@ def test_parameter_snapshot_is_immutable_after_validation() -> None:
     assert envelope.canonical_parameters == snapshot
 
 
-def test_from_untrusted_admits_canonical_mapping() -> None:
+def test_parameter_nested_values_are_deeply_immutable() -> None:
+    envelope = ParameterEnvelope(
+        input_schema_ref="Sample.v1",
+        parameters={"sources": ["ct", "dns"], "nested": {"depth": 1}},
+    )
+    snapshot = envelope.canonical_parameters
+    with pytest.raises((AttributeError, TypeError)):
+        envelope.parameters["sources"].append("http")  # type: ignore[attr-defined]
+    with pytest.raises(TypeError):
+        envelope.parameters["nested"]["depth"] = 2  # type: ignore[index]
+    assert envelope.canonical_parameters == snapshot
 
+
+def test_from_untrusted_admits_canonical_mapping() -> None:
     proposal = ActionProposal.from_untrusted(raw_proposal())
     assert proposal.tenant_id == "tenant-a"
     assert proposal.proposal_id == uuid.UUID("11111111-1111-1111-1111-111111111111")
+
+
+def test_from_untrusted_rejects_oversized_raw() -> None:
+    oversized = raw_proposal()
+    oversized["unbounded_field"] = "x" * 500_000
+    with pytest.raises(ConductorContractError):
+        ActionProposal.from_untrusted(oversized)
 
 
 @pytest.mark.parametrize(
