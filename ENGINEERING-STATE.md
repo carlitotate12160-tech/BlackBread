@@ -58,7 +58,18 @@ sealable and fail-closed:
   executor, API exposure, or target effect.
 * **M1.4b** — Policy Kernel v1: pure deterministic evaluation of attested policy, target identity,
   capability, every parameter and destination, approvals, budgets, locks, and heat. Still no
-  work-order issuance or target effect. **Next owner-selected slice.**
+  work-order issuance or target effect. **In progress, ACCEPTED WITH CHANGES: split at the trust
+  boundary into M1.4b1 (policy admission) and M1.4b2 (runtime gates + final `PolicyDecision` v2).**
+  * **M1.4b1** — policy admission: attested engagement policy, target identity, capability
+    admission, parameter binding, exhaustive destination manifest, and scope/exclusion checks. An
+    admitted result (`ADMITTED_FOR_RUNTIME_GATES`) is non-executable and is not a `PolicyDecision`.
+    Further split under the binding 400-line runtime-diff budget into:
+    * **M1.4b1a** — verified input-fact snapshot contracts (this slice, PR below). No evaluator,
+      result, or executable outcome.
+    * **M1.4b1b** — pure deterministic admission evaluator + non-executable `AdmissionResult` and
+      its result digest. **Next owner-selected slice.**
+  * **M1.4b2** — runtime gates and final policy decision: approvals, budgets, resource locks, OPSEC
+    heat, deterministic outcome precedence, and `PolicyDecision` v2.
 * **M1.4c** — durable, tenant-isolated, immutable `action_proposals` and `decision_records` with RLS,
   idempotency, ledger provenance, and atomic persistence.
 * **M1.4d** — budgets, resource locks, and execution leases; no work order without a valid lease.
@@ -391,6 +402,46 @@ dispositioned and resolved. A merge does not complete M1.3, M1/R0, `LEDGER-GAP-0
 * **Residual:** CONTRACT-GAP-001 is CLOSED at the conductor/ledger layer; the graph-internal copies
   remain a smaller residual tracked as CONTRACT-GAP-002 in GAP-REGISTER.md for a future
   graph-convergence slice.
+
+### PR-M1.4b1a (active)
+
+* **ID:** PR-M1.4b1a
+* **Title:** Policy-admission input-fact snapshot contracts
+* **State:** ACTIVE (branch `m1-4b1-policy-admission`, base `main` `5617e8c9`)
+* **Prerequisite:** PR-M1.4a-FOLLOWUP released at `6739799d` / PR #57; ADR-FINAL-003 documentation
+  released at `3ab0e392` / PR #58 (post-merge cleanup `5617e8c9` / PR #59).
+* **Purpose:** define the strict, frozen, versioned input contracts a caller supplies to policy
+  admission — `EngagementPolicySnapshot` (tenant/engagement, policy schema+digest, attestation
+  reference+digest, validity interval, canonical scope allow/exclusions, closed-world allowed
+  capability IDs, graph/ledger anchor), `TargetIdentitySnapshot` (tenant/engagement, proposal
+  digest, exact target, achieved tier, verified/expiry timestamps, graph anchor, verifier
+  reference+digest), `CapabilityAdmissionSnapshot` (registry schema+digest, capability ID, owner,
+  closed ADR lifecycle, input schema, risk class, required tier, approval class, network path,
+  supply-chain digest, bound extractor identity+digest, structural budget ceilings), and
+  `DestinationManifest`/`ScopedDestination` (proposal digest, canonical parameter digest, extractor
+  binding, bounded unique canonical destinations). Plus `parameter_digest` binding a manifest to a
+  proposal's canonical parameters.
+* **Contract facts:** every snapshot carries provenance references and digests, never a bare
+  `attested`/`verified` boolean; canonical scalar and target types are reused from
+  `blackbread.conductor.contracts` (no duplicate scope authority, no graph coupling); the capability
+  lifecycle vocabulary is the closed ADR-FINAL-002 §20.2 set; iterables are bounded and destinations
+  must be canonical and unique. Contracts are `extra="forbid"`, frozen, and strict.
+* **Non-goals (explicitly not in this PR):** no `AdmissionResult`, no admission evaluator, no
+  `ADMITTED_FOR_RUNTIME_GATES` or any executable outcome, no deny reason enum, no result digest, no
+  `PolicyDecision` v2, no approvals/budgets/locks/heat, no registry loading, no extractor/renderer,
+  no persistence, migration, ledger write, API, executor, or target/control-plane egress. It does
+  not reinterpret `TRUST_SPINE_NOT_READY` and leaves `ActionProposal` v1, `PolicyDecision` v1, and
+  `conductor.intake` unchanged. It claims no milestone, Policy Kernel v1, R0, or gap complete.
+* **Intermediate reachability:** these are input contracts with no consumer in this PR; they grant
+  no authority and produce no decision. `blackbread.policy.*` is already in the safety-critical
+  coverage include; no threshold is changed.
+* **Seal criteria:** `tests/policy/test_admission_contract.py` and `tests/policy/test_admission_digest.py`
+  plus the updated `tests/conductor/test_boundaries.py` green; conductor/policy pull 0 graph modules;
+  all repository gates and budgets green; binding current-head PR-Agent (DeepSeek V4-Pro) review
+  complete with all actionable findings dispositioned.
+* **Next:** PR-M1.4b1b — the pure deterministic admission evaluator and non-executable
+  `AdmissionResult` (with result digest), consuming these snapshots. Then M1.4b2 — runtime gates and
+  `PolicyDecision` v2.
 
 ### PR-M1.3b3b-3
 

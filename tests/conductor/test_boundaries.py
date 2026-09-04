@@ -53,6 +53,7 @@ PURE_MODULES = (
     SRC / "conductor" / "contracts.py",
     SRC / "conductor" / "intake.py",
     SRC / "policy" / "contracts.py",
+    SRC / "policy" / "admission_contracts.py",
 )
 
 
@@ -99,6 +100,14 @@ def test_scope_authority_is_a_pure_leaf() -> None:
 def test_ledger_catalog_reuses_the_scope_authority() -> None:
     catalog_imports = _imported_modules(SRC / "ledger" / "catalog.py")
     assert "blackbread.scope.canonical" in catalog_imports
+
+
+def test_admission_contracts_reuse_conductor_types_without_graph_coupling() -> None:
+    # The admission input contracts reuse the conductor's canonical scalar and target
+    # types; they must not duplicate a scope authority nor drag the graph read-model.
+    imported = _imported_modules(SRC / "policy" / "admission_contracts.py")
+    assert "blackbread.conductor.contracts" in imported
+    assert not any(name.startswith("blackbread.graph") for name in imported)
 
 
 def test_modules_import_without_side_effects() -> None:
