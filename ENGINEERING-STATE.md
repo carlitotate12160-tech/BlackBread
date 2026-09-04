@@ -25,12 +25,21 @@ These values are checkpoints to verify, not facts to trust without querying live
 ## Current decision
 
 The repository owner selected **Conductor** as the next M1 trust-spine epic. **M1.4a — proposal
-contracts and deny-only intake** was released in PR #56 (`3ea51fea`). The active slice is now
-**M1.4a-FOLLOWUP — scope-authority leaf**, which closes CONTRACT-GAP-001 by extracting the canonical
-scope authority to a pure-stdlib `blackbread.scope.canonical` leaf so the trust-spine contract no
-longer reaches through the graph read-model. M1.4a established the Conductor/Policy Kernel contract
-boundary: a strict, immutable, versioned `ActionProposal`; a strict, immutable, versioned, deny-only
-`PolicyDecision` v1; and a pure deterministic intake function that returns only `DENY`.
+contracts and deny-only intake** was released in PR #56 (`3ea51fea`). **M1.4a-FOLLOWUP —
+scope-authority leaf** was released in PR #57 (`6739799d`), closing `CONTRACT-GAP-001`.
+
+`ADR-FINAL-003` is **accepted** (DECIDED only, not implemented). It amends `ADR-FINAL-002` §§6, 9, 10,
+21, 24, 25, 28, 32, 35, and 36 to define a five-agent, no-central-brain campaign-intelligence
+architecture: `WorldSnapshotRef`, coherent `CyberTerrainGraph`/`AttackPathGraph`/
+`ControlAssessmentProjection`/`CampaignProjection` views, `CampaignBlackboard`, versioned oracle
+contract, bounded `InvestigationTrajectory`, `InvestigationIntent` deduplication, and deterministic
+Conductor scheduling. It does not alter M1.4 or authorize target-facing behavior. It introduces
+`CAMPAIGN-GAP-001` (P1, OPEN, M3-M5, blocks R1).
+
+The active slice is now **ADR-FINAL-003 documentation + gap registration** (this PR). M1.4a
+established the Conductor/Policy Kernel contract boundary: a strict, immutable, versioned
+`ActionProposal`; a strict, immutable, versioned, deny-only `PolicyDecision` v1; and a pure
+deterministic intake function that returns only `DENY`.
 
 M1.4a is deny-only, pure, and non-persistent. The intake boundary reads no database, filesystem,
 network, registry file, framework, or wall-clock; the caller supplies the decision UUID and decision
@@ -90,8 +99,8 @@ PR-M1.3b2a was released in PR #42 (`aff7df4`). PR-M1.3b2b was released in PR #43
 M1.3b temporal-projection lifecycle is complete: PR-M1.3b3a (`7afa10f` / PR #45), PR-M1.3b3b-1
 (`05a4b84` / PR #48), PR-M1.3b3b-2+3 (`ac86548` / PR #49), and PR-M1.3b3b-HARDEN
 (`affef9e0` / PR #52) are RELEASED, closing `GRAPH-GAP-001` and `GRAPH-GAP-002`. PR-M1.4a (Conductor/Policy
-Kernel proposal contracts and deny-only intake) was released in PR #56 (`3ea51fea`). The active slice is
-now **PR-M1.4a-FOLLOWUP** (scope-authority leaf — closes CONTRACT-GAP-001).
+Kernel proposal contracts and deny-only intake) was released in PR #56 (`3ea51fea`). PR-M1.4a-FOLLOWUP
+(scope-authority leaf — closes CONTRACT-GAP-001) was released in PR #57 (`6739799d`).
 
 ## What is now live on main
 
@@ -353,11 +362,11 @@ dispositioned and resolved. A merge does not complete M1.3, M1/R0, `LEDGER-GAP-0
   affected governance suites green; all repository gates and budgets green; binding current-head
   PR-Agent (DeepSeek V4-Pro) review complete with all actionable findings dispositioned.
 
-### PR-M1.4a-FOLLOWUP (active)
+### PR-M1.4a-FOLLOWUP (released)
 
 * **ID:** PR-M1.4a-FOLLOWUP
 * **Title:** Scope-authority leaf (close CONTRACT-GAP-001)
-* **State:** IMPLEMENTED (PR #57, base `main` `3ea51fea`; exact head is the live PR head, not hand-typed here)
+* **State:** RELEASED (PR #57, merged 2026-09-04; base `main` `3ea51fea`)
 * **Prerequisite:** PR-M1.4a released at `3ea51fea` / PR #56.
 * **Purpose:** close CONTRACT-GAP-001 by extracting the canonical scope authority to a pure-stdlib
   `blackbread.scope.canonical` leaf, removing the layer inversion and duplicate canonical types left
@@ -414,6 +423,9 @@ The following remain OPEN unless live closure evidence proves otherwise:
   graph-internal copies after PR-M1.4a-FOLLOWUP closed the conductor/ledger layer inversion of
   CONTRACT-GAP-001. Converging them touches released graph-projection code and is a separate future
   graph-convergence slice. See GAP-REGISTER.md.)
+* CAMPAIGN-GAP-001 (P1; campaign coherence and coherent multi-view world snapshot are not implemented.
+  `ADR-FINAL-003` is accepted (DECIDED only, not implemented). M1/R0 and M1.4b are not blocked; R1
+  and every target-facing release are blocked until M3-M5 closure. See GAP-REGISTER.md.)
 
 ## Closed blockers
 

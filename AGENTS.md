@@ -3,8 +3,8 @@
 BlackBread is an authorized, covert, agentless external red-team / adversary-emulation platform.
 This file is the session entry point: how to start, where authority lives, and which file owns each
 rule. It deliberately does not restate the rules — it points to their single source, so the same
-rule is never maintained in two places. Full architecture and safety decisions: `ADR-FINAL-002.md`
-and `PRD.md`.
+rule is never maintained in two places. Full architecture and safety decisions: `ADR-FINAL-002.md`,
+`ADR-FINAL-003.md`, and `PRD.md`.
 
 ## Start from live truth
 
@@ -29,7 +29,7 @@ Lower authority may strengthen but never weaken higher authority. If two authori
 rules, contradict each other, stop and report the contradiction; do not choose the easier rule.
 
 1. law, signed SOW, and engagement manifest;
-2. accepted decisions in `ADR-FINAL-002.md`;
+2. accepted ADR decisions in `ADR-FINAL-002.md` and `ADR-FINAL-003.md`;
 3. `PRD.md`;
 4. `.devin/rules/blackbread.md` — the always-on hard invariants and engineering guardrails;
 5. `GAP-REGISTER.md` — blocker status and closure evidence;

@@ -331,3 +331,22 @@ has no live effect; it is retained only as rollback evidence:
   tests remain green; no graph module redefines `ScopeKind` or a canonical scope dispatcher.
 - **Compensating control:** none needed — the graph-internal copies have no consumer outside the
   graph read-model, and the conductor/ledger layer inversion is already closed.
+
+## CAMPAIGN-GAP-001 — Campaign coherence and coherent multi-view world snapshot are not implemented
+
+- **Status:** OPEN
+- **Severity:** P1 architecture
+- **Owner:** campaign-intelligence
+- **Target milestone:** M3-M5 (per `ADR-FINAL-003`)
+- **Blocks:** R1 and every target-facing release
+- **Discovered:** `ADR-FINAL-003` acceptance, 2026-09-04.
+- **Description:** agents have only local OODA contracts; the live M1 projection contains temporal
+  `ScopeRoot` nodes and zero attack edges; no `CampaignProjection`, `CampaignBlackboard`,
+  `CyberTerrainGraph`/`AttackPathGraph` separation, `WorldSnapshotRef`, trajectory reservation
+  protocol, or campaign-coherence benchmark exists on the live path.
+- **Required closure:** implement and wire `CAM-001` through `CAM-005`, `GRF-001` through `GRF-002`,
+  `EVD-001`, `CTL-001`, `AGT-001`, and `REP-006` through the milestone order in `ADR-FINAL-003`.
+- **Verification:** the RED-first contract in `ADR-FINAL-003` §18 plus the R1 Scout -> restricted
+  Strike -> Report campaign-coherence conformance record.
+- **Compensating control:** no target-facing release is eligible; M1/R0 may continue because the
+  current deny-only trust spine cannot execute target actions.

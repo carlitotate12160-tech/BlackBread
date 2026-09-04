@@ -3,15 +3,17 @@
 - **Product:** BlackBread
 - **Category:** Autonomous, threat-informed, external red-team / adversary-emulation platform
 - **Positioning:** An external red-team exploitation service that *works like an APT operator* — covert, patient, objective-driven, evidence-backed — while remaining strictly authorized, non-destructive, and agentless.
-- **Companion documents:** `ADR-FINAL-002.md` (architecture), `.devin/rules/blackbread.md` (engineering guardrails), `.devin/skills/build-blackbread-agent/SKILL.md` (build guidance).
+- **Companion documents:** `ADR-FINAL-002.md` (foundation architecture), `ADR-FINAL-003.md` (campaign intelligence, verified terrain, bounded investigation), `.devin/rules/blackbread.md` (engineering guardrails), `.devin/skills/build-blackbread-agent/SKILL.md` (build guidance).
 - **Status:** Accepted product baseline for M0–R1; implementation status is tracked by tests and release evidence, not this document.
 
 ---
 
 ## 0. Requirement Authority and Status
 
-`ADR-FINAL-002.md` governs architecture and safety. This PRD defines product behavior and measurable
-release outcomes. Rules and skills may prescribe implementation technique but may not weaken either.
+`ADR-FINAL-002.md` governs foundation architecture and safety; `ADR-FINAL-003.md` governs campaign
+intelligence, verified terrain, and bounded investigation. This PRD defines product behavior and
+measurable release outcomes. Rules and skills may prescribe implementation technique but may not
+weaken either.
 The machine-readable capability registry controls which tools an agent may propose; runtime policy
 controls whether an exact invocation may execute.
 
