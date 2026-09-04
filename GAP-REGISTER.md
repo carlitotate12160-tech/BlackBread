@@ -274,3 +274,33 @@ has no live effect; it is retained only as rollback evidence:
 - **Closed at:** 2026-09-02
 - **Closure evidence:** Added F1 checks to verify `cold.roots` against the lineage-derived stable-root identity set. Added F4 defense-in-depth tenant assertion in `_reconstruct`. Proved via the extra, missing, and altered stable-root tamper tests plus `test_real_cross_tenant_isolation`.
 - **Verification:** `tests/graph/test_temporal_reconstruction_integrity.py` (real PostgreSQL).
+
+## CONTRACT-GAP-001 — Canonical scope authority reached through the graph read-model
+
+- **Status:** OPEN
+- **Severity:** P1 architecture (Lyndon #6/#7 + layer inversion)
+- **Owner:** trust-spine
+- **Target milestone:** immediately after M1.4a merge, before M1.4b
+- **Blocks:** none — M1.4a intake is deny-only and not wired to any runtime entry point, so no
+  live path consumes the coupling yet.
+- **Discovered:** PR #56 (M1.4a) review, 2026-09-04.
+- **Current evidence:** M1.4a (`71d7ff43`) makes `blackbread.conductor.contracts` import
+  `canonical_scope_value` from `blackbread.graph.domain`, so the trust-spine proposal contract
+  depends on the graph read-model for value canonicalization (a layer inversion). The four-kind
+  scope literal exists in several places (`conductor.contracts`, `graph.revision`, `graph.domain`,
+  `ledger.catalog`) and the canonical-text validator in two (`conductor.contracts`,
+  `ledger.catalog`). Importing a proposal contract pulls the graph module chain it does not need.
+- **Required closure:** a follow-up slice extracts one pure-stdlib `src/blackbread/scope/canonical.py`
+  that single-sources `ScopeKind` and the canonical validators (text/domain/address +
+  `canonical_target_value` + `canonical_scope_value`), importing no other `blackbread` package;
+  `conductor.contracts` and `ledger.catalog` import it; the proposal contract pulls zero graph
+  modules; boundary tests assert the authority is the pure leaf and the contract does not import
+  graph. Converging the residual `graph.revision.ScopeKind` / `graph.domain.canonical_scope_value`
+  copies touches released graph-projection code and remains a smaller residual tracked here.
+- **Verification:** the follow-up slice's `tests/scope/test_canonical.py` plus the updated
+  `tests/conductor/test_boundaries.py` (contract imports `blackbread.scope.canonical`, not
+  `blackbread.graph`; `scope.canonical` imports no `blackbread` package; `ledger.catalog` reuses it).
+- **Compensating control:** none needed — the coupling has no live consumer (deny-only, unwired
+  intake). The follow-up slice must be measured against a `main` that already contains M1.4a; it
+  fits its own diff budget (~215 runtime lines / 4 files) but exceeds the 400-line hard cap if
+  stacked into PR #56 (~574 lines), so it is deliberately a separate slice.

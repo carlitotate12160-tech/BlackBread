@@ -7,8 +7,8 @@ and never overrides live GitHub, accepted architecture, delivery policy, tests, 
 
 * **State:** ACTIVE
 * **Current milestone:** M1 — Trust Spine
-* **Last verified:** 2026-09-02 UTC
-* **Current branch:** `m1-3b3b-harden`
+* **Last verified:** 2026-09-03 UTC
+* **Current branch:** `m1-4a-deny-only-proposal-intake`
 * **Active ruleset:** `main-branch-protection` (`21644438`)
 * **Contractual gate:** the live ruleset matches the machine contract. Required status checks are
   `ci-ok` (aggregator for `quality`, `tests`, `security`, `governance`) and `GitGuardian Security
@@ -24,11 +24,47 @@ These values are checkpoints to verify, not facts to trust without querying live
 
 ## Current decision
 
-The repository owner selected a bounded governance correction after the tiered PR-Agent model change:
-canonical changed-path classification must prevent an omitted `safety-critical` label from selecting
-advisory review, GitHub lookup failures must fail closed, label identity must match exactly, and a
-binding V4-Pro review must not fall back to an advisory model. This correction changes no required
-status check and no target-facing capability.
+The repository owner selected **Conductor** as the next M1 trust-spine epic and **M1.4a — proposal
+contracts and deny-only intake** as the active slice. M1.4a establishes the Conductor/Policy Kernel
+contract boundary: a strict, immutable, versioned `ActionProposal`; a strict, immutable, versioned,
+deny-only `PolicyDecision` v1; and a pure deterministic intake function that returns only `DENY`.
+
+M1.4a is deny-only, pure, and non-persistent. The intake boundary reads no database, filesystem,
+network, registry file, framework, or wall-clock; the caller supplies the decision UUID and decision
+timestamp. Every structurally valid proposal is denied (`PROPOSAL_EXPIRED` when the caller timestamp
+is at or past expiry, otherwise `TRUST_SPINE_NOT_READY`) and malformed input fails closed with a typed
+validation error before any trusted identity is inferred. M1.4a is not wired to any runtime entry
+point, issues no work order, contacts no target, reads no capability registry, and grants no
+execution authority. The M1.4a contract makes an `ALLOW` outcome unrepresentable.
+
+### Locked M1.4 (Conductor) sequence
+
+Later sessions must not depend on chat history for this order; each slice remains independently
+sealable and fail-closed:
+
+* **M1.4a** — proposal contracts and deny-only intake (this slice). No persistence, work order, lease,
+  executor, API exposure, or target effect.
+* **M1.4b** — Policy Kernel v1: pure deterministic evaluation of attested policy, target identity,
+  capability, every parameter and destination, approvals, budgets, locks, and heat. Still no
+  work-order issuance or target effect. **Next owner-selected slice.**
+* **M1.4c** — durable, tenant-isolated, immutable `action_proposals` and `decision_records` with RLS,
+  idempotency, ledger provenance, and atomic persistence.
+* **M1.4d** — budgets, resource locks, and execution leases; no work order without a valid lease.
+* **M1.4e** — dual kill switch and dead-man halt (forensic freeze vs graceful stop) with ledger
+  evidence.
+* **M1.4f** — deterministic Conductor integration and R0 proof (graph readiness → proposal → Policy
+  Kernel → decision → lease → work order, with replay/resume and negative R0 conformance). No target
+  executor or capability contact; M2 owns the Capability Gateway and execution path.
+
+M1.4b–M1.4f are recorded here only; they are not implemented in the M1.4a slice.
+
+### Prior governance decision (historical)
+
+The repository owner previously selected a bounded governance correction after the tiered PR-Agent
+model change: canonical changed-path classification must prevent an omitted `safety-critical` label
+from selecting advisory review, GitHub lookup failures must fail closed, label identity must match
+exactly, and a binding V4-Pro review must not fall back to an advisory model. This correction changed
+no required status check and no target-facing capability.
 
 Three governance PRs merged in sequence:
 
@@ -47,10 +83,11 @@ Three governance PRs merged in sequence:
 The repository now has the protected-base size budget system (PR #31), the Decepticon-style quality
 gates (PR #32), and the PR-Agent/CodiumAI DeepSeek review integration (PR #38).
 
-PR-M1.3b2a was released in PR #42 (`aff7df4`). PR-M1.3b2b was released in PR #43 (`f721f72`).
-PR-M1.3b3 is the current active slice; it is scoped to durable temporal projection lifecycle
-(migration `0006`, immutable revision-lineage persistence, atomic temporal publication, and
-`GRAPH-GAP-001` closure).
+PR-M1.3b2a was released in PR #42 (`aff7df4`). PR-M1.3b2b was released in PR #43 (`f721f72`). The
+M1.3b temporal-projection lifecycle is complete: PR-M1.3b3a (`7afa10f` / PR #45), PR-M1.3b3b-1
+(`05a4b84` / PR #48), PR-M1.3b3b-2+3 (`ac86548` / PR #49), and PR-M1.3b3b-HARDEN
+(`affef9e0` / PR #52) are RELEASED, closing `GRAPH-GAP-001` and `GRAPH-GAP-002`. The active slice is
+now **PR-M1.4a** (Conductor/Policy Kernel proposal contracts and deny-only intake).
 
 ## What is now live on main
 
@@ -134,7 +171,8 @@ PR-M1.3b3 is the current active slice; it is scoped to durable temporal projecti
 The repository owner split the former PR-M1.3b2 after its combined temporal-policy, state-root,
 PostgreSQL-replay, and NetworkX runtime diff exceeded both the 320-line architecture threshold and
 400-line hard cap. PR-M1.3b1 is RELEASED; PR-M1.3b2a is RELEASED; PR-M1.3b2b is RELEASED;
-PR-M1.3b3 is ACTIVE.
+the PR-M1.3b3 durable-temporal chain (b3a, b3b-1, b3b-2+3, b3b-HARDEN) is RELEASED. PR-M1.4a is the
+active slice.
 
 ### PR-M1.3b1 (released)
 
@@ -257,14 +295,58 @@ dispositioned and resolved. A merge does not complete M1.3, M1/R0, `LEDGER-GAP-0
 * **Purpose:** Add an `as_of`-aware durable load over cold-reconstructed lineage (`load_temporal_projection_as_of`), and build the effective NetworkX view from it (`load_temporal_networkx_view_as_of`). Read-only; no schema; no publication change.
 * **Non-goals:** no schema change; no change to the durable write/publication path; no changes to authorization/Policy Kernel.
 
-### PR-M1.3b3b-HARDEN (active)
+### PR-M1.3b3b-HARDEN (released)
 
 * **ID:** PR-M1.3b3b-HARDEN
 * **Title:** Cold reconstruction integrity: verify stable-roots + real cross-tenant isolation
-* **State:** IMPLEMENTED
+* **State:** RELEASED
+* **Released at:** `affef9e0548aa11c1a94fef501bd75bd813d8c12` / PR #52 (squash-merged; reverified live on
+  2026-09-03 against GitHub: protected `main` HEAD, PR #52 `state: MERGED`, source head
+  `44c3ea50c452905426b0aa2cec337234a25d9252`, 0 open PRs).
 * **Prerequisite:** PR-M1.3b3b-2+3 released at `ac86548` / PR #49.
 * **Purpose:** verify cold.roots against the lineage-derived stable-root identity set (F1); add tenant defense-in-depth assert (F4); prove real cross-tenant isolation (F3).
 * **Non-goals:** no schema change; no publication change; no valid-input behavior change.
+* **Closure evidence:** `GRAPH-GAP-002` CLOSED (see GAP-REGISTER.md).
+
+### PR-M1.4a (active)
+
+* **ID:** PR-M1.4a
+* **Title:** Proposal contracts and deny-only intake
+* **State:** IMPLEMENTED
+* **Prerequisite:** PR-M1.3b3b-HARDEN released at `affef9e0` / PR #52.
+* **Purpose:** establish the Conductor/Policy Kernel contract boundary — strict immutable versioned
+  `ActionProposal` (`blackbread.conductor.contracts`) with a deterministic proposal digest over a
+  versioned canonical preimage; strict immutable versioned deny-only `PolicyDecision` v1
+  (`blackbread.policy.contracts`); and a pure deny-only intake
+  (`blackbread.conductor.intake`) that binds tenant, engagement, proposal, digest, and graph version
+  exactly and returns only `DENY`.
+* **Contract facts:** proposals bind a `GraphVersionReference` (state-root version, projector version,
+  state root, ledger event count, ledger head hash) rather than an unbound integer; capability IDs
+  reuse the registry's versioned `*.v<N>` form without adding a competing version authority; the
+  parameter envelope carries a declared input-schema reference and an immutable canonical snapshot but
+  claims no capability-registry admission; canonicalization reuses the ledger's
+  `canonical_json`/`sha256_hex`/`canonical_timestamp` primitives.
+* **Reason codes:** `PROPOSAL_EXPIRED`, `TRUST_SPINE_NOT_READY`. `ALLOW`, `APPROVAL_REQUIRED`, lease,
+  work order, and executable token are unrepresentable in M1.4a.
+* **Non-goals:** no migration, `action_proposals`/`decision_records` tables, ledger publication,
+  Policy Kernel evaluator, capability-registry eligibility, scope/destination validation, approvals,
+  budgets, locks, leases, work orders, kill switch, API/FastAPI endpoint, app wiring, executor, target
+  or control-plane egress, agent cognition, or `LEDGER-GAP-001` closure. M1.4a does not claim M1 or R0
+  is implemented, verified, released, or production-ready.
+* **Intermediate reachability:** the intake is pure and not wired to any runtime entry point; it
+  creates no executable decision, so the ADR requirement to ledger every executable policy decision
+  remains future M1.4c work.
+* **Known debt (CONTRACT-GAP-001):** `TargetReference` canonicalization currently reuses
+  `canonical_scope_value` from `blackbread.graph.domain`, coupling the trust-spine contract to the
+  graph read-model (layer inversion + duplicate scope types). This is P1, non-blocking (unwired
+  intake), and is corrected by a dedicated scope-authority follow-up slice — a pure-stdlib
+  `blackbread.scope.canonical` leaf — that runs immediately after M1.4a merges and before M1.4b. It
+  is a separate slice because stacked into PR #56 it exceeds the 400-line hard cap (~574 lines).
+* **Safety-critical coverage:** `blackbread.conductor.*` added to the `pyproject.toml`
+  safety-critical coverage include (`blackbread.policy.*` was already present); no threshold lowered.
+* **Seal criteria:** focused positive/negative contract, digest, intake, and boundary tests green;
+  affected governance suites green; all repository gates and budgets green; binding current-head
+  PR-Agent (DeepSeek V4-Pro) review complete with all actionable findings dispositioned.
 
 ### PR-M1.3b3b-3
 
@@ -290,7 +372,14 @@ dispositioned and resolved. A merge does not complete M1.3, M1/R0, `LEDGER-GAP-0
 
 The following remain OPEN unless live closure evidence proves otherwise:
 
-* LEDGER-GAP-001 (R0 trust-spine integration remains incomplete)
+* LEDGER-GAP-001 (P0; R0 trust-spine integration remains incomplete; M1.4a does not close it).
+* GOV-GAP-006 (P1; post-merge `ENGINEERING-STATE.md` main-SHA pointer automation still missing;
+  non-blocking per AGENTS.md and `.devin/rules/blackbread.md` preflight rule #10).
+* CONTRACT-GAP-001 (P1; discovered in PR #56 review — M1.4a's `TargetReference` reaches
+  `canonical_scope_value` through `blackbread.graph.domain`, a layer inversion with duplicate scope
+  types. Non-blocking: the deny-only intake is unwired, so no live path consumes the coupling.
+  Closed by the scope-authority follow-up slice, which extracts a pure-stdlib
+  `blackbread.scope.canonical` leaf and cannot fit PR #56's 400-line hard cap. See GAP-REGISTER.md.)
 
 ## Closed blockers
 
@@ -299,6 +388,8 @@ The following remain OPEN unless live closure evidence proves otherwise:
   documented solo-developer pull-request controls; see GAP-REGISTER.md for the captured snapshot).
 * GRAPH-GAP-001 (closed 2026-09-02; durable temporal publication + cold-rebuild proofs + v1 guard
   reword; see GAP-REGISTER.md for full closure evidence).
+* GRAPH-GAP-002 (closed 2026-09-02; cold-reconstruction stable-root verification + real cross-tenant
+  isolation proof; released in PR #52; see GAP-REGISTER.md).
 
 Former GOV-GAP-002 through GOV-GAP-005 are CLOSED (WITHDRAWN) with the AI-review gate removal; see
 GAP-REGISTER.md. No session may infer closure from this work-state document.
