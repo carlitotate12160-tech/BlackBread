@@ -357,7 +357,7 @@ dispositioned and resolved. A merge does not complete M1.3, M1/R0, `LEDGER-GAP-0
 
 * **ID:** PR-M1.4a-FOLLOWUP
 * **Title:** Scope-authority leaf (close CONTRACT-GAP-001)
-* **State:** IMPLEMENTED (PR #57, head `1438eaed`, base `main` `3ea51fea`)
+* **State:** IMPLEMENTED (PR #57, base `main` `3ea51fea`; exact head is the live PR head, not hand-typed here)
 * **Prerequisite:** PR-M1.4a released at `3ea51fea` / PR #56.
 * **Purpose:** close CONTRACT-GAP-001 by extracting the canonical scope authority to a pure-stdlib
   `blackbread.scope.canonical` leaf, removing the layer inversion and duplicate canonical types left
@@ -374,13 +374,14 @@ dispositioned and resolved. A merge does not complete M1.3, M1/R0, `LEDGER-GAP-0
   `ScopeExclusion` dispatches through `canonical_target_value`.
 * **Non-goals:** no behavior change to `ActionProposal`, `PolicyDecision` v1, or deny-only intake; no
   migration; no convergence of `graph.revision.ScopeKind` / `graph.domain.canonical_scope_value`
-  (touches released graph-projection code, tracked as CONTRACT-GAP-001 residual); no SQLAlchemy
+  (touches released graph-projection code, tracked as CONTRACT-GAP-002); no SQLAlchemy
   transitive-import fix (pre-existing, boundary test blind to transitive imports).
 * **Seal criteria:** `tests/scope/test_canonical.py` plus updated `tests/conductor/test_boundaries.py`
   green; conductor pulls 0 graph modules; all repository gates and budgets green; binding current-head
   PR-Agent (DeepSeek V4-Pro) review complete with all actionable findings dispositioned.
 * **Residual:** CONTRACT-GAP-001 is CLOSED at the conductor/ledger layer; the graph-internal copies
-  remain a smaller residual tracked in GAP-REGISTER.md for a future graph-convergence slice.
+  remain a smaller residual tracked as CONTRACT-GAP-002 in GAP-REGISTER.md for a future
+  graph-convergence slice.
 
 ### PR-M1.3b3b-3
 
@@ -409,17 +410,18 @@ The following remain OPEN unless live closure evidence proves otherwise:
 * LEDGER-GAP-001 (P0; R0 trust-spine integration remains incomplete; M1.4a does not close it).
 * GOV-GAP-006 (P1; post-merge `ENGINEERING-STATE.md` main-SHA pointer automation still missing;
   non-blocking per AGENTS.md and `.devin/rules/blackbread.md` preflight rule #10).
-* CONTRACT-GAP-001 residual (P2; `graph.revision.ScopeKind` / `graph.domain.canonical_scope_value`
-  remain graph-internal copies after PR-M1.4a-FOLLOWUP closed the conductor/ledger layer inversion.
-  Converging them touches released graph-projection code and is a separate future slice.)
+* CONTRACT-GAP-002 (P2; `graph.revision.ScopeKind` / `graph.domain.canonical_scope_value` remain
+  graph-internal copies after PR-M1.4a-FOLLOWUP closed the conductor/ledger layer inversion of
+  CONTRACT-GAP-001. Converging them touches released graph-projection code and is a separate future
+  graph-convergence slice. See GAP-REGISTER.md.)
 
 ## Closed blockers
 
-* CONTRACT-GAP-001 (closed 2026-09-04 by PR-M1.4a-FOLLOWUP / PR #57 at head `1438eaed`; the
-  conductor/ledger layer inversion is removed — `conductor.contracts` and `ledger.catalog` import the
-  pure-stdlib `blackbread.scope.canonical` leaf, and importing a proposal contract pulls 0 graph
-  modules. Residual graph-internal copies tracked as CONTRACT-GAP-001 residual above. See
-  GAP-REGISTER.md for full closure evidence.)
+* CONTRACT-GAP-001 (closed 2026-09-04 by PR-M1.4a-FOLLOWUP / PR #57; the conductor/ledger layer
+  inversion is removed — `conductor.contracts` and `ledger.catalog` import the pure-stdlib
+  `blackbread.scope.canonical` leaf, and importing a proposal contract pulls 0 graph modules. The
+  residual graph-internal copies are tracked as CONTRACT-GAP-002 (open). See GAP-REGISTER.md for full
+  closure evidence.)
 * GOV-GAP-001 (live ruleset conformance verified against the machine contract on 2026-08-31 —
   `ci-ok` and `GitGuardian Security Checks` are required in `main-branch-protection`, plus the
   documented solo-developer pull-request controls; see GAP-REGISTER.md for the captured snapshot).

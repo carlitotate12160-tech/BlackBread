@@ -285,7 +285,7 @@ has no live effect; it is retained only as rollback evidence:
   live path consumes the coupling yet.
 - **Discovered:** PR #56 (M1.4a) review, 2026-09-04.
 - **Closed at:** 2026-09-04T08:09:37+00:00
-- **Closure evidence:** the scope-authority follow-up slice extracts one pure-stdlib
+- **Closure evidence:** the scope-authority follow-up slice (PR #57) extracts one pure-stdlib
   `src/blackbread/scope/canonical.py` that single-sources `ScopeKind`/`SCOPE_KINDS` and the
   canonical validators (`canonical_text`, `ensure_canonical_text`, `canonical_domain`,
   `canonical_address`, `canonical_target_value`, `canonical_scope_value`), importing no other
@@ -296,9 +296,9 @@ has no live effect; it is retained only as rollback evidence:
   `GraphProjectionError`). `ledger.catalog` imports the same validators (its private
   `_canonical_text`/`_canonical_domain`/`_canonical_address` forks are removed; `ScopeExclusion`
   dispatches through `canonical_target_value`). Measured: importing a proposal contract pulls
-  zero graph modules (was 4). Converging the residual `graph.revision.ScopeKind` /
-  `graph.domain.canonical_scope_value` copies touches released graph-projection code and remains
-  a smaller residual tracked here.
+  zero graph modules (was 4). The residual `graph.revision.ScopeKind` /
+  `graph.domain.canonical_scope_value` copies remain graph-internal and are tracked as
+  CONTRACT-GAP-002 (open).
 - **Verification:** `tests/scope/test_canonical.py` plus the updated
   `tests/conductor/test_boundaries.py` (`test_target_canonicalization_reuses_single_scope_authority`
   asserts the contract imports `blackbread.scope.canonical` and no `blackbread.graph.*`;
@@ -310,3 +310,24 @@ has no live effect; it is retained only as rollback evidence:
   intake). The slice was measured against a `main` that already contains M1.4a; it fits its own
   diff budget (~215 runtime lines / 4 files) and would have exceeded the 400-line hard cap if
   stacked into PR #56 (~574 lines), so it was deliberately a separate slice.
+
+## CONTRACT-GAP-002 — Graph-internal canonical scope copies not converged
+
+- **Status:** OPEN
+- **Severity:** P2 architecture (residual duplication, no layer inversion)
+- **Owner:** trust-spine
+- **Target milestone:** future graph-convergence slice (no M1.4b blocker)
+- **Blocks:** none — `graph.revision.ScopeKind` and `graph.domain.canonical_scope_value` are
+  graph-internal copies with no consumer outside the graph read-model; the conductor/ledger layer
+  inversion of CONTRACT-GAP-001 is already closed.
+- **Discovered:** PR #57 (CONTRACT-GAP-001 closure) review, 2026-09-04.
+- **Description:** after PR #57 closed CONTRACT-GAP-001 by extracting `blackbread.scope.canonical`,
+  `graph.revision.ScopeKind` and `graph.domain.canonical_scope_value` remain graph-internal copies
+  of the same authority. Converging them touches released graph-projection code (the durable
+  temporal projection path released in PR #48 / PR #49 / PR #52) and is deliberately a separate
+  slice to avoid mixing a graph-projection change into the conductor/ledger layer-inversion fix.
+- **Closure criterion:** `graph.revision` and `graph.domain` import `ScopeKind` and the canonical
+  validators from `blackbread.scope.canonical` instead of carrying private copies; graph projection
+  tests remain green; no graph module redefines `ScopeKind` or a canonical scope dispatcher.
+- **Compensating control:** none needed — the graph-internal copies have no consumer outside the
+  graph read-model, and the conductor/ledger layer inversion is already closed.
