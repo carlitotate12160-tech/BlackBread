@@ -1,56 +1,20 @@
 """M1 event shapes; these validate records but do not grant execution authority."""
 
-import re
 from datetime import datetime
 from functools import lru_cache
-from ipaddress import IPv6Address, ip_address
 from typing import ClassVar, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from blackbread.ledger.schema import EventPayload, EventRegistry
+from blackbread.scope.canonical import ScopeKind, canonical_target_value
+from blackbread.scope.canonical import canonical_address as _canonical_address
+from blackbread.scope.canonical import canonical_domain as _canonical_domain
+from blackbread.scope.canonical import canonical_text as _canonical_text
 
-_DOMAIN_LABEL_PATTERN = re.compile(r"^(?!-)[a-z0-9-]{1,63}(?<!-)$")
-_LEGACY_IPV4_COMPONENT_PATTERN = re.compile(r"^(?:0x[0-9a-f]+|[0-9]+)$")
 _HEX_DIGEST_PATTERN = r"^[0-9a-f]{64}$"
-_MAX_IPV4_COMPONENTS = 4
 _MAX_SCOPE_ENTRIES = 500
-_MIN_DOMAIN_LABELS = 2
 SCOPE_CANONICALIZATION_VERSION = 1
-
-
-def _canonical_text(value: str, field: str, maximum: int) -> str:
-    if not value or value != value.strip():
-        raise ValueError(f"{field} must be a canonical non-blank string")
-    if len(value) > maximum:
-        raise ValueError(f"{field} exceeds {maximum} characters")
-    if "\x00" in value:
-        raise ValueError(f"{field} contains a NUL character")
-    try:
-        value.encode("utf-8")
-    except UnicodeEncodeError as exc:
-        raise ValueError(f"{field} contains invalid Unicode") from exc
-    return value
-
-
-def _canonical_domain(value: str) -> str:
-    _canonical_text(value, "domain", 253)
-    try:
-        ip_address(value)
-    except ValueError:
-        pass
-    else:
-        raise ValueError("domain fields cannot contain IP address literals")
-    labels = value.split(".")
-    if len(labels) <= _MAX_IPV4_COMPONENTS and all(
-        _LEGACY_IPV4_COMPONENT_PATTERN.fullmatch(label) is not None for label in labels
-    ):
-        raise ValueError("domain fields cannot contain legacy IPv4 address spellings")
-    if len(labels) < _MIN_DOMAIN_LABELS or value != value.lower():
-        raise ValueError("domain must be a lowercase fully-qualified name")
-    if any(_DOMAIN_LABEL_PATTERN.fullmatch(label) is None for label in labels):
-        raise ValueError("domain is not canonical")
-    return value
 
 
 def _sorted_unique(values: tuple[str, ...], field: str) -> tuple[str, ...]:
@@ -59,31 +23,17 @@ def _sorted_unique(values: tuple[str, ...], field: str) -> tuple[str, ...]:
     return values
 
 
-def _canonical_address(value: str) -> str:
-    parsed = ip_address(value)
-    if isinstance(parsed, IPv6Address) and parsed.scope_id is not None:
-        raise ValueError("scoped IPv6 addresses are not valid engagement targets")
-    if value != parsed.compressed:
-        raise ValueError("IP address must use its canonical compressed spelling")
-    return value
-
-
 class ScopeExclusion(BaseModel):
     """A canonical exclusion with an explicit target interpretation."""
 
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
 
-    target_type: Literal["root_domain", "exact_host", "exact_address", "cloud_tenant"]
+    target_type: ScopeKind
     value: str
 
     @model_validator(mode="after")
     def validate_target(self) -> Self:
-        if self.target_type in {"root_domain", "exact_host"}:
-            _canonical_domain(self.value)
-        elif self.target_type == "exact_address":
-            _canonical_address(self.value)
-        else:
-            _canonical_text(self.value, "cloud tenant exclusion", 500)
+        canonical_target_value(self.target_type, self.value)
         return self
 
 

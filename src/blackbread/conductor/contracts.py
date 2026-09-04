@@ -25,16 +25,21 @@ from pydantic import (
     model_validator,
 )
 
-from blackbread.graph.domain import GraphProjectionError, canonical_scope_value
 from blackbread.ledger.errors import LedgerValidationError
 from blackbread.ledger.hashing import canonical_json, canonical_timestamp, sha256_hex
+from blackbread.scope.canonical import (
+    SCOPE_KINDS,
+    ScopeKind,
+    canonical_scope_value,
+    ensure_canonical_text,
+)
 
 ACTION_PROPOSAL_SCHEMA = "conductor.action_proposal"
 ACTION_PROPOSAL_SCHEMA_VERSION = 1
 PROPOSAL_DIGEST_VERSION = 1
 AGENT_ROLES = ("Scout", "Strike", "Exploit", "Post-Exploit", "Report")
 IDENTITY_TIERS = ("T0", "T1", "T2", "T3")
-TARGET_KINDS = ("root_domain", "exact_host", "exact_address", "cloud_tenant")
+TARGET_KINDS = SCOPE_KINDS
 
 MAX_TENANT_ID_LENGTH = 100
 MAX_KEY_LENGTH = 200
@@ -58,19 +63,6 @@ class ConductorContractError(ValueError):
     """Typed validation failure for conductor proposal contracts."""
 
 
-def _canonical_text(value: str) -> str:
-    """Validate canonical text: non-blank, trimmed, no NUL, and UTF-8 encodable."""
-    if not value or value != value.strip():
-        raise ValueError("value must be non-blank with no surrounding whitespace")
-    if "\x00" in value:
-        raise ValueError("value must not contain a NUL character")
-    try:
-        value.encode("utf-8")
-    except UnicodeEncodeError as exc:
-        raise ValueError("value must be valid UTF-8") from exc
-    return value
-
-
 def require_utc(value: datetime) -> datetime:
     """Validate and return a timezone-aware UTC datetime."""
     if value.tzinfo is None or value.utcoffset() != timedelta(0):
@@ -86,9 +78,13 @@ def _deep_freeze(value: object) -> object:
     return value
 
 
-TenantId = Annotated[str, AfterValidator(_canonical_text), Field(max_length=MAX_TENANT_ID_LENGTH)]
-KeyText = Annotated[str, AfterValidator(_canonical_text), Field(max_length=MAX_KEY_LENGTH)]
-CanonicalText = Annotated[str, AfterValidator(_canonical_text), Field(max_length=MAX_TEXT_LENGTH)]
+TenantId = Annotated[
+    str, AfterValidator(ensure_canonical_text), Field(max_length=MAX_TENANT_ID_LENGTH)
+]
+KeyText = Annotated[str, AfterValidator(ensure_canonical_text), Field(max_length=MAX_KEY_LENGTH)]
+CanonicalText = Annotated[
+    str, AfterValidator(ensure_canonical_text), Field(max_length=MAX_TEXT_LENGTH)
+]
 HexDigest = Annotated[str, Field(pattern=_HEX64_PATTERN)]
 CapabilityId = Annotated[str, Field(pattern=_CAPABILITY_PATTERN, max_length=MAX_KEY_LENGTH)]
 SchemaRef = Annotated[str, Field(pattern=_SCHEMA_REF_PATTERN, max_length=MAX_KEY_LENGTH)]
@@ -96,7 +92,7 @@ UtcTimestamp = Annotated[datetime, AfterValidator(require_utc)]
 SchemaVersionOne = Annotated[int, Field(ge=1, le=1)]
 AgentRole = Literal["Scout", "Strike", "Exploit", "Post-Exploit", "Report"]
 IdentityTier = Literal["T0", "T1", "T2", "T3"]
-TargetKind = Literal["root_domain", "exact_host", "exact_address", "cloud_tenant"]
+TargetKind = ScopeKind
 Ratio = Annotated[float, Field(ge=0.0, le=1.0, allow_inf_nan=False)]
 
 
@@ -124,7 +120,7 @@ class TargetReference(_StrictModel):
     def _check_canonical_identity(self) -> TargetReference:
         try:
             _, canonical = canonical_scope_value(self.target_kind, self.canonical_value)
-        except GraphProjectionError as exc:
+        except ValueError as exc:
             raise ValueError("canonical_value is not valid for target_kind") from exc
         if canonical != self.canonical_value:
             raise ValueError("canonical_value is not in canonical form for target_kind")

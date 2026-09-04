@@ -82,13 +82,23 @@ def test_no_import_cycle_between_contracts() -> None:
 
 
 def test_target_canonicalization_reuses_single_scope_authority() -> None:
+    # The contract's scope authority is the pure leaf module, never the graph
+    # read-model: importing a proposal contract must not drag graph.
     conductor_imports = _imported_modules(SRC / "conductor" / "contracts.py")
-    assert "blackbread.graph.domain" in conductor_imports
-    graph_domain_imports = _imported_modules(SRC / "graph" / "domain.py")
-    assert not any(
-        name.startswith(("blackbread.conductor", "blackbread.policy"))
-        for name in graph_domain_imports
-    )
+    assert "blackbread.scope.canonical" in conductor_imports
+    assert not any(name.startswith("blackbread.graph") for name in conductor_imports)
+
+
+def test_scope_authority_is_a_pure_leaf() -> None:
+    # The single scope authority depends on no other blackbread package, so every
+    # consumer (ledger, conductor, graph) can reuse it without a layer inversion.
+    scope_imports = _imported_modules(SRC / "scope" / "canonical.py")
+    assert not any(name.startswith("blackbread.") for name in scope_imports)
+
+
+def test_ledger_catalog_reuses_the_scope_authority() -> None:
+    catalog_imports = _imported_modules(SRC / "ledger" / "catalog.py")
+    assert "blackbread.scope.canonical" in catalog_imports
 
 
 def test_modules_import_without_side_effects() -> None:
