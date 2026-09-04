@@ -25,12 +25,21 @@ These values are checkpoints to verify, not facts to trust without querying live
 ## Current decision
 
 The repository owner selected **Conductor** as the next M1 trust-spine epic. **M1.4a — proposal
-contracts and deny-only intake** was released in PR #56 (`3ea51fea`). The active slice is now
-**M1.4a-FOLLOWUP — scope-authority leaf**, which closes CONTRACT-GAP-001 by extracting the canonical
-scope authority to a pure-stdlib `blackbread.scope.canonical` leaf so the trust-spine contract no
-longer reaches through the graph read-model. M1.4a established the Conductor/Policy Kernel contract
-boundary: a strict, immutable, versioned `ActionProposal`; a strict, immutable, versioned, deny-only
-`PolicyDecision` v1; and a pure deterministic intake function that returns only `DENY`.
+contracts and deny-only intake** was released in PR #56 (`3ea51fea`). **M1.4a-FOLLOWUP —
+scope-authority leaf** was released in PR #57 (`6739799d`), closing `CONTRACT-GAP-001`.
+
+`ADR-FINAL-003` is **accepted** (DECIDED only, not implemented). It amends `ADR-FINAL-002` §§6, 9, 10,
+21, 24, 25, 28, 32, 35, and 36 to define a five-agent, no-central-brain campaign-intelligence
+architecture: `WorldSnapshotRef`, coherent `CyberTerrainGraph`/`AttackPathGraph`/
+`ControlAssessmentProjection`/`CampaignProjection` views, `CampaignBlackboard`, versioned oracle
+contract, bounded `InvestigationTrajectory`, `InvestigationIntent` deduplication, and deterministic
+Conductor scheduling. It does not alter M1.4 or authorize target-facing behavior. It introduces
+`CAMPAIGN-GAP-001` (P1, OPEN, M3-M5, blocks R1).
+
+The active slice is now **ADR-FINAL-003 documentation + gap registration** (this PR). M1.4a
+established the Conductor/Policy Kernel contract boundary: a strict, immutable, versioned
+`ActionProposal`; a strict, immutable, versioned, deny-only `PolicyDecision` v1; and a pure
+deterministic intake function that returns only `DENY`.
 
 M1.4a is deny-only, pure, and non-persistent. The intake boundary reads no database, filesystem,
 network, registry file, framework, or wall-clock; the caller supplies the decision UUID and decision
@@ -414,6 +423,9 @@ The following remain OPEN unless live closure evidence proves otherwise:
   graph-internal copies after PR-M1.4a-FOLLOWUP closed the conductor/ledger layer inversion of
   CONTRACT-GAP-001. Converging them touches released graph-projection code and is a separate future
   graph-convergence slice. See GAP-REGISTER.md.)
+* CAMPAIGN-GAP-001 (P1; campaign coherence and coherent multi-view world snapshot are not implemented.
+  `ADR-FINAL-003` is accepted (DECIDED only, not implemented). M1/R0 and M1.4b are not blocked; R1
+  and every target-facing release are blocked until M3-M5 closure. See GAP-REGISTER.md.)
 
 ## Closed blockers
 

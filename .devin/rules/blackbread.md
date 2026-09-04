@@ -5,10 +5,10 @@ trigger: always_on
 
 # BlackBread Engineering Guardrails
 
-BlackBread is an **authorized, covert, agentless external red-team / adversary-emulation** platform. It emulates APT tradecraft (patience, stealth, chain composition) but is strictly authorized and non-destructive. Full context: `ADR-FINAL-002.md` and `PRD.md`. For how to build agents, use the `/build-blackbread-agent` skill.
+BlackBread is an **authorized, covert, agentless external red-team / adversary-emulation** platform. It emulates APT tradecraft (patience, stealth, chain composition) but is strictly authorized and non-destructive. Full context: `ADR-FINAL-002.md` (foundation), `ADR-FINAL-003.md` (campaign intelligence, verified terrain, bounded investigation), and `PRD.md`. For how to build agents, use the `/build-blackbread-agent` skill.
 
 ## Authority and completion claims
-- Read `ADR-FINAL-002.md`, `PRD.md`, and `config/capability-registry.json` before changing architecture, an agent, a target-facing capability, or a release gate.
+- Read `ADR-FINAL-002.md`, `ADR-FINAL-003.md`, `PRD.md`, and `config/capability-registry.json` before changing architecture, an agent, a target-facing capability, or a release gate.
 - Authority order is law/SOW/manifest → accepted ADR → PRD → these rules → capability registry/schema → skill → tests/readmes/history. Never use a lower artifact to weaken a higher one.
 - A documented capability is not implemented. Use only `DECIDED`, `IMPLEMENTED`, `VERIFIED`, and `RELEASED`; claim the latter three only with live-path, test, and release evidence respectively.
 - Do not hide blocking work as `TODO`, `TBD`, `later`, dormant, skipped tests, `continue-on-error`, an optional bot, or an undocumented waiver. Record a stable gap ID, severity, owner, milestone, blocking release, verification, and closure evidence. Deferral requires an accepted ADR amendment and compensating control.

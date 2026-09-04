@@ -1,6 +1,7 @@
 # ADR-FINAL-002 — BlackBread: Agentless Autonomous External Red-Team / Adversary-Emulation Platform
 
 - **Status:** Accepted — 2026-08-27; supersedes all prior BlackBread architecture drafts
+- **Amended by:** `ADR-FINAL-003.md` — Campaign Intelligence, Verified Terrain, and Bounded Investigation (accepted 2026-09-04)
 - **Implementation status:** M1 trust-spine work in progress; the hardened ledger slice is implemented, but R0/M1 is not complete or production-eligible
 - **Decision class:** Foundational architecture
 - **Product type:** Authorized autonomous external red-team exploitation, operated with adversary-emulation (APT) tradecraft
@@ -30,7 +31,7 @@ evidence. A statement in a document never proves that a capability exists.
 When artifacts conflict, authority is resolved in this order:
 
 1. applicable law, the executed SOW, and the signed engagement manifest;
-2. accepted ADR decisions and hard safety invariants in this document;
+2. accepted ADR decisions and hard safety invariants in this document and in `ADR-FINAL-003.md`;
 3. `PRD.md` requirements and release acceptance criteria;
 4. `.devin/rules/blackbread.md` engineering enforcement rules;
 5. machine-readable capability registry and schemas;
@@ -939,3 +940,14 @@ explicit binding-review failure rather than producing an apparently successful V
 This amendment changes only review-tier classification and failure semantics. It does not make
 PR-Agent a required GitHub status check, change the required first-party checks, or alter any
 target-facing capability.
+
+## 43. Cross-Reference: ADR-FINAL-003
+
+`ADR-FINAL-003 — Campaign Intelligence, Verified Terrain, and Bounded Investigation` (accepted
+2026-09-04) amends §§6, 9, 10, 21, 24, 25, 28, 32, 35, and 36 of this document. It retains every
+authorization, Policy Kernel, OPSEC, target-identity, capability, evidence-integrity, do-no-harm,
+agentless-execution, and release gate in this ADR and defines a deterministic campaign-intelligence
+architecture: `WorldSnapshotRef`, `CyberTerrainGraph`, `AttackPathGraph`,
+`ControlAssessmentProjection`, `CampaignProjection`, `CampaignBlackboard`, bounded
+`InvestigationTrajectory`, `InvestigationIntent` deduplication, and deterministic Conductor
+scheduling. See `ADR-FINAL-003.md` for full detail.

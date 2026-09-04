@@ -2,7 +2,8 @@
 
 BlackBread is an authorized, agentless external red-team orchestration platform. The repository
 contains the M0 foundation and an in-progress M1 trust-spine ledger slice described in
-`ADR-FINAL-002.md`. R0/M1 is not complete or production-eligible.
+`ADR-FINAL-002.md`. `ADR-FINAL-003.md` adds the campaign-intelligence architecture (verified terrain,
+coherent multi-view snapshots, bounded investigation). R0/M1 is not complete or production-eligible.
 
 ## Implemented slices
 
@@ -36,9 +37,10 @@ export BLACKBREAD_TEST_RUNTIME_PASSWORD="blackbread_test_runtime"
 uv run pytest tests/ledger
 ```
 
-`ADR-FINAL-002.md` is the accepted architecture decision. Planned capabilities remain default-denied
-in `config/capability-registry.json`, and `LEDGER-GAP-001` blocks R0 and every target-facing release
-until the remaining trust spine is verified.
+`ADR-FINAL-002.md` is the accepted foundation architecture; `ADR-FINAL-003.md` is the accepted
+amendment for campaign intelligence, verified terrain, and bounded investigation. Planned
+capabilities remain default-denied in `config/capability-registry.json`, and `LEDGER-GAP-001` blocks
+R0 and every target-facing release until the remaining trust spine is verified.
 
 The typed event catalog validates immutable ledger record shapes only. An
 `engagement.attested` record does not itself authorize execution: signature verification,
