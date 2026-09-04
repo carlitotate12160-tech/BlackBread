@@ -336,6 +336,12 @@ dispositioned and resolved. A merge does not complete M1.3, M1/R0, `LEDGER-GAP-0
 * **Intermediate reachability:** the intake is pure and not wired to any runtime entry point; it
   creates no executable decision, so the ADR requirement to ledger every executable policy decision
   remains future M1.4c work.
+* **Known debt (CONTRACT-GAP-001):** `TargetReference` canonicalization currently reuses
+  `canonical_scope_value` from `blackbread.graph.domain`, coupling the trust-spine contract to the
+  graph read-model (layer inversion + duplicate scope types). This is P1, non-blocking (unwired
+  intake), and is corrected by a dedicated scope-authority follow-up slice — a pure-stdlib
+  `blackbread.scope.canonical` leaf — that runs immediately after M1.4a merges and before M1.4b. It
+  is a separate slice because stacked into PR #56 it exceeds the 400-line hard cap (~574 lines).
 * **Safety-critical coverage:** `blackbread.conductor.*` added to the `pyproject.toml`
   safety-critical coverage include (`blackbread.policy.*` was already present); no threshold lowered.
 * **Seal criteria:** focused positive/negative contract, digest, intake, and boundary tests green;
@@ -369,6 +375,11 @@ The following remain OPEN unless live closure evidence proves otherwise:
 * LEDGER-GAP-001 (P0; R0 trust-spine integration remains incomplete; M1.4a does not close it).
 * GOV-GAP-006 (P1; post-merge `ENGINEERING-STATE.md` main-SHA pointer automation still missing;
   non-blocking per AGENTS.md and `.devin/rules/blackbread.md` preflight rule #10).
+* CONTRACT-GAP-001 (P1; discovered in PR #56 review — M1.4a's `TargetReference` reaches
+  `canonical_scope_value` through `blackbread.graph.domain`, a layer inversion with duplicate scope
+  types. Non-blocking: the deny-only intake is unwired, so no live path consumes the coupling.
+  Closed by the scope-authority follow-up slice, which extracts a pure-stdlib
+  `blackbread.scope.canonical` leaf and cannot fit PR #56's 400-line hard cap. See GAP-REGISTER.md.)
 
 ## Closed blockers
 
