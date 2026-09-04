@@ -5,16 +5,15 @@ a verified engagement-policy snapshot, a verified target-identity snapshot, a di
 capability-admission snapshot, and a bounded destination manifest, plus the canonical parameter
 digest that binds a manifest to a proposal's parameters. These contracts carry provenance
 references and digests, never a bare trust boolean, and reuse the conductor's canonical scalar
-and target types rather than duplicating them. This slice defines inputs only: it adds no
-evaluator, no result, and no executable outcome. The pure evaluator is PR-M1.4b1b.
+and target types rather than duplicating them. M1.4b1b adds the non-executable result contract.
 """
 
 from __future__ import annotations
 
-from typing import Annotated, Literal
+from typing import Annotated, Literal, get_args
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
 
 from blackbread.conductor.contracts import (
     MAX_BUDGET_REQUESTS,
@@ -32,10 +31,12 @@ from blackbread.conductor.contracts import (
     TenantId,
     UtcTimestamp,
 )
-from blackbread.ledger.hashing import sha256_hex
+from blackbread.ledger.hashing import canonical_json, canonical_timestamp, sha256_hex
 
 ADMISSION_SCHEMA = "policy.admission"
 ADMISSION_SCHEMA_VERSION = 1
+ADMISSION_RESULT_SCHEMA = "policy.admission.result"
+ADMISSION_RESULT_SCHEMA_VERSION = 1
 
 MAX_SCOPE_ENTRIES = 256
 MAX_CAPABILITY_IDS = 256
@@ -82,6 +83,39 @@ NetworkPath = Literal["CONTROL_PLANE_PASSIVE", "TARGET_EGRESS", "NONE"]
 DestinationKind = Literal["primary", "redirect", "callback", "proxy", "file_input", "body_embedded"]
 
 _PARAMETER_DIGEST_DOMAIN = "blackbread.policy.admission.parameter_digest.v1"
+_RESULT_DIGEST_DOMAIN = "blackbread.policy.admission.result_digest.v1"
+
+AdmissionDenyReason = Literal[
+    "PROPOSAL_NOT_YET_VALID",
+    "PROPOSAL_EXPIRED",
+    "POLICY_NOT_YET_VALID",
+    "POLICY_EXPIRED",
+    "TENANT_MISMATCH",
+    "ENGAGEMENT_MISMATCH",
+    "PROPOSAL_BINDING_MISMATCH",
+    "GRAPH_BINDING_MISMATCH",
+    "CAPABILITY_NOT_ALLOWED",
+    "CAPABILITY_BINDING_MISMATCH",
+    "CAPABILITY_LIFECYCLE_DENIED",
+    "CAPABILITY_OWNER_MISMATCH",
+    "CAPABILITY_SCHEMA_MISMATCH",
+    "CAPABILITY_PROFILE_MISMATCH",
+    "EXTRACTOR_BINDING_MISMATCH",
+    "PARAMETER_BINDING_MISMATCH",
+    "TARGET_IDENTITY_MISMATCH",
+    "TARGET_IDENTITY_NOT_YET_VALID",
+    "TARGET_IDENTITY_EXPIRED",
+    "IDENTITY_TIER_INSUFFICIENT",
+    "TARGET_EXCLUDED",
+    "TARGET_OUT_OF_SCOPE",
+    "TARGET_EGRESS_DESTINATION_REQUIRED",
+    "DESTINATION_EXCLUDED",
+    "DESTINATION_OUT_OF_SCOPE",
+    "STRUCTURAL_BUDGET_EXCEEDED",
+]
+
+ADMISSION_DENY_REASONS: tuple[AdmissionDenyReason, ...] = get_args(AdmissionDenyReason)
+AdmissionOutcome = Literal["ADMITTED_FOR_RUNTIME_GATES", "DENY"]
 
 
 class AdmissionContractError(ValueError):
@@ -202,3 +236,74 @@ class DestinationManifest(_Frozen):
         if len(keyed) != len(self.destinations):
             raise ValueError("destinations must be canonical and unique")
         return self
+
+
+class AdmissionResult(_Frozen):
+    """Digest-bound admission result that grants no execution authority."""
+
+    schema_name: Literal["policy.admission.result"]
+    schema_version: SchemaVersionOne
+    tenant_id: TenantId
+    engagement_id: UUID
+    proposal_id: UUID
+    proposal_digest: HexDigest
+    policy_schema_ref: SchemaRef
+    policy_digest: HexDigest
+    attestation_digest: HexDigest
+    identity_verifier_ref: CanonicalText
+    identity_evidence_digest: HexDigest
+    registry_schema_version: Annotated[int, Field(ge=1, le=MAX_SCHEMA_VERSION)]
+    registry_digest: HexDigest
+    capability_id: CapabilityId
+    supply_chain_digest: HexDigest
+    extractor_identity: CanonicalText
+    extractor_digest: HexDigest
+    parameter_digest: HexDigest
+    graph_version: GraphVersionReference
+    evaluated_at: UtcTimestamp
+    outcome: AdmissionOutcome
+    reason_code: AdmissionDenyReason | None
+
+    @model_validator(mode="after")
+    def _check_outcome(self) -> AdmissionResult:
+        admitted = self.outcome == "ADMITTED_FOR_RUNTIME_GATES"
+        if admitted != (self.reason_code is None):
+            raise ValueError("admitted requires no reason and denial requires one reason")
+        return self
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def result_digest(self) -> str:
+        return sha256_hex(f"{_RESULT_DIGEST_DOMAIN}\x00{canonical_json(_result_preimage(self))}")
+
+
+def _result_preimage(result: AdmissionResult) -> list[object]:
+    graph = result.graph_version
+    return [
+        ["schema_name", result.schema_name],
+        ["schema_version", result.schema_version],
+        ["tenant_id", result.tenant_id],
+        ["engagement_id", str(result.engagement_id)],
+        ["proposal_id", str(result.proposal_id)],
+        ["proposal_digest", result.proposal_digest],
+        ["policy_schema_ref", result.policy_schema_ref],
+        ["policy_digest", result.policy_digest],
+        ["attestation_digest", result.attestation_digest],
+        ["identity_verifier_ref", result.identity_verifier_ref],
+        ["identity_evidence_digest", result.identity_evidence_digest],
+        ["registry_schema_version", result.registry_schema_version],
+        ["registry_digest", result.registry_digest],
+        ["capability_id", result.capability_id],
+        ["supply_chain_digest", result.supply_chain_digest],
+        ["extractor_identity", result.extractor_identity],
+        ["extractor_digest", result.extractor_digest],
+        ["parameter_digest", result.parameter_digest],
+        ["state_root_version", graph.state_root_version],
+        ["projector_version", graph.projector_version],
+        ["state_root", graph.state_root],
+        ["ledger_event_count", graph.ledger_event_count],
+        ["ledger_head_hash", graph.ledger_head_hash],
+        ["evaluated_at", canonical_timestamp(result.evaluated_at)],
+        ["outcome", result.outcome],
+        ["reason_code", result.reason_code],
+    ]
