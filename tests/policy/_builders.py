@@ -39,10 +39,11 @@ def target(**overrides: Any) -> TargetReference:
 
 def policy_snapshot(**overrides: Any) -> EngagementPolicySnapshot:
     fields: dict[str, Any] = {
+        "schema_name": "policy.admission.engagement_policy",
+        "schema_version": 1,
         "tenant_id": TENANT,
         "engagement_id": ENGAGEMENT,
-        "policy_schema": "EngagementPolicy.v1",
-        "policy_version": 1,
+        "policy_schema_ref": "EngagementPolicy.v1",
         "policy_digest": HEX_P,
         "attestation_ref": "attestation-eng-001",
         "attestation_digest": HEX_ATTEST,
@@ -61,6 +62,8 @@ def identity_snapshot(proposal: ActionProposal, **overrides: Any) -> TargetIdent
     # Defaults are derived from the proposal so a non-default proposal yields a consistent
     # snapshot; deliberate negative cases override the specific field under test.
     fields: dict[str, Any] = {
+        "schema_name": "policy.admission.target_identity",
+        "schema_version": 1,
         "tenant_id": proposal.tenant_id,
         "engagement_id": proposal.engagement_id,
         "proposal_digest": proposal.proposal_digest,
@@ -78,6 +81,8 @@ def identity_snapshot(proposal: ActionProposal, **overrides: Any) -> TargetIdent
 
 def capability_snapshot(**overrides: Any) -> CapabilityAdmissionSnapshot:
     fields: dict[str, Any] = {
+        "schema_name": "policy.admission.capability_admission",
+        "schema_version": 1,
         "registry_schema_version": 1,
         "registry_digest": HEX_REGISTRY,
         "capability_id": CAPABILITY,
@@ -100,6 +105,8 @@ def capability_snapshot(**overrides: Any) -> CapabilityAdmissionSnapshot:
 
 def manifest(proposal: ActionProposal, **overrides: Any) -> DestinationManifest:
     fields: dict[str, Any] = {
+        "schema_name": "policy.admission.destination_manifest",
+        "schema_version": 1,
         "proposal_digest": proposal.proposal_digest,
         "parameter_digest": parameter_digest(proposal.parameter_envelope.canonical_parameters),
         "input_schema": proposal.parameter_envelope.input_schema_ref,

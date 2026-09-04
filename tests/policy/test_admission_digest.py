@@ -16,6 +16,16 @@ def test_parameter_digest_is_lowercase_sha256_hex() -> None:
     int(digest, 16)
 
 
+def test_parameter_digest_golden_vector() -> None:
+    # Locks the domain separator and preimage shape. Regenerating this value requires an
+    # intentional, versioned change to the digest domain, not an incidental refactor.
+    canonical = '{"depth":1,"sources":["ct","dns"]}'
+    assert parameter_digest(canonical) == (
+        "b42993cb09384881d16ce42e0badb30b2534555f4e4fa491bc5a11969ad890a8"
+    )
+    assert make_proposal().parameter_envelope.canonical_parameters == canonical
+
+
 def test_parameter_digest_is_stable_for_identical_parameters() -> None:
     left = parameter_digest(make_proposal().parameter_envelope.canonical_parameters)
     right = parameter_digest(make_proposal().parameter_envelope.canonical_parameters)

@@ -100,14 +100,11 @@ class _Frozen(BaseModel):
 class EngagementPolicySnapshot(_Frozen):
     """Verified engagement-policy facts: provenance digests, validity, scope, capabilities."""
 
-    schema_name: Literal["policy.admission.engagement_policy"] = (
-        "policy.admission.engagement_policy"
-    )
-    schema_version: SchemaVersionOne = ADMISSION_SCHEMA_VERSION
+    schema_name: Literal["policy.admission.engagement_policy"]
+    schema_version: SchemaVersionOne
     tenant_id: TenantId
     engagement_id: UUID
-    policy_schema: SchemaRef
-    policy_version: Annotated[int, Field(ge=1, le=MAX_SCHEMA_VERSION)]
+    policy_schema_ref: SchemaRef
     policy_digest: HexDigest
     attestation_ref: CanonicalText
     attestation_digest: HexDigest
@@ -134,8 +131,8 @@ class EngagementPolicySnapshot(_Frozen):
 class TargetIdentitySnapshot(_Frozen):
     """Verified target-identity facts bound to one proposal digest and one exact target."""
 
-    schema_name: Literal["policy.admission.target_identity"] = "policy.admission.target_identity"
-    schema_version: SchemaVersionOne = ADMISSION_SCHEMA_VERSION
+    schema_name: Literal["policy.admission.target_identity"]
+    schema_version: SchemaVersionOne
     tenant_id: TenantId
     engagement_id: UUID
     proposal_digest: HexDigest
@@ -157,10 +154,8 @@ class TargetIdentitySnapshot(_Frozen):
 class CapabilityAdmissionSnapshot(_Frozen):
     """Digest-pinned registry facts for one capability plus its bound destination extractor."""
 
-    schema_name: Literal["policy.admission.capability_admission"] = (
-        "policy.admission.capability_admission"
-    )
-    schema_version: SchemaVersionOne = ADMISSION_SCHEMA_VERSION
+    schema_name: Literal["policy.admission.capability_admission"]
+    schema_version: SchemaVersionOne
     registry_schema_version: Annotated[int, Field(ge=1, le=MAX_SCHEMA_VERSION)]
     registry_digest: HexDigest
     capability_id: CapabilityId
@@ -188,10 +183,8 @@ class ScopedDestination(_Frozen):
 class DestinationManifest(_Frozen):
     """Bounded exhaustive destination set produced by a digest-admitted extractor."""
 
-    schema_name: Literal["policy.admission.destination_manifest"] = (
-        "policy.admission.destination_manifest"
-    )
-    schema_version: SchemaVersionOne = ADMISSION_SCHEMA_VERSION
+    schema_name: Literal["policy.admission.destination_manifest"]
+    schema_version: SchemaVersionOne
     proposal_digest: HexDigest
     parameter_digest: HexDigest
     input_schema: SchemaRef

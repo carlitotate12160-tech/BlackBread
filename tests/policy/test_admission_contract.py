@@ -106,6 +106,27 @@ def test_snapshots_reject_wrong_schema_name() -> None:
         policy_snapshot(schema_name="policy.admission.wrong")
 
 
+def test_policy_requires_schema_name() -> None:
+    kwargs = _policy_kwargs()
+    del kwargs["schema_name"]
+    with pytest.raises(ValidationError):
+        EngagementPolicySnapshot(**kwargs)
+
+
+def test_policy_requires_schema_version() -> None:
+    kwargs = _policy_kwargs()
+    del kwargs["schema_version"]
+    with pytest.raises(ValidationError):
+        EngagementPolicySnapshot(**kwargs)
+
+
+def test_policy_version_has_single_authority() -> None:
+    # The engagement-policy version lives only in policy_schema_ref (its .vN suffix); a
+    # separate policy_version field is not accepted, so the two cannot contradict.
+    with pytest.raises(ValidationError):
+        policy_snapshot(policy_version=2)
+
+
 def test_capability_lifecycle_vocabulary_is_closed() -> None:
     with pytest.raises(ValidationError):
         capability_snapshot(lifecycle="ACTIVE")
@@ -153,10 +174,11 @@ def test_snapshots_reuse_shared_target_reference_type() -> None:
 
 def _policy_kwargs() -> dict[str, object]:
     return {
+        "schema_name": "policy.admission.engagement_policy",
+        "schema_version": 1,
         "tenant_id": "tenant-a",
         "engagement_id": policy_snapshot().engagement_id,
-        "policy_schema": "EngagementPolicy.v1",
-        "policy_version": 1,
+        "policy_schema_ref": "EngagementPolicy.v1",
         "policy_digest": "1" * 64,
         "attestation_ref": "attestation-eng-001",
         "attestation_digest": "2" * 64,
