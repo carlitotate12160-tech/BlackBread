@@ -7,8 +7,8 @@ and never overrides live GitHub, accepted architecture, delivery policy, tests, 
 
 * **State:** ACTIVE
 * **Current milestone:** M1 — Trust Spine
-* **Last verified:** 2026-09-03 UTC
-* **Current branch:** `m1-4a-deny-only-proposal-intake`
+* **Last verified:** 2026-09-04 UTC
+* **Current branch:** `main`
 * **Active ruleset:** `main-branch-protection` (`21644438`)
 * **Contractual gate:** the live ruleset matches the machine contract. Required status checks are
   `ci-ok` (aggregator for `quality`, `tests`, `security`, `governance`) and `GitGuardian Security
@@ -36,10 +36,10 @@ contract, bounded `InvestigationTrajectory`, `InvestigationIntent` deduplication
 Conductor scheduling. It does not alter M1.4 or authorize target-facing behavior. It introduces
 `CAMPAIGN-GAP-001` (P1, OPEN, M3-M5, blocks R1).
 
-The active slice is now **ADR-FINAL-003 documentation + gap registration** (this PR). M1.4a
-established the Conductor/Policy Kernel contract boundary: a strict, immutable, versioned
-`ActionProposal`; a strict, immutable, versioned, deny-only `PolicyDecision` v1; and a pure
-deterministic intake function that returns only `DENY`.
+The **ADR-FINAL-003 documentation + gap registration** slice was released in PR #58
+(`3ab0e392`) and merged to `main`. M1.4a established the Conductor/Policy Kernel contract
+boundary: a strict, immutable, versioned `ActionProposal`; a strict, immutable, versioned,
+deny-only `PolicyDecision` v1; and a pure deterministic intake function that returns only `DENY`.
 
 M1.4a is deny-only, pure, and non-persistent. The intake boundary reads no database, filesystem,
 network, registry file, framework, or wall-clock; the caller supplies the decision UUID and decision
