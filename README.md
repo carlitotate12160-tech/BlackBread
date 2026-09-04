@@ -39,8 +39,9 @@ uv run pytest tests/ledger
 
 `ADR-FINAL-002.md` is the accepted foundation architecture; `ADR-FINAL-003.md` is the accepted
 amendment for campaign intelligence, verified terrain, and bounded investigation. Planned
-capabilities remain default-denied in `config/capability-registry.json`, and `LEDGER-GAP-001` blocks
-R0 and every target-facing release until the remaining trust spine is verified.
+capabilities remain default-denied in `config/capability-registry.json`. `LEDGER-GAP-001` blocks
+R0; `CAMPAIGN-GAP-001` blocks R1. Both gaps block every target-facing release until closure
+evidence is complete.
 
 The typed event catalog validates immutable ledger record shapes only. An
 `engagement.attested` record does not itself authorize execution: signature verification,

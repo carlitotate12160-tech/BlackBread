@@ -99,8 +99,8 @@ PR-M1.3b2a was released in PR #42 (`aff7df4`). PR-M1.3b2b was released in PR #43
 M1.3b temporal-projection lifecycle is complete: PR-M1.3b3a (`7afa10f` / PR #45), PR-M1.3b3b-1
 (`05a4b84` / PR #48), PR-M1.3b3b-2+3 (`ac86548` / PR #49), and PR-M1.3b3b-HARDEN
 (`affef9e0` / PR #52) are RELEASED, closing `GRAPH-GAP-001` and `GRAPH-GAP-002`. PR-M1.4a (Conductor/Policy
-Kernel proposal contracts and deny-only intake) was released in PR #56 (`3ea51fea`). The active slice is
-now **PR-M1.4a-FOLLOWUP** (scope-authority leaf — closes CONTRACT-GAP-001).
+Kernel proposal contracts and deny-only intake) was released in PR #56 (`3ea51fea`). PR-M1.4a-FOLLOWUP
+(scope-authority leaf — closes CONTRACT-GAP-001) was released in PR #57 (`6739799d`).
 
 ## What is now live on main
 
@@ -362,11 +362,11 @@ dispositioned and resolved. A merge does not complete M1.3, M1/R0, `LEDGER-GAP-0
   affected governance suites green; all repository gates and budgets green; binding current-head
   PR-Agent (DeepSeek V4-Pro) review complete with all actionable findings dispositioned.
 
-### PR-M1.4a-FOLLOWUP (active)
+### PR-M1.4a-FOLLOWUP (released)
 
 * **ID:** PR-M1.4a-FOLLOWUP
 * **Title:** Scope-authority leaf (close CONTRACT-GAP-001)
-* **State:** IMPLEMENTED (PR #57, base `main` `3ea51fea`; exact head is the live PR head, not hand-typed here)
+* **State:** RELEASED (PR #57, merged 2026-09-04; base `main` `3ea51fea`)
 * **Prerequisite:** PR-M1.4a released at `3ea51fea` / PR #56.
 * **Purpose:** close CONTRACT-GAP-001 by extracting the canonical scope authority to a pure-stdlib
   `blackbread.scope.canonical` leaf, removing the layer inversion and duplicate canonical types left

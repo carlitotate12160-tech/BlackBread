@@ -3,8 +3,8 @@
 BlackBread is an authorized, covert, agentless external red-team / adversary-emulation platform.
 This file is the session entry point: how to start, where authority lives, and which file owns each
 rule. It deliberately does not restate the rules — it points to their single source, so the same
-rule is never maintained in two places. Full architecture and safety decisions: `ADR-FINAL-002.md`
-and `PRD.md`.
+rule is never maintained in two places. Full architecture and safety decisions: `ADR-FINAL-002.md`,
+`ADR-FINAL-003.md`, and `PRD.md`.
 
 ## Start from live truth
 

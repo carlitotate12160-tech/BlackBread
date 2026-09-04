@@ -2,11 +2,11 @@
 
 Converse in Bahasa Indonesia; English for code, schemas, and IDE/agent prompts.
 
-Authority order: AGENTS.md -> ADR-FINAL-002.md §0 -> PRD.md -> .devin/rules/blackbread.md ->
-config/capability-registry.json -> GAP-REGISTER.md. Read live GitHub + ENGINEERING-STATE.md before
-acting; never work from chat memory. How-to lives in .devin/skills/blackbread-engineering/ (SKILL.md
-+ references/). Lower authority may strengthen but never weaken higher; on any conflict, STOP and
-report — do not choose the easier rule.
+Authority order: AGENTS.md -> ADR-FINAL-002.md §0 and ADR-FINAL-003.md -> PRD.md ->
+.devin/rules/blackbread.md -> config/capability-registry.json -> GAP-REGISTER.md. Read live GitHub +
+ENGINEERING-STATE.md before acting; never work from chat memory. How-to lives in
+.devin/skills/blackbread-engineering/ (SKILL.md + references/). Lower authority may strengthen but
+never weaken higher; on any conflict, STOP and report — do not choose the easier rule.
 
 Run every implementation as the 12-stage delivery spine (SKILL.md, "Delivery lifecycle — the spine"):
 1 LIVE BASELINE  2 SLICE/DESIGN GATE  3 BOUNDED EXECUTION CONTRACT  4 TDD RED -> MINIMUM GREEN

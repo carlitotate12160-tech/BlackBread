@@ -185,11 +185,13 @@ Cyber terrain, attack paths, control assessments, and campaign progress SHALL be
 deterministic views over one verified ledger prefix. They SHALL NOT use separate canonical databases.
 
 ```python
+from __future__ import annotations
+
 from datetime import datetime, timedelta
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Self
 from uuid import UUID
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
 
 
 HexDigest = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
@@ -229,6 +231,26 @@ CapabilityStyleId = Annotated[
 SchemaRef = Annotated[str, Field(pattern=r"^[A-Za-z][A-Za-z0-9_]*\.v[1-9][0-9]*$")]
 IdentityTier = Literal["T0", "T1", "T2", "T3"]
 AgentRole = Literal["Scout", "Strike", "Exploit", "Post-Exploit", "Report"]
+InvestigationAgentRole = Literal["Scout", "Strike", "Exploit", "Post-Exploit"]
+EpistemicState = Literal[
+    "OBSERVED",
+    "CANDIDATE",
+    "VALIDATION_PENDING",
+    "VALIDATED",
+    "CROSS_VERIFIED",
+    "REJECTED",
+    "INCONCLUSIVE",
+    "SUPERSEDED",
+]
+ClaimKind = Literal[
+    "EXPOSURE",
+    "APPLICABILITY",
+    "AUTHENTICATION",
+    "AUTHORIZATION",
+    "CONTROL_EFFECT",
+    "BOUNDARY",
+    "IMPACT",
+]
 
 
 class FrozenStrictModel(BaseModel):
@@ -259,6 +281,22 @@ class WorldSnapshotRefV1(FrozenStrictModel):
     attack_path: ProjectionRef | None
     control_assessment: ProjectionRef | None
     campaign: ProjectionRef | None
+
+    @model_validator(mode="after")
+    def _projection_name_matches_slot(self) -> Self:
+        slots = {
+            "terrain": "cyber_terrain",
+            "attack_path": "attack_path",
+            "control_assessment": "control_assessment",
+            "campaign": "campaign",
+        }
+        for slot, expected in slots.items():
+            ref = getattr(self, slot)
+            if ref is not None and ref.projection_name != expected:
+                raise ValueError(
+                    f"{slot} must contain a ProjectionRef with projection_name={expected!r}"
+                )
+        return self
 ```
 
 Rules:
@@ -356,6 +394,12 @@ class ControlAssessment(FrozenStrictModel):
     based_on_snapshot: WorldSnapshotRefV1
     valid_from: CanonicalUtcTimestamp
     valid_until: CanonicalUtcTimestamp
+
+    @model_validator(mode="after")
+    def _application_assurance_requires_exception(self) -> Self:
+        if self.test_mode == "APPLICATION_ASSURANCE" and self.client_test_exception_ref is None:
+            raise ValueError("APPLICATION_ASSURANCE requires client_test_exception_ref")
+        return self
 ```
 
 - `CLIENT_TEST_EXCEPTION_ACTIVE` SHALL NOT be transformed into `CONTROL_BYPASS_PROVEN`.
@@ -481,7 +525,7 @@ class InvestigationTrajectoryV1(FrozenStrictModel):
     tenant_id: CanonicalTenantId
     engagement_id: UUID
     owner_agent_instance_id: UUID
-    owner_role: Literal["Scout", "Strike", "Exploit", "Post-Exploit"]
+    owner_role: InvestigationAgentRole
     hypothesis_ref: UUID
     objective_ref: UUID
     based_on_snapshot: WorldSnapshotRefV1
@@ -569,7 +613,7 @@ class InvestigationIntentV1(FrozenStrictModel):
     tenant_id: CanonicalTenantId
     engagement_id: UUID
     producer_agent_instance_id: UUID
-    producer_role: AgentRole
+    producer_role: InvestigationAgentRole
     objective_ref: UUID
     hypothesis_ref: UUID
     goal: Literal[
