@@ -81,6 +81,31 @@ def test_identity_rejects_inverted_validity() -> None:
         )
 
 
+def test_policy_rejects_equal_validity_boundary() -> None:
+    same = datetime(2026, 9, 3, 12, 0, tzinfo=UTC)
+    with pytest.raises(ValidationError):
+        policy_snapshot(valid_from=same, valid_until=same)
+
+
+def test_identity_rejects_equal_validity_boundary() -> None:
+    same = datetime(2026, 9, 3, 12, 0, tzinfo=UTC)
+    with pytest.raises(ValidationError):
+        identity_snapshot(make_proposal(), verified_at=same, expires_at=same)
+
+
+def test_snapshots_serialize_schema_identity() -> None:
+    policy = policy_snapshot().model_dump()
+    assert policy["schema_name"] == "policy.admission.engagement_policy"
+    assert policy["schema_version"] == 1
+    manifest_dump = manifest(make_proposal()).model_dump()
+    assert manifest_dump["schema_name"] == "policy.admission.destination_manifest"
+
+
+def test_snapshots_reject_wrong_schema_name() -> None:
+    with pytest.raises(ValidationError):
+        policy_snapshot(schema_name="policy.admission.wrong")
+
+
 def test_capability_lifecycle_vocabulary_is_closed() -> None:
     with pytest.raises(ValidationError):
         capability_snapshot(lifecycle="ACTIVE")

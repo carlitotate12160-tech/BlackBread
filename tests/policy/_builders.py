@@ -58,15 +58,17 @@ def policy_snapshot(**overrides: Any) -> EngagementPolicySnapshot:
 
 
 def identity_snapshot(proposal: ActionProposal, **overrides: Any) -> TargetIdentitySnapshot:
+    # Defaults are derived from the proposal so a non-default proposal yields a consistent
+    # snapshot; deliberate negative cases override the specific field under test.
     fields: dict[str, Any] = {
-        "tenant_id": TENANT,
-        "engagement_id": ENGAGEMENT,
+        "tenant_id": proposal.tenant_id,
+        "engagement_id": proposal.engagement_id,
         "proposal_digest": proposal.proposal_digest,
-        "target": target(),
+        "target": proposal.target,
         "achieved_tier": "T0",
         "verified_at": datetime(2026, 9, 3, 11, 55, 0, tzinfo=UTC),
         "expires_at": datetime(2026, 9, 3, 12, 30, 0, tzinfo=UTC),
-        "graph_version": graph_version(),
+        "graph_version": proposal.graph_version,
         "verifier_ref": "identity-verifier-observation",
         "evidence_digest": HEX_EVIDENCE,
     }
@@ -100,8 +102,8 @@ def manifest(proposal: ActionProposal, **overrides: Any) -> DestinationManifest:
     fields: dict[str, Any] = {
         "proposal_digest": proposal.proposal_digest,
         "parameter_digest": parameter_digest(proposal.parameter_envelope.canonical_parameters),
-        "input_schema": INPUT_SCHEMA,
-        "capability_id": CAPABILITY,
+        "input_schema": proposal.parameter_envelope.input_schema_ref,
+        "capability_id": proposal.capability_id,
         "extractor_identity": EXTRACTOR,
         "extractor_digest": HEX_EXTRACTOR,
         "destinations": (),
