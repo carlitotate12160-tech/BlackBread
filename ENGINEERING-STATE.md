@@ -24,10 +24,13 @@ These values are checkpoints to verify, not facts to trust without querying live
 
 ## Current decision
 
-The repository owner selected **Conductor** as the next M1 trust-spine epic and **M1.4a — proposal
-contracts and deny-only intake** as the active slice. M1.4a establishes the Conductor/Policy Kernel
-contract boundary: a strict, immutable, versioned `ActionProposal`; a strict, immutable, versioned,
-deny-only `PolicyDecision` v1; and a pure deterministic intake function that returns only `DENY`.
+The repository owner selected **Conductor** as the next M1 trust-spine epic. **M1.4a — proposal
+contracts and deny-only intake** was released in PR #56 (`3ea51fea`). The active slice is now
+**M1.4a-FOLLOWUP — scope-authority leaf**, which closes CONTRACT-GAP-001 by extracting the canonical
+scope authority to a pure-stdlib `blackbread.scope.canonical` leaf so the trust-spine contract no
+longer reaches through the graph read-model. M1.4a established the Conductor/Policy Kernel contract
+boundary: a strict, immutable, versioned `ActionProposal`; a strict, immutable, versioned, deny-only
+`PolicyDecision` v1; and a pure deterministic intake function that returns only `DENY`.
 
 M1.4a is deny-only, pure, and non-persistent. The intake boundary reads no database, filesystem,
 network, registry file, framework, or wall-clock; the caller supplies the decision UUID and decision
@@ -86,8 +89,9 @@ gates (PR #32), and the PR-Agent/CodiumAI DeepSeek review integration (PR #38).
 PR-M1.3b2a was released in PR #42 (`aff7df4`). PR-M1.3b2b was released in PR #43 (`f721f72`). The
 M1.3b temporal-projection lifecycle is complete: PR-M1.3b3a (`7afa10f` / PR #45), PR-M1.3b3b-1
 (`05a4b84` / PR #48), PR-M1.3b3b-2+3 (`ac86548` / PR #49), and PR-M1.3b3b-HARDEN
-(`affef9e0` / PR #52) are RELEASED, closing `GRAPH-GAP-001` and `GRAPH-GAP-002`. The active slice is
-now **PR-M1.4a** (Conductor/Policy Kernel proposal contracts and deny-only intake).
+(`affef9e0` / PR #52) are RELEASED, closing `GRAPH-GAP-001` and `GRAPH-GAP-002`. PR-M1.4a (Conductor/Policy
+Kernel proposal contracts and deny-only intake) was released in PR #56 (`3ea51fea`). The active slice is
+now **PR-M1.4a-FOLLOWUP** (scope-authority leaf — closes CONTRACT-GAP-001).
 
 ## What is now live on main
 
@@ -308,11 +312,11 @@ dispositioned and resolved. A merge does not complete M1.3, M1/R0, `LEDGER-GAP-0
 * **Non-goals:** no schema change; no publication change; no valid-input behavior change.
 * **Closure evidence:** `GRAPH-GAP-002` CLOSED (see GAP-REGISTER.md).
 
-### PR-M1.4a (active)
+### PR-M1.4a (released)
 
 * **ID:** PR-M1.4a
 * **Title:** Proposal contracts and deny-only intake
-* **State:** IMPLEMENTED
+* **State:** RELEASED (PR #56, `3ea51fea`, merged 2026-09-04)
 * **Prerequisite:** PR-M1.3b3b-HARDEN released at `affef9e0` / PR #52.
 * **Purpose:** establish the Conductor/Policy Kernel contract boundary — strict immutable versioned
   `ActionProposal` (`blackbread.conductor.contracts`) with a deterministic proposal digest over a
@@ -336,17 +340,47 @@ dispositioned and resolved. A merge does not complete M1.3, M1/R0, `LEDGER-GAP-0
 * **Intermediate reachability:** the intake is pure and not wired to any runtime entry point; it
   creates no executable decision, so the ADR requirement to ledger every executable policy decision
   remains future M1.4c work.
-* **Known debt (CONTRACT-GAP-001):** `TargetReference` canonicalization currently reuses
-  `canonical_scope_value` from `blackbread.graph.domain`, coupling the trust-spine contract to the
-  graph read-model (layer inversion + duplicate scope types). This is P1, non-blocking (unwired
-  intake), and is corrected by a dedicated scope-authority follow-up slice — a pure-stdlib
-  `blackbread.scope.canonical` leaf — that runs immediately after M1.4a merges and before M1.4b. It
-  is a separate slice because stacked into PR #56 it exceeds the 400-line hard cap (~574 lines).
+* **Known debt (CONTRACT-GAP-001):** CLOSED by PR-M1.4a-FOLLOWUP (this slice). `TargetReference`
+  canonicalization previously reused `canonical_scope_value` from `blackbread.graph.domain`, coupling
+  the trust-spine contract to the graph read-model (layer inversion + duplicate scope types). The
+  follow-up slice extracts a pure-stdlib `blackbread.scope.canonical` leaf and reroutes
+  `conductor.contracts` and `ledger.catalog` through it (importing a proposal contract pulls 0 graph
+  modules, was 4). Residual: `graph.revision.ScopeKind` / `graph.domain.canonical_scope_value` remain
+  graph-internal copies (converging them touches released graph-projection code). See GAP-REGISTER.md.
 * **Safety-critical coverage:** `blackbread.conductor.*` added to the `pyproject.toml`
   safety-critical coverage include (`blackbread.policy.*` was already present); no threshold lowered.
 * **Seal criteria:** focused positive/negative contract, digest, intake, and boundary tests green;
   affected governance suites green; all repository gates and budgets green; binding current-head
   PR-Agent (DeepSeek V4-Pro) review complete with all actionable findings dispositioned.
+
+### PR-M1.4a-FOLLOWUP (active)
+
+* **ID:** PR-M1.4a-FOLLOWUP
+* **Title:** Scope-authority leaf (close CONTRACT-GAP-001)
+* **State:** IMPLEMENTED (PR #57, head `1438eaed`, base `main` `3ea51fea`)
+* **Prerequisite:** PR-M1.4a released at `3ea51fea` / PR #56.
+* **Purpose:** close CONTRACT-GAP-001 by extracting the canonical scope authority to a pure-stdlib
+  `blackbread.scope.canonical` leaf, removing the layer inversion and duplicate canonical types left
+  by M1.4a. The conductor trust-spine contract must not depend on the graph read-model for value
+  canonicalization.
+* **Contract facts:** new `blackbread.scope.canonical` (re, ipaddress only; no pydantic, no I/O, no
+  framework, no other `blackbread` package) single-sources `ScopeKind`/`SCOPE_KINDS` and the canonical
+  validators (`canonical_text`, `ensure_canonical_text`, `canonical_domain`, `canonical_address`,
+  `canonical_target_value`, `canonical_scope_value`). `conductor.contracts` imports the authority from
+  `scope.canonical` instead of `blackbread.graph.domain`; the `_canonical_text` fork is removed;
+  `TenantId`/`KeyText`/`CanonicalText` use `ensure_canonical_text`; `TargetKind`/`TARGET_KINDS` alias
+  the shared `ScopeKind`/`SCOPE_KINDS`; the identity validator catches `ValueError` (scope) instead of
+  `GraphProjectionError` (graph). `ledger.catalog` imports the same validators (no private copy);
+  `ScopeExclusion` dispatches through `canonical_target_value`.
+* **Non-goals:** no behavior change to `ActionProposal`, `PolicyDecision` v1, or deny-only intake; no
+  migration; no convergence of `graph.revision.ScopeKind` / `graph.domain.canonical_scope_value`
+  (touches released graph-projection code, tracked as CONTRACT-GAP-001 residual); no SQLAlchemy
+  transitive-import fix (pre-existing, boundary test blind to transitive imports).
+* **Seal criteria:** `tests/scope/test_canonical.py` plus updated `tests/conductor/test_boundaries.py`
+  green; conductor pulls 0 graph modules; all repository gates and budgets green; binding current-head
+  PR-Agent (DeepSeek V4-Pro) review complete with all actionable findings dispositioned.
+* **Residual:** CONTRACT-GAP-001 is CLOSED at the conductor/ledger layer; the graph-internal copies
+  remain a smaller residual tracked in GAP-REGISTER.md for a future graph-convergence slice.
 
 ### PR-M1.3b3b-3
 
@@ -375,14 +409,17 @@ The following remain OPEN unless live closure evidence proves otherwise:
 * LEDGER-GAP-001 (P0; R0 trust-spine integration remains incomplete; M1.4a does not close it).
 * GOV-GAP-006 (P1; post-merge `ENGINEERING-STATE.md` main-SHA pointer automation still missing;
   non-blocking per AGENTS.md and `.devin/rules/blackbread.md` preflight rule #10).
-* CONTRACT-GAP-001 (P1; discovered in PR #56 review — M1.4a's `TargetReference` reaches
-  `canonical_scope_value` through `blackbread.graph.domain`, a layer inversion with duplicate scope
-  types. Non-blocking: the deny-only intake is unwired, so no live path consumes the coupling.
-  Closed by the scope-authority follow-up slice, which extracts a pure-stdlib
-  `blackbread.scope.canonical` leaf and cannot fit PR #56's 400-line hard cap. See GAP-REGISTER.md.)
+* CONTRACT-GAP-001 residual (P2; `graph.revision.ScopeKind` / `graph.domain.canonical_scope_value`
+  remain graph-internal copies after PR-M1.4a-FOLLOWUP closed the conductor/ledger layer inversion.
+  Converging them touches released graph-projection code and is a separate future slice.)
 
 ## Closed blockers
 
+* CONTRACT-GAP-001 (closed 2026-09-04 by PR-M1.4a-FOLLOWUP / PR #57 at head `1438eaed`; the
+  conductor/ledger layer inversion is removed — `conductor.contracts` and `ledger.catalog` import the
+  pure-stdlib `blackbread.scope.canonical` leaf, and importing a proposal contract pulls 0 graph
+  modules. Residual graph-internal copies tracked as CONTRACT-GAP-001 residual above. See
+  GAP-REGISTER.md for full closure evidence.)
 * GOV-GAP-001 (live ruleset conformance verified against the machine contract on 2026-08-31 —
   `ci-ok` and `GitGuardian Security Checks` are required in `main-branch-protection`, plus the
   documented solo-developer pull-request controls; see GAP-REGISTER.md for the captured snapshot).
