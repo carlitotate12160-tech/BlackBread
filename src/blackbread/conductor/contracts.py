@@ -21,9 +21,11 @@ from pydantic import (
     Field,
     PrivateAttr,
     ValidationError,
+    field_serializer,
     model_validator,
 )
 
+from blackbread.graph.domain import GraphProjectionError, canonical_scope_value
 from blackbread.ledger.errors import LedgerValidationError
 from blackbread.ledger.hashing import canonical_json, canonical_timestamp, sha256_hex
 
@@ -57,11 +59,15 @@ class ConductorContractError(ValueError):
 
 
 def _canonical_text(value: str) -> str:
-    """Validate and return canonical text: non-blank, trimmed, no NUL characters."""
+    """Validate canonical text: non-blank, trimmed, no NUL, and UTF-8 encodable."""
     if not value or value != value.strip():
         raise ValueError("value must be non-blank with no surrounding whitespace")
     if "\x00" in value:
         raise ValueError("value must not contain a NUL character")
+    try:
+        value.encode("utf-8")
+    except UnicodeEncodeError as exc:
+        raise ValueError("value must be valid UTF-8") from exc
     return value
 
 
@@ -114,6 +120,16 @@ class TargetReference(_StrictModel):
     target_kind: TargetKind
     canonical_value: CanonicalText
 
+    @model_validator(mode="after")
+    def _check_canonical_identity(self) -> TargetReference:
+        try:
+            _, canonical = canonical_scope_value(self.target_kind, self.canonical_value)
+        except GraphProjectionError as exc:
+            raise ValueError("canonical_value is not valid for target_kind") from exc
+        if canonical != self.canonical_value:
+            raise ValueError("canonical_value is not in canonical form for target_kind")
+        return self
+
 
 class ResourceEstimates(_StrictModel):
     """Immutable risk, cost, information-gain, and OPSEC-noise estimates for a proposal."""
@@ -142,7 +158,7 @@ class ParameterEnvelope(_StrictModel):
         """Validate and canonicalize parameters after initialization."""
         del context
         try:
-            encoded = canonical_json(dict(self.parameters), max_bytes=MAX_PARAMETER_BYTES)
+            encoded = canonical_json(self.parameters, max_bytes=MAX_PARAMETER_BYTES)
         except LedgerValidationError as exc:
             raise ConductorContractError("proposal parameters are not canonical JSON") from exc
         object.__setattr__(self, "_canonical_parameters", encoded)
@@ -152,6 +168,12 @@ class ParameterEnvelope(_StrictModel):
     def canonical_parameters(self) -> str:
         """Return the canonical JSON representation of the parameters."""
         return self._canonical_parameters
+
+    @field_serializer("parameters", when_used="always")
+    def _serialize_parameters(self, parameters: Mapping[str, object]) -> object:
+        """Serialize from the immutable canonical snapshot to fresh JSON-compatible data."""
+        del parameters
+        return json.loads(self._canonical_parameters)
 
 
 class ActionProposal(_StrictModel):
@@ -202,7 +224,7 @@ class ActionProposal(_StrictModel):
         if not isinstance(raw, Mapping):
             raise ConductorContractError("raw proposal must be a mapping")
         try:
-            encoded = canonical_json(dict(raw), max_bytes=MAX_PROPOSAL_BYTES)
+            encoded = canonical_json(raw, max_bytes=MAX_PROPOSAL_BYTES)
             return cls.model_validate_json(encoded, strict=True)
         except (ValidationError, LedgerValidationError, ConductorContractError) as exc:
             raise ConductorContractError("raw proposal failed validation") from exc

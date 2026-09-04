@@ -81,6 +81,16 @@ def test_no_import_cycle_between_contracts() -> None:
     assert not any(name.startswith("blackbread.policy") for name in conductor_imports)
 
 
+def test_target_canonicalization_reuses_single_scope_authority() -> None:
+    conductor_imports = _imported_modules(SRC / "conductor" / "contracts.py")
+    assert "blackbread.graph.domain" in conductor_imports
+    graph_domain_imports = _imported_modules(SRC / "graph" / "domain.py")
+    assert not any(
+        name.startswith(("blackbread.conductor", "blackbread.policy"))
+        for name in graph_domain_imports
+    )
+
+
 def test_modules_import_without_side_effects() -> None:
     assert conductor_contracts.ACTION_PROPOSAL_SCHEMA == "conductor.action_proposal"
     assert callable(conductor_intake.evaluate_proposal)

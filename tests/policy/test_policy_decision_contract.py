@@ -141,3 +141,14 @@ def test_no_allow_or_lease_field_exists_on_decision() -> None:
     fields = set(PolicyDecision.model_fields)
     forbidden = {"lease_id", "work_order", "executable_token", "approval_reference"}
     assert fields.isdisjoint(forbidden)
+
+
+def test_invalid_unicode_surrogate_tenant_id_fails_closed() -> None:
+    with pytest.raises(ValidationError):
+        make_decision(tenant_id="tenant\ud800")
+
+
+def test_decision_is_json_serializable() -> None:
+    decision = make_decision()
+    assert decision.model_dump(mode="json")["outcome"] == "DENY"
+    assert '"outcome":"DENY"' in decision.model_dump_json().replace(" ", "")

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Iterator, Mapping
 from datetime import UTC, datetime, timedelta, timezone
 from typing import Any
 
@@ -137,11 +138,16 @@ def test_invalid_identity_tier_fails_closed(tier: str) -> None:
 
 
 @pytest.mark.parametrize(
-    "target_kind", ["root_domain", "exact_host", "exact_address", "cloud_tenant"]
+    ("target_kind", "canonical_value"),
+    [
+        ("root_domain", "example.com"),
+        ("exact_host", "host.example.com"),
+        ("exact_address", "192.0.2.1"),
+        ("cloud_tenant", "acme-tenant-01"),
+    ],
 )
-def test_target_kinds_admitted(target_kind: str) -> None:
-
-    reference = TargetReference(target_kind=target_kind, canonical_value="example.com")
+def test_target_kinds_admitted(target_kind: str, canonical_value: str) -> None:
+    reference = TargetReference(target_kind=target_kind, canonical_value=canonical_value)
     assert make_proposal(target=reference).target.target_kind == target_kind
 
 
@@ -334,3 +340,84 @@ def test_from_untrusted_rejects_non_mapping() -> None:
 
     with pytest.raises(ConductorContractError):
         ActionProposal.from_untrusted(["not", "a", "mapping"])  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    ("target_kind", "canonical_value"),
+    [
+        ("exact_address", "example.com"),
+        ("root_domain", "192.0.2.1"),
+        ("exact_host", "EXAMPLE.COM"),
+        ("exact_address", "2001:0db8::1"),
+        ("root_domain", "Example.com"),
+        ("exact_address", "999.0.2.1"),
+    ],
+)
+def test_target_kind_and_value_must_be_canonically_consistent(
+    target_kind: str, canonical_value: str
+) -> None:
+    with pytest.raises(ValidationError):
+        TargetReference(target_kind=target_kind, canonical_value=canonical_value)
+
+
+@pytest.mark.parametrize(
+    ("target_kind", "canonical_value"),
+    [
+        ("root_domain", "example.com"),
+        ("exact_host", "host.example.com"),
+        ("exact_address", "192.0.2.1"),
+        ("exact_address", "2001:db8::1"),
+        ("cloud_tenant", "acme-tenant-01"),
+    ],
+)
+def test_canonical_target_identity_is_admitted(target_kind: str, canonical_value: str) -> None:
+    reference = TargetReference(target_kind=target_kind, canonical_value=canonical_value)
+    assert reference.target_kind == target_kind
+    assert reference.canonical_value == canonical_value
+    assert make_proposal(target=reference).target.canonical_value == canonical_value
+
+
+@pytest.mark.parametrize("field", ["tenant_id", "intended_proof", "idempotency_key", "oracle_ref"])
+def test_invalid_unicode_surrogate_fails_closed(field: str) -> None:
+    with pytest.raises(ValidationError):
+        make_proposal(**{field: "bad\ud800value"})
+
+
+def test_lone_surrogate_target_value_fails_closed() -> None:
+    with pytest.raises(ValidationError):
+        TargetReference(target_kind="cloud_tenant", canonical_value="\ud800")
+
+
+def test_target_rejects_scope_authority_that_normalizes_instead_of_rejecting(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "blackbread.conductor.contracts.canonical_scope_value",
+        lambda kind, value: (kind, f"{value}.normalized"),
+    )
+    with pytest.raises(ValidationError):
+        TargetReference(target_kind="cloud_tenant", canonical_value="acme-tenant-01")
+
+
+def test_oversized_mapping_rejected_before_full_traversal() -> None:
+    class _CountingMapping(Mapping[str, object]):
+        def __init__(self, count: int, value_size: int) -> None:
+            self.count = count
+            self.value_size = value_size
+            self.visited = 0
+
+        def __iter__(self) -> Iterator[str]:
+            for index in range(self.count):
+                self.visited += 1
+                yield f"key_{index}"
+
+        def __len__(self) -> int:
+            return self.count
+
+        def __getitem__(self, key: str) -> object:
+            return "x" * self.value_size
+
+    counting = _CountingMapping(count=1_000_000, value_size=256)
+    with pytest.raises(ConductorContractError):
+        ActionProposal.from_untrusted(counting)
+    assert counting.visited < counting.count

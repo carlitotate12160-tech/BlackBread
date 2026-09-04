@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import timedelta
 from typing import Any
@@ -94,3 +95,45 @@ def test_digest_is_sensitive_to_every_security_field(override: dict[str, Any]) -
 def test_digest_is_stable_across_repeated_reads() -> None:
     proposal = make_proposal()
     assert proposal.proposal_digest == proposal.proposal_digest
+
+
+def test_parameter_envelope_is_json_serializable() -> None:
+    envelope = ParameterEnvelope(
+        input_schema_ref="Sample.v1",
+        parameters={"sources": ["ct", "dns"], "nested": {"depth": 1}},
+    )
+    dumped = envelope.model_dump(mode="json")
+    parameters = dumped["parameters"]
+    assert isinstance(parameters, dict)
+    assert isinstance(parameters["sources"], list)
+    assert isinstance(parameters["nested"], dict)
+    assert isinstance(json.loads(envelope.model_dump_json())["parameters"], dict)
+
+
+def test_action_proposal_is_json_serializable() -> None:
+    proposal = make_proposal()
+    dumped = proposal.model_dump(mode="json")
+    assert dumped["parameter_envelope"]["parameters"] == {"depth": 1, "sources": ["ct", "dns"]}
+    assert isinstance(json.loads(proposal.model_dump_json()), dict)
+
+
+def test_serialized_parameters_are_detached_from_contract() -> None:
+    proposal = make_proposal()
+    digest_before = proposal.proposal_digest
+    dumped = proposal.model_dump(mode="json")
+    dumped["parameter_envelope"]["parameters"]["sources"].append("http")
+    dumped["parameter_envelope"]["parameters"]["depth"] = 99
+    assert proposal.proposal_digest == digest_before
+    assert proposal.parameter_envelope.canonical_parameters == (
+        make_proposal().parameter_envelope.canonical_parameters
+    )
+
+
+def test_round_trip_through_from_untrusted_preserves_digest() -> None:
+    proposal = make_proposal()
+    serialized = proposal.model_dump(mode="json")
+    reconstructed = ActionProposal.from_untrusted(serialized)
+    assert reconstructed.proposal_digest == proposal.proposal_digest
+    assert reconstructed.parameter_envelope.canonical_parameters == (
+        proposal.parameter_envelope.canonical_parameters
+    )
