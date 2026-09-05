@@ -332,6 +332,30 @@ has no live effect; it is retained only as rollback evidence:
 - **Compensating control:** none needed — the graph-internal copies have no consumer outside the
   graph read-model, and the conductor/ledger layer inversion is already closed.
 
+## CONTRACT-GAP-003 — Offline (`NONE` network path) capabilities still require a target-identity tier
+
+- **Status:** OPEN
+- **Severity:** P2 architecture (contract coherence, no live authorization gap)
+- **Owner:** trust-spine
+- **Target milestone:** M5/R1
+- **Blocks:** none — M1.4b1b admission is non-executable and wired to no runtime entry point; an
+  admitted result grants no execution authority, so no live path relies on the offline-tier semantics.
+- **Discovered:** PR #61 (M1.4b1b) review, 2026-09-05.
+- **Description:** `IdentityTier` is the closed set `T0..T3` with no offline member, while
+  `NetworkPath` includes `NONE`. A capability whose network path is `NONE` (e.g. the
+  `SENSITIVE_OFFLINE` profile) never touches a target, yet the admission contract still requires the
+  proposal to carry a `target_identity_tier` and the evaluator still runs the full target-identity
+  and `IDENTITY_TIER_INSUFFICIENT` checks against it. The `SENSITIVE_OFFLINE` profile therefore
+  hardcodes `T0`, which coerces "no network target" into "tier-0 target identity" rather than
+  modelling the absence of a target identity. The M1.4b1b evaluator deliberately does **not**
+  special-case or coerce `NONE`; it evaluates the facts as given.
+- **Closure criterion:** the contract distinguishes "no target identity required" (offline / `NONE`
+  network path) from a `T0` target-identity requirement — e.g. an explicit offline tier or a
+  network-path-conditioned identity requirement — without weakening any target-facing check, with
+  tests proving offline capabilities neither require nor are silently granted a target identity tier.
+- **Compensating control:** none needed — admission is non-executable and unwired; the residual is a
+  contract-coherence gap, not a live authorization bypass.
+
 ## CAMPAIGN-GAP-001 — Campaign coherence and coherent multi-view world snapshot are not implemented
 
 - **Status:** OPEN

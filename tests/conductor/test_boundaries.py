@@ -9,6 +9,7 @@ import pytest
 
 import blackbread.conductor.contracts as conductor_contracts
 import blackbread.conductor.intake as conductor_intake
+import blackbread.policy.admission as policy_admission
 import blackbread.policy.contracts as policy_contracts
 
 SRC = Path(__file__).parents[2] / "src" / "blackbread"
@@ -54,6 +55,7 @@ PURE_MODULES = (
     SRC / "conductor" / "intake.py",
     SRC / "policy" / "contracts.py",
     SRC / "policy" / "admission_contracts.py",
+    SRC / "policy" / "admission.py",
 )
 
 
@@ -70,6 +72,12 @@ def test_intake_boundary_has_no_wall_clock_or_uuid_generation() -> None:
     source = (SRC / "conductor" / "intake.py").read_text(encoding="utf-8")
     for banned in ("datetime.now", "datetime.utcnow", "time.time", "uuid4", "uuid.uuid1"):
         assert banned not in source, f"intake must not call {banned}"
+
+
+def test_admission_boundary_has_no_wall_clock_or_io() -> None:
+    source = (SRC / "policy" / "admission.py").read_text(encoding="utf-8")
+    for banned in ("datetime.now", "datetime.utcnow", "time.time", "open(", "getenv"):
+        assert banned not in source, f"admission must not call {banned}"
 
 
 def test_policy_contracts_does_not_depend_on_conductor_orchestration() -> None:
@@ -113,4 +121,5 @@ def test_admission_contracts_reuse_conductor_types_without_graph_coupling() -> N
 def test_modules_import_without_side_effects() -> None:
     assert conductor_contracts.ACTION_PROPOSAL_SCHEMA == "conductor.action_proposal"
     assert callable(conductor_intake.evaluate_proposal)
+    assert callable(policy_admission.evaluate_admission)
     assert policy_contracts.POLICY_DECISION_SCHEMA == "policy.decision"
