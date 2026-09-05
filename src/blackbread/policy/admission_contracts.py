@@ -130,12 +130,7 @@ def parameter_digest(canonical_parameters: str) -> str:
 
 
 def destination_manifest_digest(manifest: DestinationManifest) -> str:
-    """Deterministic digest binding the exact evaluated destination manifest.
-
-    Destinations follow the manifest's documented set semantics: each `(destination_kind,
-    target_kind, canonical_value)` triple is canonicalized and the set is sorted lexicographically
-    before hashing, so tuple permutation alone does not change the digest.
-    """
+    """Deterministic digest over the exact evaluated destination manifest (order-independent)."""
     destinations = sorted(
         [item.destination_kind, item.scope.target_kind, item.scope.canonical_value]
         for item in manifest.destinations

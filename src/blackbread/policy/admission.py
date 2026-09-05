@@ -141,14 +141,12 @@ def _matches_any(candidate: TargetReference, authorities: tuple[TargetReference,
     return any(_contains(authority, candidate) for authority in authorities)
 
 
-def _overlaps(left: TargetReference, right: TargetReference) -> bool:
-    # Exclusions are boundaries in both directions: a broad scope that contains a
-    # narrower excluded host must be denied, and vice versa.
-    return _contains(left, right) or _contains(right, left)
-
-
 def _overlaps_any(candidate: TargetReference, authorities: tuple[TargetReference, ...]) -> bool:
-    return any(_overlaps(candidate, authority) for authority in authorities)
+    # Exclusions bind in both directions: a broad scope containing an excluded host is denied.
+    return any(
+        _contains(candidate, authority) or _contains(authority, candidate)
+        for authority in authorities
+    )
 
 
 def _late_checks(context: _Context) -> tuple[_Check, ...]:
