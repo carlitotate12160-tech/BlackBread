@@ -291,6 +291,7 @@ Alpha has zero deception tests. BlackBread must detect honeypots.
 | `test_no_duplicate_types.py` | One class per concept; no duplicate canonical types |
 | `test_no_god_object.py` | No module exceeds responsibility boundary |
 | `test_doc_status_consistency.py` | ADR/PRD/rule/skill consistent with each other |
+| `test_banned_patterns.py` | Objective code hygiene (bare except, swallowed broad except, unspecific type:ignore/noqa, production print, delivered NotImplementedError, untracked TODO, redundant boolean branching, unstructured kwargs without canonical Unpack[TypedDict]) and diff-budget governance (≤400 runtime lines, ≤10 runtime files). Subjective word/name blacklists are rejected; meaningful comments and docstrings are preserved; subjective prose quality is review-owned. |
 
 ### 4.14 Integration tests (`tests/integration/`)
 

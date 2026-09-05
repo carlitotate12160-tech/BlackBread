@@ -140,9 +140,11 @@ Kernel proposal contracts and deny-only intake) was released in PR #56 (`3ea51fe
 * `ci-ok` aggregator job in `ci.yml` (aggregates quality, tests, security, governance)
 * `ci-ok` fails on any non-success result (failure, cancelled, skipped)
 * `coderabbit-trigger.yml` — auto-trigger CodeRabbit via PAT comment (advisory, non-blocking)
-* `test_banned_patterns.py` — 13 tests: bare except, except-pass, type-ignore, noqa, print,
-  suppressed returns, NotImplementedError, TODO, if-true-else-false, vague names, flag words,
-  speculative kwargs, diff budget
+* `test_banned_patterns.py` — objective code-hygiene and diff-budget governance tests (bare except,
+  except-pass, type-ignore, noqa, print, NotImplementedError, TODO, redundant boolean branching,
+  structured kwargs with canonical Unpack[TypedDict], diff budget). Subjective word/name blacklists
+  and return-suppression bans removed (PR-GOV-AISLOP1); meaningful comments and docstrings are
+  preserved; subjective prose quality is review-owned.
 * `test_ci_ok_aggregator.py` — 3 tests: ci-ok exists with `if: always()`, needs all required jobs,
   fails on non-success
 * Diff budget: ≤400 runtime lines, ≤10 runtime files (excludes docs/config)
