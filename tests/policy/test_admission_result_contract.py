@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 
 import pytest
@@ -52,7 +53,7 @@ def _result(**overrides: object) -> AdmissionResult:
         "reason_code": None,
     }
     fields.update(overrides)
-    return AdmissionResult(**fields)
+    return AdmissionResult.build(fields)
 
 
 def test_result_schema_is_versioned_and_strict() -> None:
@@ -107,3 +108,24 @@ def test_result_digest_golden_vector() -> None:
     assert _result().result_digest == (
         "f487fd101b921c079d693b449c952d3fc9cd63710cfb1d22ec81cb0b2f286911"
     )
+
+
+def test_result_round_trips_through_default_json() -> None:
+    result = _result()
+    restored = AdmissionResult.model_validate_json(result.model_dump_json())
+    assert restored == result
+    assert restored.result_digest == result.result_digest
+
+
+def test_result_rejects_a_tampered_result_digest() -> None:
+    payload = json.loads(_result().model_dump_json())
+    payload["result_digest"] = "0" * 64
+    with pytest.raises(ValidationError, match="result_digest does not bind"):
+        AdmissionResult.model_validate_json(json.dumps(payload))
+
+
+def test_result_rejects_a_bound_field_changed_under_a_stale_digest() -> None:
+    payload = json.loads(_result().model_dump_json())
+    payload["policy_digest"] = "9" * 64
+    with pytest.raises(ValidationError, match="result_digest does not bind"):
+        AdmissionResult.model_validate_json(json.dumps(payload))

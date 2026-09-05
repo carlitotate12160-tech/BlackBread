@@ -10,10 +10,11 @@ and target types rather than duplicating them. M1.4b1b adds the non-executable r
 
 from __future__ import annotations
 
-from typing import Annotated, Literal, get_args
+from collections.abc import Mapping
+from typing import Annotated, Any, Literal, get_args
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from blackbread.conductor.contracts import (
     MAX_BUDGET_REQUESTS,
@@ -263,47 +264,54 @@ class AdmissionResult(_Frozen):
     evaluated_at: UtcTimestamp
     outcome: AdmissionOutcome
     reason_code: AdmissionDenyReason | None
+    result_digest: HexDigest
 
     @model_validator(mode="after")
-    def _check_outcome(self) -> AdmissionResult:
+    def _check_outcome_and_digest(self) -> AdmissionResult:
         admitted = self.outcome == "ADMITTED_FOR_RUNTIME_GATES"
         if admitted != (self.reason_code is None):
             raise ValueError("admitted requires no reason and denial requires one reason")
+        if self.result_digest != _result_digest(dict(self)):
+            raise ValueError("result_digest does not bind the result contents")
         return self
 
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def result_digest(self) -> str:
-        return sha256_hex(f"{_RESULT_DIGEST_DOMAIN}\x00{canonical_json(_result_preimage(self))}")
+    @classmethod
+    def build(cls, fields: Mapping[str, object]) -> AdmissionResult:
+        """Construct a result and bind its self-describing digest over its own contents."""
+        return cls.model_validate({**fields, "result_digest": _result_digest(fields)})
 
 
-def _result_preimage(result: AdmissionResult) -> list[object]:
-    graph = result.graph_version
+def _result_digest(values: Mapping[str, Any]) -> str:
+    return sha256_hex(f"{_RESULT_DIGEST_DOMAIN}\x00{canonical_json(_result_preimage(values))}")
+
+
+def _result_preimage(values: Mapping[str, Any]) -> list[object]:
+    graph = values["graph_version"]
     return [
-        ["schema_name", result.schema_name],
-        ["schema_version", result.schema_version],
-        ["tenant_id", result.tenant_id],
-        ["engagement_id", str(result.engagement_id)],
-        ["proposal_id", str(result.proposal_id)],
-        ["proposal_digest", result.proposal_digest],
-        ["policy_schema_ref", result.policy_schema_ref],
-        ["policy_digest", result.policy_digest],
-        ["attestation_digest", result.attestation_digest],
-        ["identity_verifier_ref", result.identity_verifier_ref],
-        ["identity_evidence_digest", result.identity_evidence_digest],
-        ["registry_schema_version", result.registry_schema_version],
-        ["registry_digest", result.registry_digest],
-        ["capability_id", result.capability_id],
-        ["supply_chain_digest", result.supply_chain_digest],
-        ["extractor_identity", result.extractor_identity],
-        ["extractor_digest", result.extractor_digest],
-        ["parameter_digest", result.parameter_digest],
+        ["schema_name", values["schema_name"]],
+        ["schema_version", values["schema_version"]],
+        ["tenant_id", values["tenant_id"]],
+        ["engagement_id", str(values["engagement_id"])],
+        ["proposal_id", str(values["proposal_id"])],
+        ["proposal_digest", values["proposal_digest"]],
+        ["policy_schema_ref", values["policy_schema_ref"]],
+        ["policy_digest", values["policy_digest"]],
+        ["attestation_digest", values["attestation_digest"]],
+        ["identity_verifier_ref", values["identity_verifier_ref"]],
+        ["identity_evidence_digest", values["identity_evidence_digest"]],
+        ["registry_schema_version", values["registry_schema_version"]],
+        ["registry_digest", values["registry_digest"]],
+        ["capability_id", values["capability_id"]],
+        ["supply_chain_digest", values["supply_chain_digest"]],
+        ["extractor_identity", values["extractor_identity"]],
+        ["extractor_digest", values["extractor_digest"]],
+        ["parameter_digest", values["parameter_digest"]],
         ["state_root_version", graph.state_root_version],
         ["projector_version", graph.projector_version],
         ["state_root", graph.state_root],
         ["ledger_event_count", graph.ledger_event_count],
         ["ledger_head_hash", graph.ledger_head_hash],
-        ["evaluated_at", canonical_timestamp(result.evaluated_at)],
-        ["outcome", result.outcome],
-        ["reason_code", result.reason_code],
+        ["evaluated_at", canonical_timestamp(values["evaluated_at"])],
+        ["outcome", values["outcome"]],
+        ["reason_code", values["reason_code"]],
     ]

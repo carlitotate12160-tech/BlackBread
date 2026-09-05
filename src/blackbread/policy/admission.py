@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from types import MappingProxyType
 
 from blackbread.conductor.contracts import ActionProposal, TargetReference
 from blackbread.policy.admission_contracts import (
@@ -25,16 +26,18 @@ _ELIGIBLE_LIFECYCLES = frozenset(
         "REPEATABLE",
     }
 )
-_TIER_ORDER = {"T0": 0, "T1": 1, "T2": 2, "T3": 3}
-_PROFILES = {
-    "PASSIVE": ("T0", "AUTO_WITH_MANIFEST", "CONTROL_PLANE_PASSIVE"),
-    "ACTIVE_READ_ONLY": ("T1", "LEASE", "TARGET_EGRESS"),
-    "SENSITIVE_OFFLINE": ("T0", "OPERATOR_DATA_APPROVAL", "NONE"),
-    "AUTHENTICATION": ("T2", "OPERATOR_EXACT", "TARGET_EGRESS"),
-    "ACTIVE_SENSITIVE_READ": ("T2", "OPERATOR_EXACT", "TARGET_EGRESS"),
-    "EXPLOIT": ("T3", "EXACT_TARGET_AND_CAPABILITY", "TARGET_EGRESS"),
-    "POST_ACCESS": ("T3", "SEPARATE_OBJECTIVE", "TARGET_EGRESS"),
-}
+_TIER_ORDER: MappingProxyType[str, int] = MappingProxyType({"T0": 0, "T1": 1, "T2": 2, "T3": 3})
+_PROFILES: MappingProxyType[str, tuple[str, str, str]] = MappingProxyType(
+    {
+        "PASSIVE": ("T0", "AUTO_WITH_MANIFEST", "CONTROL_PLANE_PASSIVE"),
+        "ACTIVE_READ_ONLY": ("T1", "LEASE", "TARGET_EGRESS"),
+        "SENSITIVE_OFFLINE": ("T0", "OPERATOR_DATA_APPROVAL", "NONE"),
+        "AUTHENTICATION": ("T2", "OPERATOR_EXACT", "TARGET_EGRESS"),
+        "ACTIVE_SENSITIVE_READ": ("T2", "OPERATOR_EXACT", "TARGET_EGRESS"),
+        "EXPLOIT": ("T3", "EXACT_TARGET_AND_CAPABILITY", "TARGET_EGRESS"),
+        "POST_ACCESS": ("T3", "SEPARATE_OBJECTIVE", "TARGET_EGRESS"),
+    }
+)
 
 
 class AdmissionEvaluationError(ValueError):
@@ -137,6 +140,16 @@ def _matches_any(candidate: TargetReference, authorities: tuple[TargetReference,
     return any(_contains(authority, candidate) for authority in authorities)
 
 
+def _overlaps(left: TargetReference, right: TargetReference) -> bool:
+    # Exclusions are boundaries in both directions: a broad scope that contains a
+    # narrower excluded host must be denied, and vice versa.
+    return _contains(left, right) or _contains(right, left)
+
+
+def _overlaps_any(candidate: TargetReference, authorities: tuple[TargetReference, ...]) -> bool:
+    return any(_overlaps(candidate, authority) for authority in authorities)
+
+
 def _late_checks(context: _Context) -> tuple[_Check, ...]:
     proposal = context.proposal
     identity = context.identity
@@ -155,7 +168,7 @@ def _late_checks(context: _Context) -> tuple[_Check, ...]:
         and (requested.target_requests != 0 or bool(destinations))
     )
     destination_excluded = any(
-        _matches_any(item.scope, context.policy.scope_exclusions) for item in destinations
+        _overlaps_any(item.scope, context.policy.scope_exclusions) for item in destinations
     )
     destination_outside = any(
         not _matches_any(item.scope, context.policy.scope_allow) for item in destinations
@@ -169,7 +182,7 @@ def _late_checks(context: _Context) -> tuple[_Check, ...]:
         ("TARGET_IDENTITY_NOT_YET_VALID", context.evaluated_at < identity.verified_at),
         ("TARGET_IDENTITY_EXPIRED", context.evaluated_at >= identity.expires_at),
         ("IDENTITY_TIER_INSUFFICIENT", achieved < proposal_tier or achieved < capability_tier),
-        ("TARGET_EXCLUDED", _matches_any(proposal.target, context.policy.scope_exclusions)),
+        ("TARGET_EXCLUDED", _overlaps_any(proposal.target, context.policy.scope_exclusions)),
         ("TARGET_OUT_OF_SCOPE", not _matches_any(proposal.target, context.policy.scope_allow)),
         ("TARGET_EGRESS_DESTINATION_REQUIRED", egress_invalid),
         ("DESTINATION_EXCLUDED", destination_excluded),
@@ -199,30 +212,31 @@ def _result(context: _Context, reason: AdmissionDenyReason | None) -> AdmissionR
     identity = context.identity
     capability = context.capability
     manifest = context.manifest
-    return AdmissionResult(
-        schema_name="policy.admission.result",
-        schema_version=1,
-        tenant_id=proposal.tenant_id,
-        engagement_id=proposal.engagement_id,
-        proposal_id=proposal.proposal_id,
-        proposal_digest=proposal.proposal_digest,
-        policy_schema_ref=policy.policy_schema_ref,
-        policy_digest=policy.policy_digest,
-        attestation_digest=policy.attestation_digest,
-        identity_verifier_ref=identity.verifier_ref,
-        identity_evidence_digest=identity.evidence_digest,
-        registry_schema_version=capability.registry_schema_version,
-        registry_digest=capability.registry_digest,
-        capability_id=capability.capability_id,
-        supply_chain_digest=capability.supply_chain_digest,
-        extractor_identity=manifest.extractor_identity,
-        extractor_digest=manifest.extractor_digest,
-        parameter_digest=manifest.parameter_digest,
-        graph_version=proposal.graph_version,
-        evaluated_at=context.evaluated_at,
-        outcome="DENY" if reason is not None else "ADMITTED_FOR_RUNTIME_GATES",
-        reason_code=reason,
-    )
+    fields: dict[str, object] = {
+        "schema_name": "policy.admission.result",
+        "schema_version": 1,
+        "tenant_id": proposal.tenant_id,
+        "engagement_id": proposal.engagement_id,
+        "proposal_id": proposal.proposal_id,
+        "proposal_digest": proposal.proposal_digest,
+        "policy_schema_ref": policy.policy_schema_ref,
+        "policy_digest": policy.policy_digest,
+        "attestation_digest": policy.attestation_digest,
+        "identity_verifier_ref": identity.verifier_ref,
+        "identity_evidence_digest": identity.evidence_digest,
+        "registry_schema_version": capability.registry_schema_version,
+        "registry_digest": capability.registry_digest,
+        "capability_id": capability.capability_id,
+        "supply_chain_digest": capability.supply_chain_digest,
+        "extractor_identity": manifest.extractor_identity,
+        "extractor_digest": manifest.extractor_digest,
+        "parameter_digest": manifest.parameter_digest,
+        "graph_version": proposal.graph_version,
+        "evaluated_at": context.evaluated_at,
+        "outcome": "DENY" if reason is not None else "ADMITTED_FOR_RUNTIME_GATES",
+        "reason_code": reason,
+    }
+    return AdmissionResult.build(fields)
 
 
 def evaluate_admission(  # noqa: PLR0913 - the public contract binds five independent snapshots

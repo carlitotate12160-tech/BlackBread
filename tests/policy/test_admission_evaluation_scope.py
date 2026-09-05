@@ -113,6 +113,58 @@ def test_target_exclusion_precedes_allow() -> None:
     assert result.reason_code == "TARGET_EXCLUDED"
 
 
+def test_broad_target_is_excluded_when_it_contains_a_narrower_excluded_host() -> None:
+    # A root-domain proposal encompasses an explicitly excluded host, so it must
+    # be denied: exclusions are overlap boundaries, not equal-or-narrower matches.
+    result = _evaluate_egress(
+        _target("root_domain", "example.com"),
+        allow=(_target("root_domain", "example.com"),),
+        exclusions=(_target("exact_host", "blocked.example.com"),),
+    )
+    assert result.reason_code == "TARGET_EXCLUDED"
+
+
+def test_broad_destination_is_excluded_when_it_contains_a_narrower_excluded_host() -> None:
+    target = _target("exact_host", "app.example.com")
+    result = _evaluate_egress(
+        target,
+        allow=(_target("root_domain", "example.com"),),
+        exclusions=(_target("exact_host", "blocked.example.com"),),
+        destinations=(
+            _destination("primary", target),
+            _destination("callback", _target("root_domain", "example.com")),
+        ),
+    )
+    assert result.reason_code == "DESTINATION_EXCLUDED"
+
+
+def test_sibling_hosts_do_not_falsely_overlap_exclusions() -> None:
+    # A sibling of the excluded host stays admissible, and a broad target whose
+    # exclusion lies in an unrelated domain does not spuriously overlap.
+    sibling = _evaluate_egress(
+        _target("exact_host", "allowed.example.com"),
+        allow=(_target("root_domain", "example.com"),),
+        exclusions=(_target("exact_host", "blocked.example.com"),),
+    )
+    assert sibling.reason_code is None
+    unrelated = _evaluate_egress(
+        _target("root_domain", "example.com"),
+        allow=(_target("root_domain", "example.com"),),
+        exclusions=(_target("exact_host", "blocked.other.com"),),
+    )
+    assert unrelated.reason_code is None
+
+
+def test_exact_host_allow_does_not_authorize_a_broader_root_domain_proposal() -> None:
+    # Allow-list containment stays directional: overlap semantics apply to
+    # exclusions only, never to the allow-list.
+    result = _evaluate_egress(
+        _target("root_domain", "example.com"),
+        allow=(_target("exact_host", "app.example.com"),),
+    )
+    assert result.reason_code == "TARGET_OUT_OF_SCOPE"
+
+
 def test_one_bad_destination_denies_the_complete_manifest() -> None:
     target = _target("exact_host", "app.example.com")
     result = _evaluate_egress(

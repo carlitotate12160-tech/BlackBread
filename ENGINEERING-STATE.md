@@ -64,10 +64,12 @@ sealable and fail-closed:
     admission, parameter binding, exhaustive destination manifest, and scope/exclusion checks. An
     admitted result (`ADMITTED_FOR_RUNTIME_GATES`) is non-executable and is not a `PolicyDecision`.
     Further split under the binding 400-line runtime-diff budget into:
-    * **M1.4b1a** — verified input-fact snapshot contracts (this slice, PR below). No evaluator,
-      result, or executable outcome.
+    * **M1.4b1a** — verified input-fact snapshot contracts. **RELEASED (PR #60, `6a34f49d`).** No
+      evaluator, result, or executable outcome.
     * **M1.4b1b** — pure deterministic admission evaluator + non-executable `AdmissionResult` and
-      its result digest. **Next owner-selected slice.**
+      its result digest, consuming the M1.4b1a snapshots. **ACTIVE (PR #61).** Non-executable:
+      an admitted result grants no execution authority and is not a `PolicyDecision`. Claims no
+      milestone, Policy Kernel v1, R0, or gap complete.
   * **M1.4b2** — runtime gates and final policy decision: approvals, budgets, resource locks, OPSEC
     heat, deterministic outcome precedence, and `PolicyDecision` v2.
 * **M1.4c** — durable, tenant-isolated, immutable `action_proposals` and `decision_records` with RLS,
@@ -403,11 +405,11 @@ dispositioned and resolved. A merge does not complete M1.3, M1/R0, `LEDGER-GAP-0
   remain a smaller residual tracked as CONTRACT-GAP-002 in GAP-REGISTER.md for a future
   graph-convergence slice.
 
-### PR-M1.4b1a (active)
+### PR-M1.4b1a (released)
 
 * **ID:** PR-M1.4b1a
 * **Title:** Policy-admission input-fact snapshot contracts
-* **State:** ACTIVE (branch `m1-4b1-policy-admission`, base `main` `5617e8c9`)
+* **State:** RELEASED (PR #60, `6a34f49d`, merged to `main`)
 * **Prerequisite:** PR-M1.4a-FOLLOWUP released at `6739799d` / PR #57; ADR-FINAL-003 documentation
   released at `3ab0e392` / PR #58 (post-merge cleanup `5617e8c9` / PR #59).
 * **Purpose:** define the strict, frozen, versioned input contracts a caller supplies to policy
@@ -442,6 +444,33 @@ dispositioned and resolved. A merge does not complete M1.3, M1/R0, `LEDGER-GAP-0
 * **Next:** PR-M1.4b1b — the pure deterministic admission evaluator and non-executable
   `AdmissionResult` (with result digest), consuming these snapshots. Then M1.4b2 — runtime gates and
   `PolicyDecision` v2.
+
+### PR-M1.4b1b (active)
+
+* **ID:** PR-M1.4b1b
+* **Title:** Pure deterministic policy-admission evaluator
+* **State:** ACTIVE (branch `m1-4b1b-admission-evaluator`, base `main` `5617e8c9`, PR #61)
+* **Prerequisite:** PR-M1.4b1a RELEASED (`6a34f49d` / PR #60).
+* **Purpose:** add `blackbread.policy.admission.evaluate_admission`, a pure deterministic function
+  that maps the M1.4b1a verified-fact snapshots to a non-executable `AdmissionResult` in fixed
+  fail-closed precedence, plus the `AdmissionResult` contract, the closed `AdmissionDenyReason`
+  vocabulary, and a self-describing `result_digest` bound over the result's own contents.
+* **Contract facts:** the evaluator is pure — no wall clock, UUID generation, I/O, environment, or
+  global state (enforced by `tests/conductor/test_boundaries.py`); it reuses the conductor's
+  canonical scalar/target types with no graph coupling. Scope **exclusions** use overlap semantics
+  (a broad target or destination that contains a narrower excluded host is denied); allow-list
+  containment stays deliberately directional. `AdmissionResult` is `extra="forbid"`, frozen, strict;
+  `result_digest` is a bound field that the model recomputes and rejects on mismatch, so a tampered
+  serialization fails validation.
+* **Non-goals (explicitly not in this PR):** no `PolicyDecision` v2, no approvals/budgets/locks/OPSEC
+  heat, no runtime gates, no registry loading, no extractor/renderer, no persistence, migration,
+  ledger write, API, executor, work order, lease, or target/control-plane egress. An admitted result
+  (`ADMITTED_FOR_RUNTIME_GATES`) grants no execution authority and is not a `PolicyDecision`. Leaves
+  `ActionProposal` v1, `PolicyDecision` v1, deny-only `conductor.intake`, and ADR-003 campaign
+  boundaries unchanged. Claims no milestone, Policy Kernel v1, R0, or gap complete.
+* **Known deferral:** the OFFLINE/`NONE` network-path vs target-identity-tier incompatibility is
+  recorded as `CONTRACT-GAP-003` (deferred to M5/R1); this PR does not coerce `NONE` to `T0`.
+* **Next:** M1.4b2 — runtime gates and `PolicyDecision` v2.
 
 ### PR-M1.3b3b-3
 
