@@ -14,6 +14,7 @@ from blackbread.policy.admission_contracts import (
     DestinationManifest,
     EngagementPolicySnapshot,
     TargetIdentitySnapshot,
+    destination_manifest_digest,
     parameter_digest,
 )
 
@@ -231,6 +232,7 @@ def _result(context: _Context, reason: AdmissionDenyReason | None) -> AdmissionR
         "extractor_identity": manifest.extractor_identity,
         "extractor_digest": manifest.extractor_digest,
         "parameter_digest": manifest.parameter_digest,
+        "destination_manifest_digest": destination_manifest_digest(manifest),
         "graph_version": proposal.graph_version,
         "evaluated_at": context.evaluated_at,
         "outcome": "DENY" if reason is not None else "ADMITTED_FOR_RUNTIME_GATES",

@@ -47,6 +47,7 @@ def _result(**overrides: object) -> AdmissionResult:
         "extractor_identity": EXTRACTOR,
         "extractor_digest": HEX_EXTRACTOR,
         "parameter_digest": "7" * 64,
+        "destination_manifest_digest": "a" * 64,
         "graph_version": graph_version(),
         "evaluated_at": datetime(2026, 9, 3, 12, 5, tzinfo=UTC),
         "outcome": "ADMITTED_FOR_RUNTIME_GATES",
@@ -106,7 +107,7 @@ def test_result_digest_is_stable_and_sensitive() -> None:
 
 def test_result_digest_golden_vector() -> None:
     assert _result().result_digest == (
-        "f487fd101b921c079d693b449c952d3fc9cd63710cfb1d22ec81cb0b2f286911"
+        "66969d1de9fa412fbaf1298d7f65af845b37028351a75f6051deff24ba0f4c66"
     )
 
 
@@ -127,5 +128,12 @@ def test_result_rejects_a_tampered_result_digest() -> None:
 def test_result_rejects_a_bound_field_changed_under_a_stale_digest() -> None:
     payload = json.loads(_result().model_dump_json())
     payload["policy_digest"] = "9" * 64
+    with pytest.raises(ValidationError, match="result_digest does not bind"):
+        AdmissionResult.model_validate_json(json.dumps(payload))
+
+
+def test_result_rejects_a_tampered_destination_manifest_digest() -> None:
+    payload = json.loads(_result().model_dump_json())
+    payload["destination_manifest_digest"] = "b" * 64
     with pytest.raises(ValidationError, match="result_digest does not bind"):
         AdmissionResult.model_validate_json(json.dumps(payload))

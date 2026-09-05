@@ -85,6 +85,7 @@ DestinationKind = Literal["primary", "redirect", "callback", "proxy", "file_inpu
 
 _PARAMETER_DIGEST_DOMAIN = "blackbread.policy.admission.parameter_digest.v1"
 _RESULT_DIGEST_DOMAIN = "blackbread.policy.admission.result_digest.v1"
+_MANIFEST_DIGEST_DOMAIN = "blackbread.policy.admission.destination_manifest_digest.v1"
 
 AdmissionDenyReason = Literal[
     "PROPOSAL_NOT_YET_VALID",
@@ -126,6 +127,31 @@ class AdmissionContractError(ValueError):
 def parameter_digest(canonical_parameters: str) -> str:
     """Deterministic digest binding a destination manifest to a proposal's canonical parameters."""
     return sha256_hex(f"{_PARAMETER_DIGEST_DOMAIN}\x00{canonical_parameters}")
+
+
+def destination_manifest_digest(manifest: DestinationManifest) -> str:
+    """Deterministic digest binding the exact evaluated destination manifest.
+
+    Destinations follow the manifest's documented set semantics: each `(destination_kind,
+    target_kind, canonical_value)` triple is canonicalized and the set is sorted lexicographically
+    before hashing, so tuple permutation alone does not change the digest.
+    """
+    destinations = sorted(
+        [item.destination_kind, item.scope.target_kind, item.scope.canonical_value]
+        for item in manifest.destinations
+    )
+    preimage = [
+        ["schema_name", manifest.schema_name],
+        ["schema_version", manifest.schema_version],
+        ["proposal_digest", manifest.proposal_digest],
+        ["parameter_digest", manifest.parameter_digest],
+        ["input_schema", manifest.input_schema],
+        ["capability_id", manifest.capability_id],
+        ["extractor_identity", manifest.extractor_identity],
+        ["extractor_digest", manifest.extractor_digest],
+        ["destinations", destinations],
+    ]
+    return sha256_hex(f"{_MANIFEST_DIGEST_DOMAIN}\x00{canonical_json(preimage)}")
 
 
 class _Frozen(BaseModel):
@@ -260,6 +286,7 @@ class AdmissionResult(_Frozen):
     extractor_identity: CanonicalText
     extractor_digest: HexDigest
     parameter_digest: HexDigest
+    destination_manifest_digest: HexDigest
     graph_version: GraphVersionReference
     evaluated_at: UtcTimestamp
     outcome: AdmissionOutcome
@@ -306,6 +333,7 @@ def _result_preimage(values: Mapping[str, Any]) -> list[object]:
         ["extractor_identity", values["extractor_identity"]],
         ["extractor_digest", values["extractor_digest"]],
         ["parameter_digest", values["parameter_digest"]],
+        ["destination_manifest_digest", values["destination_manifest_digest"]],
         ["state_root_version", graph.state_root_version],
         ["projector_version", graph.projector_version],
         ["state_root", graph.state_root],
