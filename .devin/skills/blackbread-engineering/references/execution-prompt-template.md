@@ -73,10 +73,10 @@ Section 8 without editing.
 
 ## 3. File map (the only files that may change)
 
-| File           | Action | One responsibility | Contract impact |          Predicted delta |        Expected final size |           |           |
-| -------------- | ------ | ------------------ | --------------- | -----------------------: | -------------------------: | --------- | --------- |
-| `<path>`       | `<add  | modify             | delete>`        |       `<responsibility>` | `<none or exact contract>` | `<lines>` | `<lines>` |
-| `tests/<path>` | `<add  | modify             | delete>`        | `<proof responsibility>` |                `test only` | `<lines>` | `<lines>` |
+| File | Action | One responsibility | Contract impact | Predicted delta | Expected final size |
+| ---- | ------ | ------------------ | --------------- | --------------: | ------------------: |
+| `<path>` | `<add \| modify \| delete>` | `<responsibility>` | `<none or exact contract>` | `<lines>` | `<lines>` |
+| `tests/<path>` | `<add \| modify \| delete>` | `<proof responsibility>` | `test only` | `<lines>` | `<lines>` |
 
 Explicitly forbidden files:
 
@@ -91,9 +91,9 @@ For `READ_ONLY_REVIEW`, state `no files may change`.
 
 ## 4. Requirement, dependency, and capability context
 
-| ID                 | Current state | Effect of this slice | Evidence required |          |      |          |                  |                      |
-| ------------------ | ------------- | -------------------- | ----------------- | -------- | ---- | -------- | ---------------- | -------------------- |
-| `<REQ/CAP/GAP ID>` | `<DECIDED     | IMPLEMENTED          | VERIFIED          | RELEASED | OPEN | CLOSED>` | `<exact effect>` | `<oracle or source>` |
+| ID | Current state | Effect of this slice | Evidence required |
+| -- | ------------- | -------------------- | ----------------- |
+| `<REQ/CAP/GAP ID>` | `<DECIDED \| IMPLEMENTED \| VERIFIED \| RELEASED \| OPEN \| CLOSED>` | `<exact effect>` | `<oracle or source>` |
 
 Completed prerequisites:
 
