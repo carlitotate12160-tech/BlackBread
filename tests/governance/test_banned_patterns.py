@@ -214,21 +214,28 @@ def _is_canonical_unpack(annotation: ast.expr | None) -> bool:
         isinstance(value, ast.Attribute)
         and value.attr == "Unpack"
         and isinstance(value.value, ast.Name)
-        and value.value.id in {"typing", "typing_extensions"}
+        and value.value.id in {"typing", "typing_extensions", "t"}
     )
     if not is_unpack:
         return False
     target = annotation.slice
+    if isinstance(target, ast.Subscript):
+        target = target.value
+    forbidden = {"Any", "dict", "Dict", "Mapping", "Tuple", "tuple", "object"}
     if isinstance(target, ast.Name):
-        return target.id not in {"Any", "dict", "Dict", "Mapping", "object"}
+        return target.id not in forbidden
     if isinstance(target, ast.Attribute):
-        return target.attr not in {"Any", "dict", "Dict", "Mapping", "object"}
+        return target.attr not in forbidden
     return False
 
 
 def _find_unstructured_kwargs(tree: ast.AST) -> list[tuple[int, str]]:
     offenders: list[tuple[int, str]] = []
     for node in ast.walk(tree):
+        if isinstance(node, ast.Lambda):
+            if node.args.kwarg is not None:
+                offenders.append((node.lineno, "<lambda>"))
+            continue
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
         kwarg = node.args.kwarg
@@ -240,9 +247,14 @@ def _find_unstructured_kwargs(tree: ast.AST) -> list[tuple[int, str]]:
 def test_kwargs_accepts_canonical_unpack() -> None:
     code = (
         "from typing import TypedDict, Unpack\n"
+        "import typing as t\n"
         "class SpecificOptions(TypedDict):\n"
         "    flag: bool\n"
         "def valid_func(**kwargs: Unpack[SpecificOptions]) -> None:\n"
+        "    pass\n"
+        "def valid_aliased(**kwargs: t.Unpack[SpecificOptions]) -> None:\n"
+        "    pass\n"
+        "def valid_generic(**kwargs: Unpack[GenericOptions[int]]) -> None:\n"
         "    pass\n"
     )
     assert not _find_unstructured_kwargs(ast.parse(code))
@@ -256,6 +268,7 @@ def test_kwargs_rejects_unannotated_and_open_ended() -> None:
         "def f(**kwargs: Unpack[Any]): pass",
         "def f(**kwargs: Unpack[dict[str, Any]]): pass",
         "def f(**kwargs: SpecificTypedDict): pass",
+        "action = lambda **kwargs: None",
     ]
     for case in prohibited_cases:
         violations = _find_unstructured_kwargs(ast.parse(case))
