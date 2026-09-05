@@ -32,9 +32,9 @@ reference:
 3. BOUNDED EXECUTION CONTRACT — allowed/forbidden files, proof obligations, budget, STOP/SPLIT (`references/execution-contract.md` §1; fill `references/execution-prompt-template.md`).
 4. TDD: RED -> MINIMUM GREEN — a test failing for the intended reason first, then the minimum coherent change (`references/implementation-delivery.md`).
 5. SELF-REVIEW COMPLETE DIFF — inspect the whole diff for scope expansion, control weakening, and false status claims (`references/implementation-delivery.md`).
-6. LOCAL HARD PREFLIGHT ALL GREEN — focused + affected + real-PostgreSQL suites, `make check`, size/coverage/diff budgets, live state still matches the slice (`references/execution-contract.md` §2).
+6. LOCAL HARD PREFLIGHT ALL GREEN — focused + affected suites, applicable real-PostgreSQL or other authoritative integration proofs, `make check`, size/coverage/diff budgets, and live-state re-verification (`references/execution-contract.md` §2).
 7. OPEN READY PR — feature branch, conventional commit, normal push, no force-push (`.github/agent-delivery.json`; `references/implementation-delivery.md`).
-8. ONE EXACT-HEAD ADVERSARIAL REVIEW — trigger once at the exact head; advisory findings are validated, not gated; the binding PR-Agent/DeepSeek review is mandatory for safety-critical paths (`references/adversarial-review.md`; `references/execution-contract.md` §3).
+8. ONE EXACT-HEAD ADVERSARIAL REVIEW — allow configured automation to run once or use only the approved trigger defined by live repository authority; validate advisory findings instead of obeying them blindly; complete the current binding independent review required for safety-critical paths (`references/adversarial-review.md`; `references/execution-contract.md` §3).
 9. ONE COHESIVE CORRECTION — at most one correction cycle, all evidence rebound to the new exact head (`references/execution-contract.md` §3).
 10. FINAL CURRENT-HEAD SEAL — `MERGEABLE` or `NOT MERGEABLE` with every claim bound to the exact head (`references/adversarial-review.md`).
 11. SQUASH MERGE — owner-only, squash method (`.github/agent-delivery.json`); the agent hands off at the seal and never merges.

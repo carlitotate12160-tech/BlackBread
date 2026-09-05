@@ -28,16 +28,23 @@ skill.
    been inspected for scope expansion and control weakening, and the live GitHub
    state still matches the selected slice. A PR is not a CI sandbox.
 
-3. **Adversarial-review contract.** A slice gets at most one adversarial review
-   cycle and at most one cohesive correction cycle. After that, the current head
-   is either sealed (all gates green, all evidence bound to the exact head) or
-   rejected (blockers remain, the slice must be split, or trust boundaries are
-   unclear). Advisory bots are not polled, re-triggered, or looped to chase a
-   cleaner review; trigger an exact-head review once per task, disposition the
-   findings, and complete the binding independent review (PR-Agent/DeepSeek for
-   safety-critical paths) before the final seal. The binding review is mandatory
-   for safety-critical paths and cannot be waived by advisory bots or owner
-   disposition alone.
+3. **Adversarial-review contract.** A slice gets at most one adversarial
+   review cycle and at most one cohesive correction cycle. After that, the
+   current head is either sealed (all gates green and all evidence bound to
+   the exact head) or rejected (blockers remain, the slice must be split, or
+   trust boundaries are unclear).
+
+   Use the binding reviewer and trigger mechanism required by live repository
+   authority; never cache a provider, model, bot name, or trigger method in
+   this contract. Allow configured automation to run once, or use only the
+   explicitly approved trigger when automation is unavailable. Do not poll,
+   re-trigger, or loop advisory reviewers to obtain a cleaner response.
+
+   Advisory findings must be reproduced and dispositioned. A reproduced valid
+   correctness or security finding blocks the seal. A stale, duplicate, or
+   false-positive finding requires exact-head evidence before its thread is
+   resolved. The binding independent review for a safety-critical path cannot
+   be waived by advisory output or owner disposition alone.
 
 4. **Density-gaming contract.** Do not compress statements, delete comments or
    documentation, merge unrelated responsibilities into one module or function,
