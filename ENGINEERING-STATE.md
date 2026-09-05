@@ -7,8 +7,8 @@ and never overrides live GitHub, accepted architecture, delivery policy, tests, 
 
 * **State:** ACTIVE
 * **Current milestone:** M1 — Trust Spine
-* **Last verified:** 2026-09-04 UTC
-* **Current branch:** `m1-4b1b-admission-evaluator`
+* **Last verified:** 2026-09-05 UTC
+* **Current branch:** `m1-4b2a-runtime-gate-contracts`
 * **Active ruleset:** `main-branch-protection` (`21644438`)
 * **Contractual gate:** the live ruleset matches the machine contract. Required status checks are
   `ci-ok` (aggregator for `quality`, `tests`, `security`, `governance`) and `GitGuardian Security
@@ -67,11 +67,17 @@ sealable and fail-closed:
     * **M1.4b1a** — verified input-fact snapshot contracts. **RELEASED (PR #60, `6a34f49d`).** No
       evaluator, result, or executable outcome.
     * **M1.4b1b** — pure deterministic admission evaluator + non-executable `AdmissionResult` and
-      its result digest, consuming the M1.4b1a snapshots. **ACTIVE (PR #61).** Non-executable:
-      an admitted result grants no execution authority and is not a `PolicyDecision`. Claims no
-      milestone, Policy Kernel v1, R0, or gap complete.
+      its result digest, consuming the M1.4b1a snapshots. **RELEASED (PR #61, `4187a053`, merged to
+      `main` 2026-09-05).** Non-executable: an admitted result grants no execution authority and is
+      not a `PolicyDecision`. Claims no milestone, Policy Kernel v1, R0, or gap complete.
   * **M1.4b2** — runtime gates and final policy decision: approvals, budgets, resource locks, OPSEC
-    heat, deterministic outcome precedence, and `PolicyDecision` v2.
+    heat, deterministic outcome precedence, and `PolicyDecision` v2. **ACCEPTED WITH CHANGES: split
+    into b2a (input-fact snapshot contracts), b2b, and b2c under the binding 400-line runtime-diff
+    budget.**
+    * **M1.4b2a** — immutable runtime-gate input-fact contracts (approval grants, budget accounts,
+      resource locks, engagement run state, OPSEC heat state, and a digest-bound `RuntimeGateSnapshot`).
+      **ACTIVE (branch `m1-4b2a-runtime-gate-contracts`, base `0516cd1a`).** No evaluator, outcome,
+      `PolicyDecision` v2, persistence, ledger publication, lease, work order, or target effect.
 * **M1.4c** — durable, tenant-isolated, immutable `action_proposals` and `decision_records` with RLS,
   idempotency, ledger provenance, and atomic persistence.
 * **M1.4d** — budgets, resource locks, and execution leases; no work order without a valid lease.
@@ -447,11 +453,11 @@ dispositioned and resolved. A merge does not complete M1.3, M1/R0, `LEDGER-GAP-0
   `AdmissionResult` (with result digest), consuming these snapshots. Then M1.4b2 — runtime gates and
   `PolicyDecision` v2.
 
-### PR-M1.4b1b (active)
+### PR-M1.4b1b (released)
 
 * **ID:** PR-M1.4b1b
 * **Title:** Pure deterministic policy-admission evaluator
-* **State:** ACTIVE (branch `m1-4b1b-admission-evaluator`, base `main` `6a34f49d`, PR #61)
+* **State:** RELEASED (PR #61, `4187a053`, merged to `main` 2026-09-05)
 * **Prerequisite:** PR-M1.4b1a RELEASED (`6a34f49d` / PR #60).
 * **Purpose:** add `blackbread.policy.admission.evaluate_admission`, a pure deterministic function
   that maps the M1.4b1a verified-fact snapshots to a non-executable `AdmissionResult` in fixed
@@ -474,7 +480,35 @@ dispositioned and resolved. A merge does not complete M1.3, M1/R0, `LEDGER-GAP-0
   boundaries unchanged. Claims no milestone, Policy Kernel v1, R0, or gap complete.
 * **Known deferral:** the OFFLINE/`NONE` network-path vs target-identity-tier incompatibility is
   recorded as `CONTRACT-GAP-003` (deferred to M5/R1); this PR does not coerce `NONE` to `T0`.
-* **Next:** M1.4b2 — runtime gates and `PolicyDecision` v2.
+* **Next:** M1.4b2a — immutable runtime-gate input-fact contracts.
+
+### PR-M1.4b2a (active)
+
+* **ID:** PR-M1.4b2a
+* **Title:** Immutable runtime-gate input-fact contracts
+* **State:** ACTIVE (branch `m1-4b2a-runtime-gate-contracts`, base `main` `0516cd1a`)
+* **Prerequisite:** PR-M1.4b1b RELEASED (`4187a053` / PR #61).
+* **Purpose:** add `blackbread.policy.runtime_contracts`, strict frozen versioned input-fact
+  contracts for the runtime-gate boundary: `ApprovalGrantSnapshot`, `BudgetAccountSnapshot`,
+  `RuntimeBudgetSnapshot`, `ResourceLockSnapshot`/`HeldEngagementLock`, `EngagementRunStateSnapshot`,
+  `OpsecStateSnapshot`, and a self-describing `RuntimeGateSnapshot` with a canonical snapshot digest.
+* **Contract facts:** every snapshot is `extra="forbid"`, frozen, strict, and provenance-bound; the
+  top-level `RuntimeGateSnapshot` rejects cross-tenant, cross-engagement, cross-proposal,
+  cross-admission-result, cross-capability, and cross-agent substitution among nested facts before
+  hashing; the snapshot digest covers schema identity/version and every nested semantic and
+  provenance field. Canonical scalar, target, approval, UTC, and digest authorities are reused from
+  `blackbread.conductor.contracts`, `blackbread.policy.admission_contracts`, and
+  `blackbread.ledger.hashing`; no new scope authority or canonical timestamp logic is added.
+* **Non-goals (explicitly not in this PR):** no runtime-gate evaluator, `RuntimeGateResult`,
+  `PolicyDecision` v2, `ALLOW`, `APPROVAL_REQUIRED`, `WAIT_FOR_RESOURCE`, `STALE_CONTEXT`,
+  `ENGAGEMENT_STOPPED`, or `OPSEC_HOLD` outcome; no persistence, migration, ledger publication, API,
+  executor, lease, work order, capability contact, target/control-plane egress, OPSEC transition
+  logic, kill-switch logic, or target-facing action. Actual budget, lock, run, and OPSEC state remain
+  future ledger/service responsibility; these are immutable value snapshots only.
+* **Seal criteria:** focused positive/negative contract, digest, and boundary tests green; affected
+  policy and conductor suites green; all repository gates and budgets green; binding current-head
+  PR-Agent (DeepSeek V4-Pro) review complete with all actionable findings dispositioned.
+* **Next:** M1.4b2b.
 
 ### PR-M1.3b3b-3
 
