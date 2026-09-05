@@ -11,6 +11,7 @@ import blackbread.conductor.contracts as conductor_contracts
 import blackbread.conductor.intake as conductor_intake
 import blackbread.policy.admission as policy_admission
 import blackbread.policy.contracts as policy_contracts
+from blackbread.policy import runtime_contracts
 
 SRC = Path(__file__).parents[2] / "src" / "blackbread"
 
@@ -56,6 +57,7 @@ PURE_MODULES = (
     SRC / "policy" / "contracts.py",
     SRC / "policy" / "admission_contracts.py",
     SRC / "policy" / "admission.py",
+    SRC / "policy" / "runtime_contracts.py",
 )
 
 
@@ -118,8 +120,36 @@ def test_admission_contracts_reuse_conductor_types_without_graph_coupling() -> N
     assert not any(name.startswith("blackbread.graph") for name in imported)
 
 
+def test_runtime_gate_contracts_are_intentionally_unwired_and_non_authoritative() -> None:
+    runtime_path = SRC / "policy" / "runtime_contracts.py"
+    runtime_imports = _imported_modules(runtime_path)
+    assert "blackbread.conductor.contracts" in runtime_imports
+    assert "blackbread.conductor.intake" not in runtime_imports
+    assert not any(name.startswith("blackbread.graph") for name in runtime_imports)
+    for name in runtime_imports:
+        assert name.split(".")[0] not in FORBIDDEN_IMPORT_ROOTS
+
+    runtime_source = runtime_path.read_text(encoding="utf-8")
+    assert "from blackbread.conductor import" not in runtime_source
+    assert "conductor.intake" not in runtime_source
+
+    for path in SRC.rglob("*.py"):
+        if path == runtime_path:
+            continue
+        assert "blackbread.policy.runtime_contracts" not in _imported_modules(path)
+
+    intake_source = (SRC / "conductor" / "intake.py").read_text(encoding="utf-8")
+    forbidden = ("ALLOW", "APPROVAL_REQUIRED", "lease_id", "work_order_id", "executable_token")
+    for item in forbidden:
+        assert item not in intake_source
+
+    forbidden_fields = {"outcome", "decision_id", "lease_id", "work_order_id", "executable_token"}
+    assert forbidden_fields.isdisjoint(runtime_contracts.RuntimeGateSnapshot.model_fields)
+
+
 def test_modules_import_without_side_effects() -> None:
     assert conductor_contracts.ACTION_PROPOSAL_SCHEMA == "conductor.action_proposal"
     assert callable(conductor_intake.evaluate_proposal)
     assert callable(policy_admission.evaluate_admission)
     assert policy_contracts.POLICY_DECISION_SCHEMA == "policy.decision"
+    assert runtime_contracts.RUNTIME_GATE_SCHEMA == "policy.runtime.gate"
