@@ -62,7 +62,6 @@ def _early_checks(context: _Context) -> tuple[_Check, ...]:
     proposal = context.proposal
     policy = context.policy
     identity = context.identity
-    manifest = context.manifest
     return (
         ("PROPOSAL_NOT_YET_VALID", context.evaluated_at < proposal.created_at),
         ("PROPOSAL_EXPIRED", context.evaluated_at >= proposal.expires_at),
@@ -80,7 +79,7 @@ def _early_checks(context: _Context) -> tuple[_Check, ...]:
         (
             "PROPOSAL_BINDING_MISMATCH",
             identity.proposal_digest != proposal.proposal_digest
-            or manifest.proposal_digest != proposal.proposal_digest,
+            or context.manifest.proposal_digest != proposal.proposal_digest,
         ),
         (
             "GRAPH_BINDING_MISMATCH",
@@ -206,32 +205,27 @@ def _validate_arguments(context: _Context) -> None:
 
 
 def _result(context: _Context, reason: AdmissionDenyReason | None) -> AdmissionResult:
-    proposal = context.proposal
-    policy = context.policy
-    identity = context.identity
-    capability = context.capability
-    manifest = context.manifest
     fields: dict[str, object] = {
         "schema_name": "policy.admission.result",
         "schema_version": 1,
-        "tenant_id": proposal.tenant_id,
-        "engagement_id": proposal.engagement_id,
-        "proposal_id": proposal.proposal_id,
-        "proposal_digest": proposal.proposal_digest,
-        "policy_schema_ref": policy.policy_schema_ref,
-        "policy_digest": policy.policy_digest,
-        "attestation_digest": policy.attestation_digest,
-        "identity_verifier_ref": identity.verifier_ref,
-        "identity_evidence_digest": identity.evidence_digest,
-        "registry_schema_version": capability.registry_schema_version,
-        "registry_digest": capability.registry_digest,
-        "capability_id": capability.capability_id,
-        "supply_chain_digest": capability.supply_chain_digest,
-        "extractor_identity": manifest.extractor_identity,
-        "extractor_digest": manifest.extractor_digest,
-        "parameter_digest": manifest.parameter_digest,
-        "destination_manifest_digest": destination_manifest_digest(manifest),
-        "graph_version": proposal.graph_version,
+        "tenant_id": context.proposal.tenant_id,
+        "engagement_id": context.proposal.engagement_id,
+        "proposal_id": context.proposal.proposal_id,
+        "proposal_digest": context.proposal.proposal_digest,
+        "policy_schema_ref": context.policy.policy_schema_ref,
+        "policy_digest": context.policy.policy_digest,
+        "attestation_digest": context.policy.attestation_digest,
+        "identity_verifier_ref": context.identity.verifier_ref,
+        "identity_evidence_digest": context.identity.evidence_digest,
+        "registry_schema_version": context.capability.registry_schema_version,
+        "registry_digest": context.capability.registry_digest,
+        "capability_id": context.capability.capability_id,
+        "supply_chain_digest": context.capability.supply_chain_digest,
+        "extractor_identity": context.manifest.extractor_identity,
+        "extractor_digest": context.manifest.extractor_digest,
+        "parameter_digest": context.manifest.parameter_digest,
+        "destination_manifest_digest": destination_manifest_digest(context.manifest),
+        "graph_version": context.proposal.graph_version,
         "evaluated_at": context.evaluated_at,
         "outcome": "DENY" if reason is not None else "ADMITTED_FOR_RUNTIME_GATES",
         "reason_code": reason,

@@ -461,7 +461,9 @@ dispositioned and resolved. A merge does not complete M1.3, M1/R0, `LEDGER-GAP-0
   (a broad target or destination that contains a narrower excluded host is denied); allow-list
   containment stays deliberately directional. `AdmissionResult` is `extra="forbid"`, frozen, strict;
   `result_digest` is a bound field that the model recomputes and rejects on mismatch, so a tampered
-  serialization fails validation.
+  serialization fails validation. The factory validates its shared input-field schema before
+  hashing; malformed or missing fields raise validation errors, and valid nested graph mappings
+  are validated before digest construction. Deserialization still requires the result digest.
 * **Non-goals (explicitly not in this PR):** no `PolicyDecision` v2, no approvals/budgets/locks/OPSEC
   heat, no runtime gates, no registry loading, no extractor/renderer, no persistence, migration,
   ledger write, API, executor, work order, lease, or target/control-plane egress. An admitted result

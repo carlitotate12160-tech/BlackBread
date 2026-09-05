@@ -260,8 +260,8 @@ class DestinationManifest(_Frozen):
         return self
 
 
-class AdmissionResult(_Frozen):
-    """Digest-bound admission result that grants no execution authority."""
+class _AdmissionResultFields(_Frozen):
+    """Shared field validation for result construction and deserialization."""
 
     schema_name: Literal["policy.admission.result"]
     schema_version: SchemaVersionOne
@@ -286,6 +286,11 @@ class AdmissionResult(_Frozen):
     evaluated_at: UtcTimestamp
     outcome: AdmissionOutcome
     reason_code: AdmissionDenyReason | None
+
+
+class AdmissionResult(_AdmissionResultFields):
+    """Digest-bound admission result that grants no execution authority."""
+
     result_digest: HexDigest
 
     @model_validator(mode="after")
@@ -300,7 +305,8 @@ class AdmissionResult(_Frozen):
     @classmethod
     def build(cls, fields: Mapping[str, object]) -> AdmissionResult:
         """Construct a result and bind its self-describing digest over its own contents."""
-        return cls.model_validate({**fields, "result_digest": _result_digest(fields)})
+        values = dict(_AdmissionResultFields.model_validate(fields))
+        return cls.model_validate({**values, "result_digest": _result_digest(values)})
 
 
 def _result_digest(values: Mapping[str, Any]) -> str:

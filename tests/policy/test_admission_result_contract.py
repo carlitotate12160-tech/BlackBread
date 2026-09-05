@@ -137,3 +137,40 @@ def test_result_rejects_a_tampered_destination_manifest_digest() -> None:
     payload["destination_manifest_digest"] = "b" * 64
     with pytest.raises(ValidationError, match="result_digest does not bind"):
         AdmissionResult.model_validate_json(json.dumps(payload))
+
+
+def test_builder_rejects_an_empty_payload_with_validation_error() -> None:
+    with pytest.raises(ValidationError):
+        AdmissionResult.build({})
+
+
+@pytest.mark.parametrize("field", ["graph_version", "evaluated_at", "tenant_id"])
+def test_builder_rejects_missing_required_fields(field: str) -> None:
+    fields = dict(_result())
+    fields.pop("result_digest")
+    fields.pop(field)
+    with pytest.raises(ValidationError) as captured:
+        AdmissionResult.build(fields)
+    assert any(error["loc"] == (field,) for error in captured.value.errors())
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("graph_version", None), ("graph_version", {}), ("evaluated_at", "invalid")],
+)
+def test_builder_rejects_malformed_fields_with_validation_error(field: str, value: object) -> None:
+    with pytest.raises(ValidationError) as captured:
+        _result(**{field: value})
+    assert any(error["loc"][0] == field for error in captured.value.errors())
+
+
+def test_builder_validates_nested_graph_mapping_before_hashing() -> None:
+    assert _result(graph_version=graph_version().model_dump()) == _result()
+
+
+def test_deserialization_still_requires_result_digest() -> None:
+    payload = json.loads(_result().model_dump_json())
+    payload.pop("result_digest")
+    with pytest.raises(ValidationError) as captured:
+        AdmissionResult.model_validate_json(json.dumps(payload))
+    assert any(error["loc"] == ("result_digest",) for error in captured.value.errors())
