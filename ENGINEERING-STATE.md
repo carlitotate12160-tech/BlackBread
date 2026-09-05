@@ -449,7 +449,7 @@ dispositioned and resolved. A merge does not complete M1.3, M1/R0, `LEDGER-GAP-0
 
 * **ID:** PR-M1.4b1b
 * **Title:** Pure deterministic policy-admission evaluator
-* **State:** ACTIVE (branch `m1-4b1b-admission-evaluator`, base `main` `5617e8c9`, PR #61)
+* **State:** ACTIVE (branch `m1-4b1b-admission-evaluator`, base `main` `6a34f49d`, PR #61)
 * **Prerequisite:** PR-M1.4b1a RELEASED (`6a34f49d` / PR #60).
 * **Purpose:** add `blackbread.policy.admission.evaluate_admission`, a pure deterministic function
   that maps the M1.4b1a verified-fact snapshots to a non-executable `AdmissionResult` in fixed
