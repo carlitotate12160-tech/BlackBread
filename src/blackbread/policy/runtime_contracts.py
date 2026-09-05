@@ -274,13 +274,6 @@ class _RuntimeGateFields(_TenantScoped):
             _bind_budget(self.budget, self)
         if self.lock is not None:
             _bind_object(self.lock, self, "lock", ("tenant_id", "engagement_id"))
-            if self.lock.holder is not None:
-                _require_equal(
-                    self.lock.holder.holder_proposal_id,
-                    self.proposal_id,
-                    "lock.holder",
-                    "proposal_id",
-                )
         if self.engagement is not None:
             _bind_object(self.engagement, self, "engagement", ("tenant_id", "engagement_id"))
         if self.opsec is not None:

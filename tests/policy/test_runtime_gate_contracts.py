@@ -306,3 +306,50 @@ def test_lock_run_and_opsec_states_are_closed_and_provenance_bound() -> None:
 
     with pytest.raises(ValidationError):
         OpsecStateSnapshot(**_opsec(observed_at=_ts(13, 0), fresh_until=_ts(11, 0)))
+
+
+def test_runtime_gate_snapshot_lock_holder_states_and_tamper_rejection() -> None:
+    other_proposal = uuid.UUID("44444444-4444-4444-4444-444444444444")
+    other_tenant = "tenant-other"
+    other_engagement = uuid.UUID("99999999-9999-9999-9999-999999999999")
+
+    empty_gate = RuntimeGateSnapshot.build(_gate(lock=_lock(holder=None)))
+    assert empty_gate.lock is not None
+    assert empty_gate.lock.holder is None
+
+    own_held = HeldEngagementLock(
+        schema_name="policy.runtime.held_lock",
+        schema_version=1,
+        holder_proposal_id=PROPOSAL,
+        holder_lease_id=None,
+        acquired_at=_ts(11, 0),
+        expires_at=_ts(12, 0),
+    )
+    own_gate = RuntimeGateSnapshot.build(_gate(lock=_lock(holder=own_held.model_dump())))
+    assert own_gate.lock is not None
+    assert own_gate.lock.holder is not None
+    assert own_gate.lock.holder.holder_proposal_id == PROPOSAL
+
+    other_held = HeldEngagementLock(
+        schema_name="policy.runtime.held_lock",
+        schema_version=1,
+        holder_proposal_id=other_proposal,
+        holder_lease_id=None,
+        acquired_at=_ts(11, 0),
+        expires_at=_ts(12, 0),
+    )
+    other_gate = RuntimeGateSnapshot.build(_gate(lock=_lock(holder=other_held.model_dump())))
+    assert other_gate.lock is not None
+    assert other_gate.lock.holder is not None
+    assert other_gate.lock.holder.holder_proposal_id == other_proposal
+
+    with pytest.raises(ValidationError, match="tenant"):
+        RuntimeGateSnapshot.build(_gate(lock=_lock(tenant_id=other_tenant)))
+
+    with pytest.raises(ValidationError, match="engagement"):
+        RuntimeGateSnapshot.build(_gate(lock=_lock(engagement_id=other_engagement)))
+
+    tampered = copy.deepcopy(empty_gate.model_dump())
+    tampered["lock"]["holder"] = other_held.model_dump()
+    with pytest.raises(ValidationError, match="snapshot_digest"):
+        RuntimeGateSnapshot(**tampered)
