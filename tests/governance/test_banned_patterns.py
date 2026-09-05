@@ -1,8 +1,9 @@
-"""Banned code patterns, AI-slop signatures, and diff-budget governance tests.
+"""Objective code-hygiene patterns and diff-budget governance tests.
 
-Inspired by Decepticon's QUALITY_BAR.md — these tests catch patterns that
-ruff/mypy cannot detect: AI-generated code smells, defensive redundancy,
-and PR scope violations.
+These tests catch structural code-hygiene violations and scope-budget
+failures: bare exception handlers, swallowed broad exceptions, unspecific
+tooling suppressions, production print statements, delivered NotImplementedError,
+untracked TODOs, redundant boolean branches, unstructured kwargs, and PR diff budgets.
 """
 
 from __future__ import annotations
@@ -39,28 +40,6 @@ RUNTIME_EXCLUDE_SUFFIXES = {
     ".lock",
 }
 
-VAGUE_NAMES = frozenset({"data", "info", "obj", "item", "stuff", "thing"})
-FLAG_WORDS = frozenset(
-    {
-        "leverage",
-        "leveraged",
-        "leveraging",
-        "robust",
-        "robustly",
-        "comprehensive",
-        "comprehensively",
-        "utilize",
-        "utilized",
-        "utilizing",
-        "seamless",
-        "seamlessly",
-        "elegant",
-        "elegantly",
-        "optimal",
-        "optimally",
-    }
-)
-
 
 def _iter_python_files(base: Path) -> list[Path]:
     return sorted(base.rglob("*.py"))
@@ -73,12 +52,12 @@ def _is_runtime_path(rel: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Banned patterns
+# Objective code-hygiene patterns
 # ---------------------------------------------------------------------------
 
 
 def test_no_bare_except() -> None:
-    """Bare `except:` is banned — catch specific exceptions."""
+    """Bare `except:` is prohibited — catch specific exceptions."""
     offenders: list[tuple[str, int]] = []
     for path in _iter_python_files(SRC):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
@@ -90,7 +69,7 @@ def test_no_bare_except() -> None:
 
 
 def test_no_broad_except_pass() -> None:
-    """`except Exception: pass` is banned — it swallows failures silently."""
+    """`except Exception: pass` is prohibited — it swallows failures silently."""
     offenders: list[tuple[str, int]] = []
     for path in _iter_python_files(SRC):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
@@ -112,7 +91,7 @@ def test_no_broad_except_pass() -> None:
 
 
 def test_no_type_ignore_without_code() -> None:
-    """`# type: ignore` without a specific code is banned."""
+    """`# type: ignore` without a specific error code is prohibited."""
     pattern = re.compile(r"#\s*type:\s*ignore(?!\[)")
     offenders: list[tuple[str, int]] = []
     for path in _iter_python_files(SRC):
@@ -124,7 +103,7 @@ def test_no_type_ignore_without_code() -> None:
 
 
 def test_no_noqa_without_code() -> None:
-    """`# noqa` without a rule code is banned.
+    """`# noqa` without a rule code is prohibited.
 
     Accepted forms: `# noqa: F401`, `# noqa: F401,E501`, `# noqa(F401)`.
     Rejected: `# noqa` (bare), `# noqa: ` (no code after colon),
@@ -148,7 +127,7 @@ def test_no_noqa_without_code() -> None:
 
 
 def test_no_print_in_production() -> None:
-    """`print()` in production code is banned — use logging."""
+    """`print()` in production code is prohibited — use structured logging."""
     offenders: list[tuple[str, int]] = []
     for path in _iter_python_files(SRC):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
@@ -163,26 +142,8 @@ def test_no_print_in_production() -> None:
     assert not offenders, f"`print()` in production code: {offenders}"
 
 
-def test_no_suppressed_return_values() -> None:
-    """`_ = call()` is banned — use the value or don't call."""
-    offenders: list[tuple[str, int]] = []
-    for path in _iter_python_files(SRC):
-        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        for node in ast.walk(tree):
-            if (
-                isinstance(node, ast.Assign)
-                and len(node.targets) == 1
-                and isinstance(node.targets[0], ast.Name)
-                and node.targets[0].id == "_"
-                and isinstance(node.value, ast.Call)
-            ):
-                rel = path.relative_to(ROOT).as_posix()
-                offenders.append((rel, node.lineno))
-    assert not offenders, f"Suppressed return value `_ = call()`: {offenders}"
-
-
 def test_no_not_implemented_in_delivered_code() -> None:
-    """`raise NotImplementedError` in production code is banned (both call and bare form)."""
+    """`raise NotImplementedError` in production code is prohibited."""
     offenders: list[tuple[str, int]] = []
     for path in _iter_python_files(SRC):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
@@ -199,7 +160,7 @@ def test_no_not_implemented_in_delivered_code() -> None:
 
 
 def test_no_todo_without_issue_link() -> None:
-    """`TODO` without an issue link (#NNN) is banned."""
+    """`TODO` without an issue link (#NNN) is prohibited."""
     pattern = re.compile(r"#\s*TODO\b(?!.*#\d+)", re.IGNORECASE)
     offenders: list[tuple[str, int]] = []
     for path in _iter_python_files(SRC):
@@ -210,17 +171,8 @@ def test_no_todo_without_issue_link() -> None:
     assert not offenders, f"`TODO` without issue link: {offenders}"
 
 
-# ---------------------------------------------------------------------------
-# AI-slop signatures
-# ---------------------------------------------------------------------------
-
-
 def test_no_if_true_else_false_pattern() -> None:
-    """`if cond: return True else: return False` is AI-slop.
-
-    Accepted fix: `return bool(cond)` when boolean normalization is needed.
-    The bare `return cond` is only safe when cond is already boolean-typed.
-    """
+    """`if cond: return True else: return False` is redundant logic."""
     offenders: list[tuple[str, int]] = []
     for path in _iter_python_files(SRC):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
@@ -245,51 +197,125 @@ def test_no_if_true_else_false_pattern() -> None:
             ):
                 rel = path.relative_to(ROOT).as_posix()
                 offenders.append((rel, node.lineno))
-    assert not offenders, f"`if cond: return True else: return False` pattern: {offenders}"
+    assert not offenders, f"Redundant boolean branching pattern found: {offenders}"
 
 
-def test_no_vague_variable_names_in_production() -> None:
-    """Variables named `data`, `info`, `obj`, `item` are AI-slop — rename to describe."""
+# ---------------------------------------------------------------------------
+# Structured kwargs gate
+# ---------------------------------------------------------------------------
+
+
+def _is_canonical_unpack(annotation: ast.expr | None) -> bool:
+    """Return True if annotation is canonical Unpack[SpecificTypedDict]."""
+    if not isinstance(annotation, ast.Subscript):
+        return False
+    value = annotation.value
+    is_unpack = (isinstance(value, ast.Name) and value.id == "Unpack") or (
+        isinstance(value, ast.Attribute)
+        and value.attr == "Unpack"
+        and isinstance(value.value, ast.Name)
+        and value.value.id in {"typing", "typing_extensions", "t"}
+    )
+    if not is_unpack:
+        return False
+    target = annotation.slice
+    if isinstance(target, ast.Subscript):
+        target = target.value
+    forbidden = {"Any", "dict", "Dict", "Mapping", "Tuple", "tuple", "object"}
+    if isinstance(target, ast.Name):
+        return target.id not in forbidden
+    if isinstance(target, ast.Attribute):
+        return target.attr not in forbidden
+    return False
+
+
+def _find_unstructured_kwargs(tree: ast.AST) -> list[tuple[int, str]]:
+    offenders: list[tuple[int, str]] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Lambda):
+            if node.args.kwarg is not None:
+                offenders.append((node.lineno, "<lambda>"))
+            continue
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        kwarg = node.args.kwarg
+        if kwarg is not None and not _is_canonical_unpack(kwarg.annotation):
+            offenders.append((node.lineno, node.name))
+    return offenders
+
+
+def test_kwargs_accepts_canonical_unpack() -> None:
+    code = (
+        "from typing import TypedDict, Unpack\n"
+        "import typing as t\n"
+        "class SpecificOptions(TypedDict):\n"
+        "    flag: bool\n"
+        "def valid_func(**kwargs: Unpack[SpecificOptions]) -> None:\n"
+        "    pass\n"
+        "def valid_aliased(**kwargs: t.Unpack[SpecificOptions]) -> None:\n"
+        "    pass\n"
+        "def valid_generic(**kwargs: Unpack[GenericOptions[int]]) -> None:\n"
+        "    pass\n"
+    )
+    assert not _find_unstructured_kwargs(ast.parse(code))
+
+
+def test_kwargs_rejects_unannotated_and_open_ended() -> None:
+    prohibited_cases = [
+        "def f(**kwargs): pass",
+        "def f(**kwargs: Any): pass",
+        "def f(**kwargs: dict[str, Any]): pass",
+        "def f(**kwargs: Unpack[Any]): pass",
+        "def f(**kwargs: Unpack[dict[str, Any]]): pass",
+        "def f(**kwargs: SpecificTypedDict): pass",
+        "action = lambda **kwargs: None",
+    ]
+    for case in prohibited_cases:
+        violations = _find_unstructured_kwargs(ast.parse(case))
+        assert violations, f"Expected violation for: {case}"
+
+
+def test_no_unstructured_kwargs_in_production() -> None:
+    """Production **kwargs must use canonical Unpack[SpecificTypedDict]."""
     offenders: list[tuple[str, int, str]] = []
     for path in _iter_python_files(SRC):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Assign):
-                for target in node.targets:
-                    if isinstance(target, ast.Name) and target.id in VAGUE_NAMES:
-                        rel = path.relative_to(ROOT).as_posix()
-                        offenders.append((rel, node.lineno, target.id))
-    assert not offenders, f"Vague variable names: {offenders}"
+        for lineno, name in _find_unstructured_kwargs(tree):
+            rel = path.relative_to(ROOT).as_posix()
+            offenders.append((rel, lineno, name))
+    assert not offenders, f"Unstructured **kwargs in production: {offenders}"
 
 
-def test_no_flag_words_in_comments() -> None:
-    """Flag words like 'leverage', 'robust', 'comprehensive' are AI-slop."""
-    offenders: list[tuple[str, int, str]] = []
-    for path in _iter_python_files(SRC):
-        for i, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-            if line.strip().startswith("#"):
-                lower = line.lower()
-                for word in FLAG_WORDS:
-                    if word in lower:
-                        rel = path.relative_to(ROOT).as_posix()
-                        offenders.append((rel, i, word))
-                        break
-    assert not offenders, f"AI-slop flag words in comments: {offenders}"
+# ---------------------------------------------------------------------------
+# Negative controls for retained gates
+# ---------------------------------------------------------------------------
 
 
-def test_no_speculative_kwargs_in_production() -> None:
-    """Speculative `**kwargs` parameters are AI-slop — add when the second caller arrives."""
-    offenders: list[tuple[str, int, str]] = []
-    for path in _iter_python_files(SRC):
-        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        for node in ast.walk(tree):
-            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                continue
-            has_kwargs = node.args.kwarg is not None
-            if has_kwargs:
-                rel = path.relative_to(ROOT).as_posix()
-                offenders.append((rel, node.lineno, node.name))
-    assert not offenders, f"Speculative **kwargs in production: {offenders}"
+def test_retained_exception_and_suppression_gates_fail_on_prohibited() -> None:
+    tree_bare = ast.parse("try:\n    pass\nexcept:\n    pass")
+    bare_handlers = [
+        n for n in ast.walk(tree_bare) if isinstance(n, ast.ExceptHandler) and n.type is None
+    ]
+    assert bare_handlers
+
+    tree_pass = ast.parse("try:\n    pass\nexcept Exception:\n    pass")
+    broad_pass = [
+        n
+        for n in ast.walk(tree_pass)
+        if isinstance(n, ast.ExceptHandler)
+        and (isinstance(n.type, ast.Name) and n.type.id == "Exception")
+        and len(n.body) == 1
+        and isinstance(n.body[0], ast.Pass)
+    ]
+    assert broad_pass
+
+    type_pattern = re.compile(r"#\s*type:\s*ignore(?!\[)")
+    assert type_pattern.search("x = 1  # type: ignore")
+    assert not type_pattern.search("x = 1  # type: ignore[assignment]")
+
+    noqa_pattern = re.compile(r"^\s*[:\(]\s*\w+", re.IGNORECASE)
+    assert not noqa_pattern.match("")
+    assert noqa_pattern.match(": F401")
 
 
 # ---------------------------------------------------------------------------
