@@ -7,8 +7,8 @@ and never overrides live GitHub, accepted architecture, delivery policy, tests, 
 
 * **State:** ACTIVE
 * **Current milestone:** M1 — Trust Spine
-* **Last verified:** 2026-09-05 UTC
-* **Current branch:** `m1-4b2a-runtime-gate-contracts`
+* **Last verified:** 2026-09-06 UTC
+* **Current branch:** `m1-4b2b-runtime-gates-composed`
 * **Active ruleset:** `main-branch-protection` (`21644438`)
 * **Contractual gate:** the live ruleset matches the machine contract. Required status checks are
   `ci-ok` (aggregator for `quality`, `tests`, `security`, `governance`) and `GitGuardian Security
@@ -76,8 +76,24 @@ sealable and fail-closed:
     budget.**
     * **M1.4b2a** — immutable runtime-gate input-fact contracts (approval grants, budget accounts,
       resource locks, engagement run state, OPSEC heat state, and a digest-bound `RuntimeGateSnapshot`).
-      **ACTIVE (branch `m1-4b2a-runtime-gate-contracts`, base `0516cd1a`).** No evaluator, outcome,
-      `PolicyDecision` v2, persistence, ledger publication, lease, work order, or target effect.
+      **RELEASED (PR #63, `0a5e230e`).** No evaluator, outcome, `PolicyDecision` v2, persistence,
+      ledger publication, lease, work order, or target effect.
+    * **M1.4b2b** — runtime-gate evaluator and non-executable result. **ACCEPTED WITH CHANGES.** Two
+      prior attempts were REJECTED and CLOSED as superseded: PR #65 (`18ecc5f`) accepted a
+      caller-supplied `AdmissionResult` separately from the runtime capability (cross-stage
+      substitution seam), and PR #66 (`94ecbaad`, M1.4b2b-A) tried to close it with a serializable
+      `AdmissionRuntimeBinding` that a caller could still forge. The accepted replacement is
+      **M1.4b2b-R**: one composed evaluator that accepts the capability exactly once and computes
+      admission internally, so no admission-result/capability pair is representable at the public API.
+      * **M1.4b2b-R** — `evaluate_runtime_gates(proposal, *, policy, identity, capability, manifest,
+        runtime, evaluated_at)` computes `AdmissionResult` through the unchanged `evaluate_admission`
+        and evaluates the runtime facts against the same capability, returning a strict, frozen,
+        digest-bound, non-executable `RuntimeGateResult`. **ACTIVE (branch
+        `m1-4b2b-runtime-gates-composed`, base `main` `0036e104`).** No `AdmissionRuntimeBinding`,
+        caller-supplied admission, `AdmissionResult` v2, registry loading, signature, persistence,
+        ledger publication, `PolicyDecision` v2, lease, work order, or target effect. Intentionally
+        unwired; M1.4b2c owns the next consumer.
+    * **M1.4b2c** — final `PolicyDecision` v2.
 * **M1.4c** — durable, tenant-isolated, immutable `action_proposals` and `decision_records` with RLS,
   idempotency, ledger provenance, and atomic persistence.
 * **M1.4d** — budgets, resource locks, and execution leases; no work order without a valid lease.
@@ -482,7 +498,7 @@ dispositioned and resolved. A merge does not complete M1.3, M1/R0, `LEDGER-GAP-0
   recorded as `CONTRACT-GAP-003` (deferred to M5/R1); this PR does not coerce `NONE` to `T0`.
 * **Next:** M1.4b2a — immutable runtime-gate input-fact contracts.
 
-### PR-M1.4b2a (active)
+### PR-M1.4b2a (released)
 
 * **ID:** PR-M1.4b2a
 * **Title:** Immutable runtime-gate input-fact contracts
@@ -508,7 +524,41 @@ dispositioned and resolved. A merge does not complete M1.3, M1/R0, `LEDGER-GAP-0
 * **Seal criteria:** focused positive/negative contract, digest, and boundary tests green; affected
   policy and conductor suites green; all repository gates and budgets green; binding current-head
   PR-Agent (DeepSeek V4-Pro) review complete with all actionable findings dispositioned.
-* **Next:** M1.4b2b.
+* **Next:** M1.4b2b — the runtime-gate evaluator (see M1.4b2b-R below).
+
+### PR-M1.4b2b-R (active)
+
+* **ID:** PR-M1.4b2b-R
+* **Title:** Composed runtime-gate evaluator over one capability input
+* **State:** ACTIVE (branch `m1-4b2b-runtime-gates-composed`, base `main` `0036e104`)
+* **Prerequisite:** PR-M1.4b2a RELEASED (`0a5e230e` / PR #63); PR #65 and PR #66 CLOSED as superseded.
+* **Reason:** PR #65 (`18ecc5f`) let a caller pass an `AdmissionResult` separately from the runtime
+  `capability`, so a strong admission could be paired with a weaker runtime capability and an
+  admission-denied capability could reach `PASSED_FOR_FINAL_DECISION` (both reproduced in a detached
+  worktree at `18ecc5f`). PR #66 (M1.4b2b-A) tried to seal the pair in a serializable
+  `AdmissionRuntimeBinding`, which a caller could still construct with a mismatched pair. The
+  repository owner rejected both and closed them as superseded.
+* **Purpose:** replace both with `blackbread.policy.runtime_gate.evaluate_runtime_gates(proposal, *,
+  policy, identity, capability, manifest, runtime, evaluated_at)`, which computes `AdmissionResult`
+  through the unchanged `evaluate_admission` and evaluates runtime facts against the same capability,
+  returning a strict, frozen, digest-bound, non-executable `RuntimeGateResult`
+  (`blackbread.policy.runtime_result`, schema `policy.runtime.gate.result` v1). There is no
+  admission-result or admission-to-runtime-binding input position, so cross-stage substitution is
+  unrepresentable. Proposal-time, tenant/engagement, capability, identity, scope, and structural
+  budget failures are owned by admission and surface as `ADMISSION_DENIED`; the runtime reasons cover
+  only the caller-supplied `RuntimeGateSnapshot` facts plus the snapshot's binding.
+* **Non-goals:** no `AdmissionRuntimeBinding`; no caller-supplied `AdmissionResult`; no
+  `AdmissionResult` v2 or change to its sealed v1 digest; no registry loading, signature, MAC, ledger
+  anchoring, or persistence; no `PolicyDecision` v2, lease, work order, executable token, or target
+  effect. Provides tamper evidence, not producer authentication.
+* **Intermediate reachability:** the evaluator and result are intentionally unwired and
+  non-executable; M1.4b2c owns the next pure consumer, and durable reachability is later M1.4c-M1.4f
+  work.
+* **Seal criteria:** the PR #65 substitution reproduced then permanently prevented; runtime-condition,
+  precedence, result-contract, and boundary proofs green; affected policy/conductor suites green; all
+  repository gates, budgets, and safety-critical coverage green; binding current-head PR-Agent
+  (DeepSeek V4-Pro) review complete with all findings dispositioned.
+* **Next:** M1.4b2c — final `PolicyDecision` v2.
 
 ### PR-M1.3b3b-3
 
