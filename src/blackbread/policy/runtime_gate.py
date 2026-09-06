@@ -1,21 +1,10 @@
 """Composed, pure runtime-gate evaluation over one capability input (M1.4b2b-R).
 
-`evaluate_runtime_gates` accepts the capability exactly once and computes the `AdmissionResult`
-itself through the real `evaluate_admission`, then evaluates the caller-supplied runtime facts using
-that same capability value. Because there is no caller-supplied `AdmissionResult` or
-admission-to-runtime binding input position, a strong admission result cannot be paired with a
-weaker runtime capability, and an admission-denied capability cannot be smuggled past admission by
-supplying a separately admitted result. The result is a strict, frozen, digest-bound, non-executable
-`RuntimeGateResult`; this function issues no `PolicyDecision`, lease, work order, executable token,
-capability activation, or target effect.
-
-Proposal-time, tenant/engagement, capability, identity, scope, and structural-budget conditions are
-owned by admission and surface as ``ADMISSION_DENIED``; they are not re-checked here. The runtime
-checks concern only facts the caller supplies in the `RuntimeGateSnapshot` (engagement run state,
-OPSEC heat, approvals, runtime budgets, resource locks, freshness) plus the snapshot's binding to
-the proposal and the computed admission. Admission and the runtime facts share one evaluation
-instant, so the runtime-snapshot digest binding — not a ``captured_at``-versus-admission-time
-comparison — establishes stage continuity.
+`evaluate_runtime_gates` computes admission internally to prevent substituting a weak capability
+into a strong admission. The strict, digest-bound `RuntimeGateResult` issues no `PolicyDecision`,
+lease, work order, or target effect. Admission conditions surface as ``ADMISSION_DENIED``.
+The runtime facts (engagement, OPSEC, approvals, budgets, locks, freshness) and computed admission
+share one evaluation instant, so the snapshot binding establishes stage continuity.
 """
 
 from __future__ import annotations

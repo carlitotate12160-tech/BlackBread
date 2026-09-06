@@ -58,7 +58,8 @@ def test_public_evaluator_has_no_admission_or_binding_parameter() -> None:
 
 
 def test_runtime_evaluator_recomputes_admission_and_accepts_capability_once() -> None:
-    # A genuine AUTHENTICATION capability (OPERATOR_EXACT) drives BOTH admission and runtime. Without
+    # A genuine AUTHENTICATION capability (OPERATOR_EXACT) drives BOTH admission and runtime.
+    # Without
     # approval grant, the runtime enforces the strong capability's approval requirement. Under the
     # the old seam a weaker PASSIVE capability could be substituted at runtime to skip approval;
     # here there is only one capability position, so APPROVAL_MISSING is forced, not PASSED.

@@ -1,12 +1,8 @@
 """Strict, non-executable result contract for the composed runtime-gate evaluator (M1.4b2b-R).
 
-`RuntimeGateResult` is the frozen, digest-bound verdict of `evaluate_runtime_gates`. It records the
-digest of the admission result the evaluator computed internally, the runtime-snapshot digest, the
-capability's registry identity and supply-chain digest, the approval class and network path actually
-evaluated, the requested budgets, the evaluation time, and the fixed outcome/reason. The digest is
-tamper evidence over those fields; it is not producer authentication and grants no execution
-authority: the result carries no ALLOW, decision id, lease, work order, executable token, capability
-activation, or target effect.
+`RuntimeGateResult` is the frozen, digest-bound verdict of `evaluate_runtime_gates`. The digest is
+tamper evidence, not producer authentication; it grants no execution authority, `ALLOW`, lease,
+work order, or target effect.
 """
 
 from __future__ import annotations
