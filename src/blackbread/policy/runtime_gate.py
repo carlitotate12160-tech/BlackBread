@@ -26,7 +26,7 @@ from blackbread.policy.admission_contracts import (
 from blackbread.policy.runtime_contracts import RuntimeGateSnapshot
 from blackbread.policy.runtime_result import OUTCOME_BY_REASON, RuntimeGateReason, RuntimeGateResult
 
-_AUTO_APPROVALS = frozenset({"AUTO_WITH_MANIFEST", "LEASE"})
+_AUTO_APPROVALS = frozenset({"AUTO_WITH_MANIFEST"})
 _RUNTIME_IDENTITY_FIELDS = ("tenant_id", "engagement_id", "proposal_id", "proposal_digest")
 
 

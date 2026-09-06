@@ -6,7 +6,9 @@ retaining the old digest must fail validation.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import get_args
+from uuid import UUID
 
 import pytest
 from pydantic import ValidationError
@@ -24,10 +26,10 @@ from tests.policy._runtime_builders import runtime_case
 
 _MUTATIONS: dict[str, object] = {
     "tenant_id": "tenant-z",
-    "engagement_id": "99999999-9999-9999-9999-999999999999",
-    "proposal_id": "99999999-9999-9999-9999-999999999999",
+    "engagement_id": UUID("99999999-9999-9999-9999-999999999999"),
+    "proposal_id": UUID("99999999-9999-9999-9999-999999999999"),
     "proposal_digest": "0" * 64,
-    "agent_instance_id": "99999999-9999-9999-9999-999999999999",
+    "agent_instance_id": UUID("99999999-9999-9999-9999-999999999999"),
     "admission_result_digest": "0" * 64,
     "runtime_snapshot_digest": "0" * 64,
     "registry_schema_version": 2,
@@ -39,7 +41,7 @@ _MUTATIONS: dict[str, object] = {
     "requested_target_requests": 5,
     "requested_cost_microunits": 999,
     "requested_deadline_seconds": 99,
-    "evaluated_at": "2026-09-03T12:09:00Z",
+    "evaluated_at": datetime(2026, 9, 3, 12, 9, tzinfo=UTC),
 }
 
 

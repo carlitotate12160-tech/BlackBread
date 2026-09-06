@@ -502,7 +502,7 @@ dispositioned and resolved. A merge does not complete M1.3, M1/R0, `LEDGER-GAP-0
 
 * **ID:** PR-M1.4b2a
 * **Title:** Immutable runtime-gate input-fact contracts
-* **State:** ACTIVE (branch `m1-4b2a-runtime-gate-contracts`, base `main` `0516cd1a`)
+* **State:** RELEASED (PR #63, `0a5e230e`)
 * **Prerequisite:** PR-M1.4b1b RELEASED (`4187a053` / PR #61).
 * **Purpose:** add `blackbread.policy.runtime_contracts`, strict frozen versioned input-fact
   contracts for the runtime-gate boundary: `ApprovalGrantSnapshot`, `BudgetAccountSnapshot`,
