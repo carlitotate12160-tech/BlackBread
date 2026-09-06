@@ -4,7 +4,16 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from blackbread.conductor.contracts import ActionProposal
+from blackbread.policy.admission import evaluate_admission
+from blackbread.policy.admission_contracts import (
+    AdmissionResult,
+    CapabilityAdmissionSnapshot,
+    DestinationManifest,
+)
+from blackbread.policy.runtime_contracts import RuntimeGateSnapshot
 from tests.conductor._builders import make_proposal
+from tests.policy._builders import capability_snapshot, identity_snapshot, manifest, policy_snapshot
 
 HEX_APPROVAL = "a" * 64
 HEX_BUDGET = "c" * 64
@@ -106,6 +115,18 @@ def _lock(**overrides: Any) -> dict[str, Any]:
     return fields
 
 
+def _held(holder: uuid.UUID, expires_at: datetime, **overrides: Any) -> dict[str, Any]:
+    return {
+        "schema_name": "policy.runtime.held_lock",
+        "schema_version": 1,
+        "holder_proposal_id": holder,
+        "holder_lease_id": None,
+        "acquired_at": _ts(11, 0),
+        "expires_at": expires_at,
+        **overrides,
+    }
+
+
 def _run(state: str = "ACTIVE", **overrides: Any) -> dict[str, Any]:
     fields: dict[str, Any] = {
         "schema_name": "policy.runtime.engagement_run",
@@ -163,3 +184,55 @@ def _gate(**overrides: Any) -> dict[str, Any]:
         "opsec": None,
         **overrides,
     }
+
+
+def admitted_context(
+    proposal: ActionProposal | None = None,
+    capability: CapabilityAdmissionSnapshot | None = None,
+    destination_manifest: DestinationManifest | None = None,
+    evaluated_at: datetime | None = None,
+) -> tuple[ActionProposal, CapabilityAdmissionSnapshot, AdmissionResult]:
+    proposal = make_proposal() if proposal is None else proposal
+    capability = capability_snapshot() if capability is None else capability
+    destination_manifest = (
+        manifest(proposal) if destination_manifest is None else destination_manifest
+    )
+    evaluated_at = _ts(12, 1) if evaluated_at is None else evaluated_at
+    admission = evaluate_admission(
+        proposal,
+        policy=policy_snapshot(graph_version=proposal.graph_version),
+        identity=identity_snapshot(proposal, achieved_tier=proposal.target_identity_tier),
+        capability=capability,
+        manifest=destination_manifest,
+        evaluated_at=evaluated_at,
+    )
+    return proposal, capability, admission
+
+
+def runtime_snapshot(
+    proposal: ActionProposal,
+    admission: AdmissionResult,
+    **overrides: Any,
+) -> RuntimeGateSnapshot:
+    captured = _ts(12, 2)
+    budget = _budget(
+        engagement_account=_account(cost_microunit_limit=10_000_000),
+        agent_account=_account(agent=proposal.agent_instance_id, cost_microunit_limit=10_000_000),
+    )
+    fields = _gate(
+        tenant_id=proposal.tenant_id,
+        engagement_id=proposal.engagement_id,
+        proposal_id=proposal.proposal_id,
+        proposal_digest=proposal.proposal_digest,
+        admission_result_digest=admission.result_digest,
+        capability_id=proposal.capability_id,
+        agent_instance_id=proposal.agent_instance_id,
+        captured_at=captured,
+        fresh_until=_ts(12, 10),
+        budget=budget,
+        lock=_lock(),
+        engagement=_run(),
+        opsec=_opsec(),
+    )
+    fields.update(overrides)
+    return RuntimeGateSnapshot.build(fields)

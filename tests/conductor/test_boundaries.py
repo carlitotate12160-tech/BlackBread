@@ -11,7 +11,7 @@ import blackbread.conductor.contracts as conductor_contracts
 import blackbread.conductor.intake as conductor_intake
 import blackbread.policy.admission as policy_admission
 import blackbread.policy.contracts as policy_contracts
-from blackbread.policy import runtime_contracts
+from blackbread.policy import runtime_contracts, runtime_gate, runtime_result
 
 SRC = Path(__file__).parents[2] / "src" / "blackbread"
 
@@ -58,6 +58,8 @@ PURE_MODULES = (
     SRC / "policy" / "admission_contracts.py",
     SRC / "policy" / "admission.py",
     SRC / "policy" / "runtime_contracts.py",
+    SRC / "policy" / "runtime_result.py",
+    SRC / "policy" / "runtime_gate.py",
 )
 
 
@@ -133,8 +135,9 @@ def test_runtime_gate_contracts_are_intentionally_unwired_and_non_authoritative(
     assert "from blackbread.conductor import" not in runtime_source
     assert "conductor.intake" not in runtime_source
 
+    gate_path = SRC / "policy" / "runtime_gate.py"
     for path in SRC.rglob("*.py"):
-        if path == runtime_path:
+        if path in {runtime_path, gate_path}:
             continue
         assert "blackbread.policy.runtime_contracts" not in _imported_modules(path)
 
@@ -147,9 +150,40 @@ def test_runtime_gate_contracts_are_intentionally_unwired_and_non_authoritative(
     assert forbidden_fields.isdisjoint(runtime_contracts.RuntimeGateSnapshot.model_fields)
 
 
+def test_runtime_gate_evaluator_is_intentionally_unwired_and_non_authoritative() -> None:
+    gate_path = SRC / "policy" / "runtime_gate.py"
+    result_path = SRC / "policy" / "runtime_result.py"
+    gate_imports = _imported_modules(gate_path)
+    assert "blackbread.policy.runtime_contracts" in gate_imports
+    assert "blackbread.policy.runtime_result" in gate_imports
+    assert "blackbread.conductor.intake" not in gate_imports
+
+    isolated = {gate_path, result_path}
+    for path in SRC.rglob("*.py"):
+        if path in isolated:
+            continue
+        imports = _imported_modules(path)
+        assert "blackbread.policy.runtime_gate" not in imports
+        assert "blackbread.policy.runtime_result" not in imports
+
+    forbidden = {
+        "allow",
+        "decision_id",
+        "policy_decision_id",
+        "lease_id",
+        "work_order_id",
+        "executable_token",
+        "target_effect",
+    }
+    assert forbidden.isdisjoint(runtime_result.RuntimeGateResult.model_fields)
+    assert "ALLOW" not in result_path.read_text(encoding="utf-8")
+
+
 def test_modules_import_without_side_effects() -> None:
     assert conductor_contracts.ACTION_PROPOSAL_SCHEMA == "conductor.action_proposal"
     assert callable(conductor_intake.evaluate_proposal)
     assert callable(policy_admission.evaluate_admission)
+    assert callable(runtime_gate.evaluate_runtime_gates)
     assert policy_contracts.POLICY_DECISION_SCHEMA == "policy.decision"
     assert runtime_contracts.RUNTIME_GATE_SCHEMA == "policy.runtime.gate"
+    assert runtime_result.RUNTIME_GATE_RESULT_SCHEMA == "policy.runtime.gate.result"

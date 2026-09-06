@@ -7,8 +7,8 @@ and never overrides live GitHub, accepted architecture, delivery policy, tests, 
 
 * **State:** ACTIVE
 * **Current milestone:** M1 — Trust Spine
-* **Last verified:** 2026-09-05 UTC
-* **Current branch:** `m1-4b2a-runtime-gate-contracts`
+* **Last verified:** 2026-09-06 UTC
+* **Current branch:** `m1-4b2b-runtime-gate-evaluator`
 * **Active ruleset:** `main-branch-protection` (`21644438`)
 * **Contractual gate:** the live ruleset matches the machine contract. Required status checks are
   `ci-ok` (aggregator for `quality`, `tests`, `security`, `governance`) and `GitGuardian Security
@@ -76,8 +76,11 @@ sealable and fail-closed:
     budget.**
     * **M1.4b2a** — immutable runtime-gate input-fact contracts (approval grants, budget accounts,
       resource locks, engagement run state, OPSEC heat state, and a digest-bound `RuntimeGateSnapshot`).
-      **ACTIVE (branch `m1-4b2a-runtime-gate-contracts`, base `0516cd1a`).** No evaluator, outcome,
+      **RELEASED (PR #63, `0a5e230e`, merged to `main` 2026-09-05).** No evaluator, outcome,
       `PolicyDecision` v2, persistence, ledger publication, lease, work order, or target effect.
+    * **M1.4b2b** — pure deterministic runtime-gate evaluator and digest-bound, non-executable
+      `RuntimeGateResult` v1. **ACTIVE (branch `m1-4b2b-runtime-gate-evaluator`, base `0036e104`).**
+      No final `PolicyDecision` v2, persistence, ledger publication, lease, work order, or target effect.
 * **M1.4c** — durable, tenant-isolated, immutable `action_proposals` and `decision_records` with RLS,
   idempotency, ledger provenance, and atomic persistence.
 * **M1.4d** — budgets, resource locks, and execution leases; no work order without a valid lease.
@@ -482,11 +485,11 @@ dispositioned and resolved. A merge does not complete M1.3, M1/R0, `LEDGER-GAP-0
   recorded as `CONTRACT-GAP-003` (deferred to M5/R1); this PR does not coerce `NONE` to `T0`.
 * **Next:** M1.4b2a — immutable runtime-gate input-fact contracts.
 
-### PR-M1.4b2a (active)
+### PR-M1.4b2a (released)
 
 * **ID:** PR-M1.4b2a
 * **Title:** Immutable runtime-gate input-fact contracts
-* **State:** ACTIVE (branch `m1-4b2a-runtime-gate-contracts`, base `main` `0516cd1a`)
+* **State:** RELEASED (PR #63, `0a5e230e`, merged to `main` 2026-09-05)
 * **Prerequisite:** PR-M1.4b1b RELEASED (`4187a053` / PR #61).
 * **Purpose:** add `blackbread.policy.runtime_contracts`, strict frozen versioned input-fact
   contracts for the runtime-gate boundary: `ApprovalGrantSnapshot`, `BudgetAccountSnapshot`,
@@ -508,7 +511,25 @@ dispositioned and resolved. A merge does not complete M1.3, M1/R0, `LEDGER-GAP-0
 * **Seal criteria:** focused positive/negative contract, digest, and boundary tests green; affected
   policy and conductor suites green; all repository gates and budgets green; binding current-head
   PR-Agent (DeepSeek V4-Pro) review complete with all actionable findings dispositioned.
+* **Released at:** `0a5e230e` / PR #63; source head
+  `c70d838af435d712c5f5d941a2f00c84ec72fdae`.
 * **Next:** M1.4b2b.
+
+### PR-M1.4b2b (active)
+
+* **ID:** PR-M1.4b2b
+* **Title:** Pure deterministic runtime-gate evaluator and non-executable result
+* **State:** ACTIVE (branch `m1-4b2b-runtime-gate-evaluator`, base `main` `0036e104`)
+* **Prerequisite:** PR-M1.4b2a RELEASED (`0a5e230e` / PR #63).
+* **Purpose:** evaluate immutable proposal, admission, capability, and runtime facts in fixed
+  fail-closed precedence and return strict digest-bound `RuntimeGateResult` v1.
+* **Intermediate reachability:** `PASSED_FOR_FINAL_DECISION` grants no execution authority. The
+  evaluator is pure and intentionally unwired; M1.4b2c owns final `PolicyDecision` v2.
+* **Non-goals:** no `ALLOW`, final policy decision, persistence, ledger publication, atomic budget
+  consumption, durable lock reservation, lease, work order, capability activation, or target effect.
+* **Seal criteria:** focused RED/mutation/GREEN proofs, affected policy and boundary suites, all
+  repository gates and budgets green, and binding current-head PR-Agent review complete.
+* **Next:** M1.4b2c — final deterministic `PolicyDecision` v2.
 
 ### PR-M1.3b3b-3
 
@@ -541,6 +562,8 @@ The following remain OPEN unless live closure evidence proves otherwise:
   graph-internal copies after PR-M1.4a-FOLLOWUP closed the conductor/ledger layer inversion of
   CONTRACT-GAP-001. Converging them touches released graph-projection code and is a separate future
   graph-convergence slice. See GAP-REGISTER.md.)
+* CONTRACT-GAP-003 (P2; offline `NONE` capabilities still model a T0 target-identity tier. This does
+  not block M1.4b2b because admission and runtime-gate results remain non-executable and unwired.)
 * CAMPAIGN-GAP-001 (P1; campaign coherence and coherent multi-view world snapshot are not implemented.
   `ADR-FINAL-003` is accepted (DECIDED only, not implemented). M1/R0 and M1.4b are not blocked; R1
   and every target-facing release are blocked until M3-M5 closure. See GAP-REGISTER.md.)
