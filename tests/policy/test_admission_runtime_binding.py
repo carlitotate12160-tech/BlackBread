@@ -24,6 +24,7 @@ from blackbread.policy.admission_runtime import (
     ADMISSION_RUNTIME_BINDING_SCHEMA,
     ADMISSION_RUNTIME_BINDING_SCHEMA_VERSION,
     AdmissionRuntimeBinding,
+    _binding_digest,
     evaluate_admission_for_runtime,
 )
 from tests.conductor._builders import make_proposal
@@ -149,25 +150,40 @@ def test_evaluate_admission_for_runtime_does_not_mutate_inputs() -> None:
 @pytest.mark.parametrize("field", list(_CAPABILITY_MUTATIONS))
 def test_binding_digest_changes_when_any_capability_field_changes(field: str) -> None:
     baseline, _, _ = _bind()
+    result = baseline.admission_result
     mutated_capability = capability_snapshot(**{field: _CAPABILITY_MUTATIONS[field]})
     if field in _CORE_FIELDS:
         # Keep the nested result coherent so only the digest sensitivity is under test.
-        mutated_result = _result_copy(
-            baseline.admission_result, **{field: _CAPABILITY_MUTATIONS[field]}
-        )
+        mutated_result = _result_copy(result, **{field: _CAPABILITY_MUTATIONS[field]})
     else:
-        mutated_result = baseline.admission_result
-    mutated = AdmissionRuntimeBinding.build(mutated_result, mutated_capability)
-    assert mutated.binding_digest != baseline.binding_digest
+        mutated_result = result
+    assert _binding_digest(mutated_result, mutated_capability) != baseline.binding_digest
 
 
 @pytest.mark.parametrize("field", _CORE_FIELDS)
 def test_core_field_mismatch_between_result_and_capability_is_rejected(field: str) -> None:
-    # Digest is computed over the mismatched pair, so only the coherence check can reject it.
+    # The digest is computed over the mismatched pair, so only the coherence check can reject it.
     baseline, _, _ = _bind()
+    result = baseline.admission_result
     mismatched_capability = capability_snapshot(**{field: _CAPABILITY_MUTATIONS[field]})
+    payload = {
+        "schema_name": ADMISSION_RUNTIME_BINDING_SCHEMA,
+        "schema_version": ADMISSION_RUNTIME_BINDING_SCHEMA_VERSION,
+        "admission_result": result.model_dump(),
+        "capability": mismatched_capability.model_dump(),
+        "binding_digest": _binding_digest(result, mismatched_capability),
+    }
     with pytest.raises(ValidationError):
-        AdmissionRuntimeBinding.build(baseline.admission_result, mismatched_capability)
+        AdmissionRuntimeBinding.model_validate(payload)
+
+
+def test_binding_production_is_single_sourced_through_admission() -> None:
+    # Deterministic admission code owns production: the binding exposes no public constructor that
+    # would let non-admission code seal an arbitrary result/capability pair. The sole public
+    # producer is evaluate_admission_for_runtime, which evaluates admission from the exact
+    # capability. Caller authentication and full-capability provenance are deferred
+    # (LEDGER-GAP-001).
+    assert not hasattr(AdmissionRuntimeBinding, "build")
 
 
 @pytest.mark.parametrize(

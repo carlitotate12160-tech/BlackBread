@@ -102,6 +102,18 @@ class AdmissionRuntimeBinding(BaseModel):
     Carries the exact ``AdmissionResult`` v1 and the exact ``CapabilityAdmissionSnapshot`` evaluated
     together, plus a deterministic ``binding_digest`` over both. It is non-executable: it grants no
     ALLOW, decision, lease, work order, executable token, capability activation, or target effect.
+
+    Production is single-sourced: the only public producer is ``evaluate_admission_for_runtime``,
+    which evaluates admission from the exact capability, so a binding obtained through it carries a
+    pair that was genuinely evaluated together. The digest binds every capability field, giving
+    tamper-evidence; the coherence check rejects a pair that disagrees on the four registry-identity
+    fields ``AdmissionResult`` v1 records. What the binding does not, and within this slice cannot,
+    provide is caller authentication: ``AdmissionResult`` v1 does not carry ``approval_class``,
+    ``network_path``, ``risk_class``, or the identity tier, so the contract cannot re-derive them,
+    and this slice adds no signature, MAC, or ledger anchor (see LEDGER-GAP-001). Proving that an
+    authenticated caller did not assemble a coherent-but-weaker pair is therefore deferred to later
+    ledger provenance work. M1.4b2b-B must obtain this binding from
+    ``evaluate_admission_for_runtime`` and must not accept a separately supplied capability.
     """
 
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
@@ -121,20 +133,22 @@ class AdmissionRuntimeBinding(BaseModel):
             raise ValueError("binding_digest does not bind the sealed admission and capability")
         return self
 
-    @classmethod
-    def build(
-        cls, admission_result: AdmissionResult, capability: CapabilityAdmissionSnapshot
-    ) -> AdmissionRuntimeBinding:
-        """Seal an exact admission result and capability into a digest-bound binding."""
-        return cls.model_validate(
-            {
-                "schema_name": ADMISSION_RUNTIME_BINDING_SCHEMA,
-                "schema_version": ADMISSION_RUNTIME_BINDING_SCHEMA_VERSION,
-                "admission_result": admission_result,
-                "capability": capability,
-                "binding_digest": _binding_digest(admission_result, capability),
-            }
-        )
+
+def _seal_binding(
+    admission_result: AdmissionResult, capability: CapabilityAdmissionSnapshot
+) -> AdmissionRuntimeBinding:
+    # Private: the only caller is evaluate_admission_for_runtime, so admission code owns production
+    # of the binding. There is deliberately no public constructor that seals an arbitrary
+    # result/capability pair.
+    return AdmissionRuntimeBinding.model_validate(
+        {
+            "schema_name": ADMISSION_RUNTIME_BINDING_SCHEMA,
+            "schema_version": ADMISSION_RUNTIME_BINDING_SCHEMA_VERSION,
+            "admission_result": admission_result,
+            "capability": capability,
+            "binding_digest": _binding_digest(admission_result, capability),
+        }
+    )
 
 
 def evaluate_admission_for_runtime(  # noqa: PLR0913 - mirrors evaluate_admission's five snapshots
@@ -161,4 +175,4 @@ def evaluate_admission_for_runtime(  # noqa: PLR0913 - mirrors evaluate_admissio
         manifest=manifest,
         evaluated_at=evaluated_at,
     )
-    return AdmissionRuntimeBinding.build(admission_result, capability)
+    return _seal_binding(admission_result, capability)
