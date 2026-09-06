@@ -48,6 +48,8 @@ def _imported_modules(path: Path) -> set[str]:
             names.update(alias.name for alias in node.names)
         elif isinstance(node, ast.ImportFrom) and node.module is not None:
             names.add(node.module)
+            for alias in node.names:
+                names.add(f"{node.module}.{alias.name}")
     return names
 
 
