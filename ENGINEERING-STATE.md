@@ -7,8 +7,8 @@ and never overrides live GitHub, accepted architecture, delivery policy, tests, 
 
 * **State:** ACTIVE
 * **Current milestone:** M1 — Trust Spine
-* **Last verified:** 2026-09-05 UTC
-* **Current branch:** `m1-4b2a-runtime-gate-contracts`
+* **Last verified:** 2026-09-06 UTC
+* **Current branch:** `m1-4b2b-a-admission-runtime-binding`
 * **Active ruleset:** `main-branch-protection` (`21644438`)
 * **Contractual gate:** the live ruleset matches the machine contract. Required status checks are
   `ci-ok` (aggregator for `quality`, `tests`, `security`, `governance`) and `GitGuardian Security
@@ -76,8 +76,22 @@ sealable and fail-closed:
     budget.**
     * **M1.4b2a** — immutable runtime-gate input-fact contracts (approval grants, budget accounts,
       resource locks, engagement run state, OPSEC heat state, and a digest-bound `RuntimeGateSnapshot`).
-      **ACTIVE (branch `m1-4b2a-runtime-gate-contracts`, base `0516cd1a`).** No evaluator, outcome,
-      `PolicyDecision` v2, persistence, ledger publication, lease, work order, or target effect.
+      **RELEASED (PR #63, `0a5e230e`).** No evaluator, outcome, `PolicyDecision` v2, persistence,
+      ledger publication, lease, work order, or target effect.
+    * **M1.4b2b** — runtime-gate evaluator and non-executable result. **ACCEPTED WITH CHANGES: the
+      first attempt (PR #65, head `18ecc5f`) exposed a cross-stage capability-substitution seam
+      (its binding check compares only the four registry-identity fields, so a weaker capability may
+      be substituted at the runtime boundary). Split into b2b-A then a replacement b2b-B. PR #65
+      remains OPEN and BLOCKED pending both; it is not modified by this slice.**
+      * **M1.4b2b-A** — `AdmissionRuntimeBinding` and `evaluate_admission_for_runtime`: one frozen,
+        strict, digest-bound seal of the exact `AdmissionResult` v1 and `CapabilityAdmissionSnapshot`
+        evaluated together. **ACTIVE (branch `m1-4b2b-a-admission-runtime-binding`, base `main`
+        `0036e104`).** Delegates the decision to the unchanged `evaluate_admission`; adds no evaluator,
+        outcome, `PolicyDecision` v2, registry loading, signature, persistence, or target effect. It
+        is intentionally unwired; M1.4b2b-B owns its first consumer.
+      * **M1.4b2b-B** — replacement runtime-gate evaluator and non-executable result that consumes
+        the binding and must not accept a second independently supplied capability snapshot.
+    * **M1.4b2c** — final `PolicyDecision` v2.
 * **M1.4c** — durable, tenant-isolated, immutable `action_proposals` and `decision_records` with RLS,
   idempotency, ledger provenance, and atomic persistence.
 * **M1.4d** — budgets, resource locks, and execution leases; no work order without a valid lease.
@@ -482,11 +496,11 @@ dispositioned and resolved. A merge does not complete M1.3, M1/R0, `LEDGER-GAP-0
   recorded as `CONTRACT-GAP-003` (deferred to M5/R1); this PR does not coerce `NONE` to `T0`.
 * **Next:** M1.4b2a — immutable runtime-gate input-fact contracts.
 
-### PR-M1.4b2a (active)
+### PR-M1.4b2a (released)
 
 * **ID:** PR-M1.4b2a
 * **Title:** Immutable runtime-gate input-fact contracts
-* **State:** ACTIVE (branch `m1-4b2a-runtime-gate-contracts`, base `main` `0516cd1a`)
+* **State:** RELEASED (PR #63, `0a5e230e`, merged to `main`)
 * **Prerequisite:** PR-M1.4b1b RELEASED (`4187a053` / PR #61).
 * **Purpose:** add `blackbread.policy.runtime_contracts`, strict frozen versioned input-fact
   contracts for the runtime-gate boundary: `ApprovalGrantSnapshot`, `BudgetAccountSnapshot`,
@@ -508,7 +522,39 @@ dispositioned and resolved. A merge does not complete M1.3, M1/R0, `LEDGER-GAP-0
 * **Seal criteria:** focused positive/negative contract, digest, and boundary tests green; affected
   policy and conductor suites green; all repository gates and budgets green; binding current-head
   PR-Agent (DeepSeek V4-Pro) review complete with all actionable findings dispositioned.
-* **Next:** M1.4b2b.
+* **Next:** M1.4b2b — split into b2b-A (this binding) and a replacement b2b-B evaluator.
+
+### PR-M1.4b2b-A (active)
+
+* **ID:** PR-M1.4b2b-A
+* **Title:** Seal the exact admitted capability into one admission-to-runtime binding
+* **State:** ACTIVE (branch `m1-4b2b-a-admission-runtime-binding`, base `main` `0036e104`)
+* **Prerequisite:** PR-M1.4b2a RELEASED (`0a5e230e` / PR #63).
+* **Reason:** the first M1.4b2b attempt (PR #65, head `18ecc5f`) evaluates the runtime gates against
+  a capability supplied independently of admission, and its binding check compares only
+  `registry_schema_version`, `registry_digest`, `capability_id`, and `supply_chain_digest`. A weaker
+  capability sharing those fields but carrying a different `approval_class`/`network_path` is accepted,
+  so a decision admitted under a strong capability passes runtime gates under the weaker one. This was
+  reproduced against `18ecc5f` with a temporary uncommitted test (a genuine `AUTHENTICATION` admission
+  paired with a substituted `PASSIVE` capability returned `PASSED_FOR_FINAL_DECISION`).
+* **Purpose:** add `blackbread.policy.admission_runtime` with `AdmissionRuntimeBinding` (schema
+  `policy.admission.runtime_binding` v1) and `evaluate_admission_for_runtime`, which runs the
+  unchanged `evaluate_admission` against the exact capability and seals the exact `AdmissionResult` v1
+  and `CapabilityAdmissionSnapshot` pair with a deterministic `binding_digest` over an explicit
+  ordered preimage of the result digest and every capability field. The replacement b2b-B evaluator
+  must consume the capability only through this binding.
+* **Non-goals:** no `AdmissionResult` v2 or change to sealed v1 contracts; no runtime evaluator or
+  `PolicyDecision` v2; no modification, merge, or supersession of PR #65; no registry loading,
+  signature, persistence, ledger publication, lease, work order, executable token, or target effect.
+* **Intermediate reachability:** the binding is intentionally unwired and non-executable; M1.4b2b-B
+  owns its first consumer. It represents no ALLOW, decision, lease, work order, or capability
+  activation.
+* **Seal criteria:** RED reproduction of the PR #65 seam; focused contract/digest/substitution/tamper
+  tests, the non-wiring boundary proof, and all affected policy and conductor suites green; all
+  repository gates, budgets, and safety-critical coverage green; binding current-head PR-Agent
+  (DeepSeek V4-Pro) review complete with all actionable findings dispositioned.
+* **Next:** M1.4b2b-B — the replacement runtime-gate evaluator and non-executable result that consumes
+  this binding.
 
 ### PR-M1.3b3b-3
 

@@ -11,7 +11,7 @@ import blackbread.conductor.contracts as conductor_contracts
 import blackbread.conductor.intake as conductor_intake
 import blackbread.policy.admission as policy_admission
 import blackbread.policy.contracts as policy_contracts
-from blackbread.policy import runtime_contracts
+from blackbread.policy import admission_runtime, runtime_contracts
 
 SRC = Path(__file__).parents[2] / "src" / "blackbread"
 
@@ -58,6 +58,7 @@ PURE_MODULES = (
     SRC / "policy" / "admission_contracts.py",
     SRC / "policy" / "admission.py",
     SRC / "policy" / "runtime_contracts.py",
+    SRC / "policy" / "admission_runtime.py",
 )
 
 
@@ -147,9 +148,49 @@ def test_runtime_gate_contracts_are_intentionally_unwired_and_non_authoritative(
     assert forbidden_fields.isdisjoint(runtime_contracts.RuntimeGateSnapshot.model_fields)
 
 
+def test_admission_runtime_binding_is_intentionally_unwired_and_non_authoritative() -> None:
+    # The admission-to-runtime binding only reuses admission and its input contracts plus the
+    # ledger hashing primitives; it must not reach orchestration, the runtime evaluator, the graph
+    # read-model, or any framework/persistence.
+    binding_path = SRC / "policy" / "admission_runtime.py"
+    binding_imports = _imported_modules(binding_path)
+    assert "blackbread.policy.admission" in binding_imports
+    assert "blackbread.policy.admission_contracts" in binding_imports
+    assert "blackbread.ledger.hashing" in binding_imports
+    assert "blackbread.conductor.intake" not in binding_imports
+    assert "blackbread.policy.runtime_contracts" not in binding_imports
+    assert not any(name.startswith("blackbread.graph") for name in binding_imports)
+    for name in binding_imports:
+        assert name.split(".")[0] not in FORBIDDEN_IMPORT_ROOTS
+        assert name not in FORBIDDEN_BLACKBREAD_MODULES
+
+    # Intentional non-wiring: no production module consumes the binding yet. M1.4b2b-B owns the
+    # first positive consumption through this binding.
+    for path in SRC.rglob("*.py"):
+        if path == binding_path:
+            continue
+        assert "blackbread.policy.admission_runtime" not in _imported_modules(path)
+
+    # The binding grants no execution authority: no ALLOW, decision, lease, work order, executable
+    # token, or target effect is representable.
+    forbidden_fields = {
+        "outcome",
+        "allow",
+        "decision_id",
+        "policy_decision_id",
+        "lease_id",
+        "work_order_id",
+        "executable_token",
+        "target_effect",
+    }
+    assert forbidden_fields.isdisjoint(admission_runtime.AdmissionRuntimeBinding.model_fields)
+
+
 def test_modules_import_without_side_effects() -> None:
     assert conductor_contracts.ACTION_PROPOSAL_SCHEMA == "conductor.action_proposal"
     assert callable(conductor_intake.evaluate_proposal)
     assert callable(policy_admission.evaluate_admission)
+    assert callable(admission_runtime.evaluate_admission_for_runtime)
     assert policy_contracts.POLICY_DECISION_SCHEMA == "policy.decision"
     assert runtime_contracts.RUNTIME_GATE_SCHEMA == "policy.runtime.gate"
+    assert admission_runtime.ADMISSION_RUNTIME_BINDING_SCHEMA == "policy.admission.runtime_binding"
