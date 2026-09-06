@@ -21,7 +21,7 @@ from tests.policy._builders import (
     policy_snapshot,
 )
 
-_AUTO_APPROVAL_CLASSES = frozenset({"AUTO_WITH_MANIFEST", "LEASE"})
+_AUTO_APPROVAL_CLASSES = frozenset({"AUTO_WITH_MANIFEST"})
 
 HEX_APPROVAL = "a" * 64
 HEX_BUDGET = "c" * 64
