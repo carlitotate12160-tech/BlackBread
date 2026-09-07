@@ -8,7 +8,7 @@ and never overrides live GitHub, accepted architecture, delivery policy, tests, 
 * **State:** ACTIVE
 * **Current milestone:** M1 — Trust Spine
 * **Last verified:** 2026-09-07 UTC
-* **Current branch:** `m1-4b2c-policy-decision-v2`
+* **Current branch:** `m1-4b2c-policy-decision-v2-final`
 * **Active ruleset:** `main-branch-protection` (`21644438`)
 * **Contractual gate:** the live ruleset matches the machine contract. Required status checks are
   `ci-ok` (aggregator for `quality`, `tests`, `security`, `governance`) and `GitGuardian Security
@@ -92,7 +92,7 @@ sealable and fail-closed:
         caller-supplied admission, `AdmissionResult` v2, registry loading, signature, persistence,
         ledger publication, `PolicyDecision` v2, lease, work order, or target effect. Intentionally
         unwired; M1.4b2c owns the next consumer.
-    * **M1.4b2c** — final `PolicyDecision` v2. **ACTIVE (branch `m1-4b2c-policy-decision-v2`, PR #69; base `main` `b949e8a3` = PR #68 governance-only `.pr_agent.toml` update).**
+    * **M1.4b2c** — final `PolicyDecision` v2. **ACTIVE on branch `m1-4b2c-policy-decision-v2-final` (M1.4b2c-RECOVERY). PR #69 was rejected after its correction cycle because its import-boundary scanner did not prove equivalent import forms. The `PolicyDecisionV2` production design is retained. Base `main` `b949e8a3` = PR #68 governance-only `.pr_agent.toml` update.**
 * **M1.4c** — durable, tenant-isolated, immutable `action_proposals` and `decision_records` with RLS,
   idempotency, ledger provenance, and atomic persistence.
 * **M1.4d** — budgets, resource locks, and execution leases; no work order without a valid lease.
@@ -563,7 +563,7 @@ dispositioned and resolved. A merge does not complete M1.3, M1/R0, `LEDGER-GAP-0
   precedence, result-contract, and boundary proofs green; affected policy/conductor suites green; all
   repository gates, budgets, and safety-critical coverage green; binding current-head PR-Agent
   (DeepSeek V4-Pro) review complete with all findings dispositioned.
-* **Next:** M1.4b2c — final `PolicyDecision` v2 (ACTIVE, branch `m1-4b2c-policy-decision-v2`).
+* **Next:** M1.4b2c — final `PolicyDecision` v2 (ACTIVE, branch `m1-4b2c-policy-decision-v2-final; PR #69 rejected, superseded by M1.4b2c-RECOVERY).
 
 ### PR-M1.3b3b-3
 

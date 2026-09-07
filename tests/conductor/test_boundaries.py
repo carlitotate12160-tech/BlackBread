@@ -67,50 +67,72 @@ _PURITY_BANNED_CALLS = frozenset(
 )
 
 
-def _module_dotted_name(path: Path) -> str:
-    """Return the dotted module name for a source file under src/blackbread."""
-    relative = path.relative_to(SRC).with_suffix("")
+def _module_dotted_name(path: Path, *, source_root: Path = SRC) -> str:
+    """Return the dotted module name for a source file under source_root."""
+    relative = path.relative_to(source_root).with_suffix("")
     parts = list(relative.parts)
     return "blackbread." + ".".join(parts)
 
 
-def _resolve_relative(node: ast.ImportFrom, path: Path) -> str | None:
-    """Resolve a relative import to its absolute dotted name.
+def _current_package(path: Path, *, source_root: Path = SRC) -> list[str]:
+    """Return the package parts for a source file.
 
-    Handles ``from . import X``, ``from .X import Y``, and ``from ..X import Y``
-    by counting ``node.level`` dots up from the current module's package.
-    Returns ``None`` for absolute imports (level == 0) or if the resolution
-    is ambiguous (e.g. ``from . import X`` where X could be a name, not a module).
-    For ``from . import X`` the result is ``<parent_pkg>.X``.
-    For ``from .X import Y`` the result is ``<parent_pkg>.X``.
+    The module filename is removed; only the containing package remains.
+    Example: ``src/blackbread/policy/consumer.py`` → ``["blackbread", "policy"]``.
     """
-    if node.level == 0:
-        return node.module
-    # Determine the current module's package.
-    relative = path.relative_to(SRC).with_suffix("")
+    relative = path.relative_to(source_root).with_suffix("")
     parts = list(relative.parts)
-    # Go up `level` dots from the current module.
-    # level=1 means current package, level=2 means parent package, etc.
-    # For a module `blackbread.policy.evaluation`, level=1 → package is `blackbread.policy`.
-    if len(parts) < node.level:
-        return None
-    base_parts = parts[: len(parts) - node.level + 1] if node.level <= len(parts) else []
-    if not base_parts:
-        return None
-    base = "blackbread." + ".".join(base_parts) if base_parts != ["blackbread"] else "blackbread"
-    if node.module is None:
-        # `from . import X` — we cannot resolve X to a module without filesystem lookup.
-        # Return the base package; callers checking `X in _imported_modules` for a
-        # specific submodule will need the alias names handled separately.
-        return base
-    return f"{base}.{node.module}"
+    if len(parts) <= 1:
+        return ["blackbread"]
+    return ["blackbread", *parts[:-1]]
 
 
-def _imported_modules(path: Path) -> set[str]:
+def _add_absolute_import_from(node: ast.ImportFrom, names: set[str]) -> None:
+    """Add dotted names from an absolute ``from X import Y`` (level == 0)."""
+    base = node.module
+    if base is None:
+        return
+    names.add(base)
+    for alias in node.names:
+        if alias.name != "*":
+            names.add(f"{base}.{alias.name}")
+
+
+def _add_relative_import_from(
+    node: ast.ImportFrom,
+    path: Path,
+    names: set[str],
+    *,
+    source_root: Path,
+) -> None:
+    """Add dotted names from a relative ``from .X import Y`` (level > 0).
+
+    Resolves the current package from the file path, ascends ``level - 1``
+    times, then appends ``node.module`` when present.  Imports that ascend
+    beyond the ``blackbread`` package root are silently skipped rather than
+    mapped to an invented module.
+    """
+    pkg_parts = _current_package(path, source_root=source_root)
+    ascents = node.level - 1
+    if ascents > 0 and len(pkg_parts) <= ascents:
+        return
+    resolved_parts = pkg_parts[: len(pkg_parts) - ascents] if ascents > 0 else pkg_parts
+    if node.module is not None:
+        resolved_parts = [*resolved_parts, node.module]
+    base = ".".join(resolved_parts)
+    names.add(base)
+    for alias in node.names:
+        if alias.name != "*":
+            names.add(f"{base}.{alias.name}")
+
+
+def _imported_modules(path: Path, *, source_root: Path = SRC) -> set[str]:
     """Extract all imported module names from a Python source file.
 
-    Resolves relative imports (``from . import X``, ``from .X import Y``) to
-    their absolute dotted names so that equivalent import forms are normalized.
+    Resolves relative imports (``from . import X``, ``from .X import Y``,
+    ``from ..policy import Z``) to their absolute dotted names so that
+    equivalent import forms are normalized and boundary tests cannot be
+    bypassed by import syntax.
     """
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     names: set[str] = set()
@@ -118,15 +140,10 @@ def _imported_modules(path: Path) -> set[str]:
         if isinstance(node, ast.Import):
             names.update(alias.name for alias in node.names)
         elif isinstance(node, ast.ImportFrom):
-            resolved = _resolve_relative(node, path)
-            if resolved is not None:
-                names.add(resolved)
-            # For `from . import X`, also add the alias names as submodule imports.
-            if node.level > 0 and node.module is None:
-                base = _resolve_relative(node, path)
-                if base is not None:
-                    for alias in node.names:
-                        names.add(f"{base}.{alias.name}")
+            if node.level == 0:
+                _add_absolute_import_from(node, names)
+            else:
+                _add_relative_import_from(node, path, names, source_root=source_root)
     return names
 
 
@@ -299,20 +316,72 @@ def test_policy_v2_modules_are_pure(path: Path) -> None:
         assert name not in FORBIDDEN_BLACKBREAD_MODULES, f"{path.name} imports {name}"
 
 
-def test_imported_modules_resolves_equivalent_import_forms() -> None:
-    """_imported_modules must resolve relative and absolute import forms to the
-    same canonical dotted name so boundary tests are not bypassed by import style."""
-    eval_path = SRC / "policy" / "evaluation.py"
-    imported = _imported_modules(eval_path)
-    # The evaluation module uses absolute imports; verify they are present.
-    assert "blackbread.policy.evaluation" not in imported  # it doesn't import itself
-    # Verify the function resolves relative imports correctly by testing against
-    # a module that uses them.  runtime_gate.py uses absolute imports, so we
-    # verify the resolver handles the evaluation module's imports correctly.
-    assert "blackbread.policy.runtime_gate" in imported
-    assert "blackbread.policy.runtime_contracts" in imported
-    assert "blackbread.policy.decision_v2" in imported
-    assert "blackbread.policy.runtime_result" in imported
+def test_imported_modules_resolves_equivalent_import_forms(
+    tmp_path: Path,
+    request: pytest.FixtureRequest,
+) -> None:
+    """_imported_modules must normalize every equivalent import form to the
+    same absolute dotted name so boundary tests cannot be bypassed by import
+    syntax.  Uses synthetic source files — never real production modules — so
+    the proof is independent of the import style currently used in the codebase.
+    """
+    root = tmp_path / "src" / "blackbread"
+    (root / "policy").mkdir(parents=True)
+    (root / "conductor").mkdir(parents=True)
+
+    cases: list[tuple[str, Path, str, set[str], set[str]]] = [
+        # (test_id, synthetic_path, source, required_present, required_absent)
+        (
+            "direct_import",
+            root / "policy" / "consumer.py",
+            "import blackbread.policy.evaluation\n",
+            {"blackbread.policy.evaluation"},
+            set(),
+        ),
+        (
+            "package_qualified",
+            root / "policy" / "consumer.py",
+            "from blackbread.policy import evaluation\n",
+            {"blackbread.policy.evaluation"},
+            set(),
+        ),
+        (
+            "relative_dot_import",
+            root / "policy" / "consumer.py",
+            "from . import evaluation\n",
+            {"blackbread.policy.evaluation"},
+            {"blackbread.policy.consumer.evaluation", "blackbread.policy.consumer"},
+        ),
+        (
+            "relative_dot_module",
+            root / "policy" / "consumer.py",
+            "from .evaluation import evaluate_policy\n",
+            {"blackbread.policy.evaluation"},
+            {"blackbread.policy.consumer.evaluation", "blackbread.policy.consumer"},
+        ),
+        (
+            "parent_relative",
+            root / "conductor" / "consumer.py",
+            "from ..policy import evaluation\n",
+            {"blackbread.policy.evaluation"},
+            set(),
+        ),
+        (
+            "absolute_decision_v2",
+            root / "conductor" / "consumer.py",
+            "from blackbread.policy.decision_v2 import PolicyDecisionV2\n",
+            {"blackbread.policy.decision_v2"},
+            set(),
+        ),
+    ]
+
+    for test_id, syn_path, source, required_present, required_absent in cases:
+        syn_path.write_text(source, encoding="utf-8")
+        imported = _imported_modules(syn_path, source_root=root)
+        for expected in required_present:
+            assert expected in imported, f"[{test_id}] expected {expected!r} in {imported}"
+        for forbidden in required_absent:
+            assert forbidden not in imported, f"[{test_id}] forbidden {forbidden!r} in {imported}"
 
 
 def test_policy_evaluator_is_intentionally_unwired_and_non_authoritative() -> None:
