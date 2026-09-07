@@ -88,11 +88,11 @@ sealable and fail-closed:
       * **M1.4b2b-R** — `evaluate_runtime_gates(proposal, *, policy, identity, capability, manifest,
         runtime, evaluated_at)` computes `AdmissionResult` through the unchanged `evaluate_admission`
         and evaluates the runtime facts against the same capability, returning a strict, frozen,
-        digest-bound, non-executable `RuntimeGateResult`. **RELEASED (PR #59, `b949e8a3`).** No `AdmissionRuntimeBinding`,
+        digest-bound, non-executable `RuntimeGateResult`. **RELEASED (PR #67, `31162c89`, merged to `main` 2026-09-07).** No `AdmissionRuntimeBinding`,
         caller-supplied admission, `AdmissionResult` v2, registry loading, signature, persistence,
         ledger publication, `PolicyDecision` v2, lease, work order, or target effect. Intentionally
         unwired; M1.4b2c owns the next consumer.
-    * **M1.4b2c** — final `PolicyDecision` v2. **ACTIVE (branch `m1-4b2c-policy-decision-v2`, base `main` `b949e8a3`).**
+    * **M1.4b2c** — final `PolicyDecision` v2. **ACTIVE (branch `m1-4b2c-policy-decision-v2`, PR #69; base `main` `b949e8a3` = PR #68 governance-only `.pr_agent.toml` update).**
 * **M1.4c** — durable, tenant-isolated, immutable `action_proposals` and `decision_records` with RLS,
   idempotency, ledger provenance, and atomic persistence.
 * **M1.4d** — budgets, resource locks, and execution leases; no work order without a valid lease.
@@ -529,7 +529,7 @@ dispositioned and resolved. A merge does not complete M1.3, M1/R0, `LEDGER-GAP-0
 
 * **ID:** PR-M1.4b2b-R
 * **Title:** Composed runtime-gate evaluator over one capability input
-* **State:** RELEASED (`b949e8a3` / PR #67, merged to `main` 2026-09-06)
+* **State:** RELEASED (`31162c89` / PR #67, merged to `main` 2026-09-07 UTC)
 * **Prerequisite:** PR-M1.4b2a RELEASED (`0a5e230e` / PR #63); PR #65 and PR #66 CLOSED as superseded.
 * **Reason:** PR #65 (`18ecc5f`) let a caller pass an `AdmissionResult` separately from the runtime
   `capability`, so a strong admission could be paired with a weaker runtime capability and an
