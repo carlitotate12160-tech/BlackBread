@@ -525,11 +525,11 @@ dispositioned and resolved. A merge does not complete M1.3, M1/R0, `LEDGER-GAP-0
   PR-Agent (DeepSeek V4-Pro) review complete with all actionable findings dispositioned.
 * **Next:** M1.4b2b — the runtime-gate evaluator (see M1.4b2b-R below).
 
-### PR-M1.4b2b-R (active)
+### PR-M1.4b2b-R (released)
 
 * **ID:** PR-M1.4b2b-R
 * **Title:** Composed runtime-gate evaluator over one capability input
-* **State:** ACTIVE (branch `m1-4b2b-runtime-gates-composed`, base `main` `0036e104`)
+* **State:** RELEASED (`b949e8a3` / PR #67, merged to `main` 2026-09-06)
 * **Prerequisite:** PR-M1.4b2a RELEASED (`0a5e230e` / PR #63); PR #65 and PR #66 CLOSED as superseded.
 * **Reason:** PR #65 (`18ecc5f`) let a caller pass an `AdmissionResult` separately from the runtime
   `capability`, so a strong admission could be paired with a weaker runtime capability and an
@@ -563,7 +563,7 @@ dispositioned and resolved. A merge does not complete M1.3, M1/R0, `LEDGER-GAP-0
   precedence, result-contract, and boundary proofs green; affected policy/conductor suites green; all
   repository gates, budgets, and safety-critical coverage green; binding current-head PR-Agent
   (DeepSeek V4-Pro) review complete with all findings dispositioned.
-* **Next:** M1.4b2c — final `PolicyDecision` v2.
+* **Next:** M1.4b2c — final `PolicyDecision` v2 (ACTIVE, branch `m1-4b2c-policy-decision-v2`).
 
 ### PR-M1.3b3b-3
 
