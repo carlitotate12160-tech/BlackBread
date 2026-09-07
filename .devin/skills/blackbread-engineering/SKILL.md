@@ -1,11 +1,14 @@
 ---
 name: blackbread-engineering
-description: Plan, implement, review, and seal work across the complete BlackBread repository lifecycle. Use for BlackBread architecture, milestones, implementation slices, migrations, tests, gaps, pull requests, CI, review findings, delivery, or status explanations. Do not use for unrelated repositories or generic cybersecurity questions.
+description: Plan, architect, implement, adversarially review, deliver, and seal the ADR-governed BlackBread platform across its authorization trust spine, Policy Kernel, Conductor, OPSEC, evidence ledger and projections, campaign intelligence, Capability Gateway, agent cognition, execution isolation, milestones, gaps, tests, pull requests, and CI. Use only for BlackBread; do not use for unrelated repositories or generic cybersecurity work.
 ---
 
 # BlackBread Engineering
 
-Act as BlackBread's first-principles engineering peer and safety architect across all milestones. Help the repository owner reach a correct, reviewable, non-bypassable implementation without turning planning into an endless loop.
+Act as BlackBread's first-principles engineering peer and safety architect across all milestones.
+Preserve its defining split: five bounded reasoning roles over evidence-backed state, deterministic
+central safety, typed execution, and no path from model belief to target effect. Reach a correct,
+reviewable, non-bypassable implementation without turning planning into an endless loop.
 
 ## Establish current truth
 
@@ -58,6 +61,39 @@ contracts. Then read the reference(s) for the selected mode:
 
 Once a plan is accepted and live preflight still matches, proceed to implementation. Reopen architecture only for concrete drift, a failed invariant, an unsafe intermediate state, or a STOP/SPLIT condition.
 
+## Route the BlackBread architecture lenses
+
+For architecture, implementation, fix, review, and seal work, read only the applicable lens files
+below in addition to the operating-mode references. Read the complete selected lens before acting.
+
+| Changed responsibility | Required lens |
+| --- | --- |
+| Scout, Strike, Exploit, Post-Exploit, Report, campaign reasoning, graph semantics, evidence, findings, target identity, authorization semantics, or target-effect classification | [references/red-team-architecture.md](references/red-team-architecture.md) |
+| Policy Kernel, Conductor, OPSEC, approvals, budgets, locks, leases, scheduling, cancellation, halt, cleanup coordination, resume, or replay | [references/control-plane-architecture.md](references/control-plane-architecture.md) |
+| Digests, result objects, serialization, cross-stage handoffs, persistence, ledger events, provenance, RLS, tenant isolation, producer identity, or replay authenticity | [references/trust-boundary-provenance.md](references/trust-boundary-provenance.md) |
+| Capability Gateway, registry enforcement, adapters, rendered invocation, destination revalidation, egress, executor, target health, session/secret custody, supply chain, platform qualification, or cleanup execution | [references/execution-plane-architecture.md](references/execution-plane-architecture.md) |
+
+Load multiple lenses when the slice crosses their concerns. If the lens pass reveals more than one
+independently sealable trust boundary, split before producing an execution prompt. Do not load every
+lens for ordinary governance, documentation, or status work.
+
+The lenses are procedural interpretations, never cached architecture authority. Re-read the live
+`ADR-FINAL-002.md`, `ADR-FINAL-003.md`, `PRD.md`, rules, gap register, and capability registry named
+by the selected lens. A lens may strengthen the proof required for an accepted decision; it may not
+invent a capability, change a milestone, or weaken live authority.
+
+## Require design feasibility before execution
+
+For any new or materially revised boundary, complete the BlackBread Architecture Feasibility Gate
+in `references/architecture-planning.md` before filling the execution prompt. In particular, prove
+information sufficiency, attempt adversarial construction and deserialization, map producer and
+consumer reachability, and examine how the next consumer could misuse the artifact. Trust-boundary
+proof precedes budget-based splitting.
+
+After the gate passes and the live baseline remains valid, stop revising the plan cosmetically.
+Reopen it only for concrete drift, a failed proof, a reproduced defect, unsafe reachability, or a
+declared STOP/SPLIT condition.
+
 ## Non-negotiable behavior
 
 - Follow the authority order and security invariants in the live repository.
@@ -72,7 +108,12 @@ Once a plan is accepted and live preflight still matches, proceed to implementat
 
 ## Specialized agent work
 
-When the task actually implements Scout, Strike, Exploit, Post-Exploit, Report, cognition loops, capability wiring, Conductor, Policy Kernel, or agent OPSEC behavior, also read the repository's `.devin/skills/build-blackbread-agent/SKILL.md` if present. Do not load that specialist skill for ordinary trust-spine, persistence, governance, or documentation work.
+When the task actually implements Scout, Strike, Exploit, Post-Exploit, Report, cognition loops,
+capability wiring, Conductor, Policy Kernel, or agent OPSEC behavior, also read the repository's
+`.devin/skills/build-blackbread-agent/SKILL.md` if present. The architecture lenses decide whether
+the boundary is correct; the repository skill guides implementation behavior. Do not duplicate one
+inside the other, and do not load the specialist skill for ordinary persistence, governance, or
+documentation work.
 
 ## Handoff standard
 

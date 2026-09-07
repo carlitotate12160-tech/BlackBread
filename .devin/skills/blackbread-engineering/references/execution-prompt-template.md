@@ -11,6 +11,20 @@ Copy the template, replace every `<...>`, remove all unused guidance and
 inapplicable alternatives, and state each rule only in its owning section.
 One prompt owns exactly one slice.
 
+## Template contents
+
+1. Outcome, lenses, feasibility, and scope
+2. Live baseline
+3. Allowed and forbidden file map
+4. Requirements, dependencies, capabilities, and gaps
+5. Invariants, artifact trust, ownership, compatibility, and non-goals
+6. RED-first proof obligations and reachability
+7. Budget with correction margin
+8. STOP/SPLIT conditions
+9. Ordered local preflight
+10. Delivery and exact-head review
+11. Required return and seal
+
 ---
 
 Use the `blackbread-engineering` skill in `<IMPLEMENT | FIX | REVIEW>` mode.
@@ -23,7 +37,25 @@ Use the `blackbread-engineering` skill in `<IMPLEMENT | FIX | REVIEW>` mode.
 * MODE: `<IMPLEMENT | FIX | REVIEW>`.
 * DELIVERY PATH: `<NEW_SLICE | EXISTING_PR | READ_ONLY_REVIEW>`.
 * ARCHITECTURE DECISION: `<ACCEPT | ACCEPT WITH CHANGES>` — <accepted decision and material conditions>.
+* APPLICABLE LENSES: `<red-team | control-plane | trust/provenance | execution-plane | justified none>`.
 * IMPLEMENTATION OWNER: `<one owner>`.
+
+Architecture Feasibility Gate:
+
+```text
+LIVE AUTHORITY:
+EXACT FALSIFIABLE CLAIM:
+SMALLEST VIOLATING COUNTEREXAMPLE:
+INFORMATION SUFFICIENCY: PASS
+PRODUCER/CONSUMER CONTINUITY: PASS
+BOUNDARY ELIMINATION: PASS
+INTERMEDIATE SAFETY: PASS
+FUTURE-CONSUMER SAFETY: PASS
+PROOF ORACLES: PASS
+CLAIMS EXPLICITLY NOT MADE:
+```
+
+Do not use this template while an applicable gate field is `FAIL`.
 
 For `IMPLEMENT` or `FIX`, one owner controls all writes to the branch. Do not
 delegate overlapping edits or re-plan accepted architecture unless live drift,
@@ -43,6 +75,10 @@ Trust boundary:
 
 Intermediate reachability: <explain why the incomplete slice is unreachable,
 fail-closed, non-executable, or independently safe>.
+
+Future-consumer pre-mortem: <state what a later persistence, lease, WorkOrder,
+Gateway, API, executor, or Report consumer must never infer from this slice's
+artifacts>.
 
 ## 2. Baseline (verify live; this checkpoint is drift detection only)
 
@@ -115,6 +151,10 @@ Dependency order:
 
 Explain briefly why the slice exists and how it connects to the larger system.
 
+For every selected architecture lens, name the live ADR headings, PRD
+requirements, gap IDs, registry entries, and implementation authorities read.
+Do not cite a lens as architecture authority.
+
 If the slice handles agent reasoning, campaign state, graph reachability,
 capability selection, or model output, state explicitly that these may produce
 typed candidates only. They cannot authorize execution, change scope, override
@@ -147,6 +187,16 @@ evidence, and execution authority.
 * Reachability: <what can and cannot reach production or execution after this
   slice>.
 
+Artifact trust map:
+
+| Artifact | Exact producer | All consumers | Caller constructible/deserializable | Integrity source | Authenticity source | Freshness owner | Execution authority |
+| -------- | -------------- | ------------- | ---------------------------------- | ---------------- | ------------------- | --------------- | ------------------- |
+| `<artifact>` | `<function/service/transaction>` | `<consumers>` | `<yes/no and path>` | `<mechanism or none>` | `<mechanism or none>` | `<owner>` | `<none or exact authority>` |
+
+Never infer producer authenticity from a digest, strict/frozen model, private
+helper, literal authority field, or successful deserialization. If the slice
+receives typed snapshots without authenticating their external producer, say so.
+
 ### Non-goals
 
 ```text
@@ -167,6 +217,16 @@ TOCTOU, cancellation, rollback, and reachability claim. Mark a category `N/A`
 only with a concrete architectural reason.
 
 ### `<claim or defect>` — `<test or other oracle>`
+
+Threat-model statement:
+
+```text
+Exact claim:
+Smallest violating example:
+Why the proposed boundary prevents it:
+How a hostile or mistaken future consumer could misuse the artifact:
+Mutation that must make this oracle fail:
+```
 
 Passes only if:
 
@@ -198,6 +258,11 @@ RED method:
 Use temporary mutation proof only when ordinary RED evidence does not
 demonstrate that the oracle is sensitive to the claimed invariant. Restore the
 real implementation before GREEN and never commit the mutation.
+
+When temporarily omitting a digest/preimage field, the security test must fail
+because tampering is incorrectly accepted. Record that expected failure, restore
+the field, and confirm GREEN rejection. Do not report the defective mutation as
+correctly rejecting the tampered object.
 
 GREEN evidence:
 
@@ -243,6 +308,11 @@ into this reusable template and do not change a cap to fit a slice.
 | Largest affected test module       |            `<value>` |                    `<value>` |              `<value>` |
 | Migration count/size               |     `<value or n/a>` |             `<value or n/a>` |       `<value or n/a>` |
 
+Treat the predicted value as the initial implementation target and reserve the
+stated margin for the one permitted cohesive correction. Also record the live
+protected hard cap in the surrounding text. A predicted value equal to the
+correction ceiling has zero review margin and is not an acceptable plan.
+
 Budget is an architecture signal, not a code-formatting target. Do not compress
 statements, merge unrelated responsibilities, remove meaningful comments or
 docstrings, shorten names unnaturally, hide logic in configuration/tests, or
@@ -257,6 +327,8 @@ when any of the following occurs:
 * live base, head, diff, ruleset, required-check, reviewer, authority, gap, or
   blocker drift invalidates the accepted slice;
 * another implementation responsibility or trust boundary becomes necessary;
+* an applicable architecture lens exposes a violated authority boundary,
+  forgeable proof claim, target-effect escalation, or unsafe future consumer;
 * an intermediate state becomes reachable, executable, partially published,
   falsely authoritative, or otherwise unsafe;
 * a public compatibility contract, sealed preimage, protected migration, or
@@ -355,6 +427,8 @@ Return:
 
 ```text
 verified protected base
+applicable architecture lenses and live authorities
+Architecture Feasibility Gate result
 delivery path
 branch and PR number
 old exact head
