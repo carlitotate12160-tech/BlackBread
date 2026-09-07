@@ -136,10 +136,11 @@ def test_runtime_gate_contracts_are_intentionally_unwired_and_non_authoritative(
     assert "from blackbread.conductor import" not in runtime_source
     assert "conductor.intake" not in runtime_source
 
-    # The composed runtime-gate evaluator is the one legitimate consumer of these input contracts.
+    # The composed runtime-gate evaluator and final policy evaluator are legitimate consumers.
     gate_path = SRC / "policy" / "runtime_gate.py"
+    eval_path = SRC / "policy" / "evaluation.py"
     for path in SRC.rglob("*.py"):
-        if path in {runtime_path, gate_path}:
+        if path in {runtime_path, gate_path, eval_path}:
             continue
         assert "blackbread.policy.runtime_contracts" not in _imported_modules(path)
 
@@ -169,15 +170,21 @@ def test_runtime_gate_evaluator_is_intentionally_unwired_and_non_authoritative()
         assert name.split(".")[0] not in FORBIDDEN_IMPORT_ROOTS
         assert name not in FORBIDDEN_BLACKBREAD_MODULES
 
-    # Intentional non-wiring: no production entry point consumes the evaluator or its result.
-    # M1.4b2c owns the next pure consumer; durable reachability is later M1.4c-M1.4f work.
-    isolated = {gate_path, result_path}
+    # Intentional non-wiring: no production entry point consumes the evaluator or its result yet.
+    # M1.4b2c pure final policy evaluator is the authorized consumer of the runtime gate.
+    # The decision_v2 object is allowed to import the reason vocabulary from runtime_result.
+    eval_path = SRC / "policy" / "evaluation.py"
+    decision_v2_path = SRC / "policy" / "decision_v2.py"
+
+    isolated_gate = {gate_path, eval_path}
+    isolated_result = {gate_path, result_path, eval_path, decision_v2_path}
+
     for path in SRC.rglob("*.py"):
-        if path in isolated:
-            continue
         imports = _imported_modules(path)
-        assert "blackbread.policy.runtime_gate" not in imports
-        assert "blackbread.policy.runtime_result" not in imports
+        if path not in isolated_gate:
+            assert "blackbread.policy.runtime_gate" not in imports
+        if path not in isolated_result:
+            assert "blackbread.policy.runtime_result" not in imports
 
     # The result grants no execution authority.
     forbidden = {
