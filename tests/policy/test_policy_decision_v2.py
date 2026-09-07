@@ -179,3 +179,40 @@ def test_serialization_round_trip() -> None:
     assert isinstance(raw_dict["schema_version"], int)
     restored_dict = PolicyDecisionV2.model_validate(raw_dict)
     assert restored_dict == decision
+
+
+def test_extra_fields_are_rejected() -> None:
+    """Verify extra fields are rejected by the strict model config."""
+    fields = decision_fields()
+    fields["lease_id"] = uuid.uuid4()
+    with pytest.raises(ValidationError, match="extra"):
+        PolicyDecisionV2.build(fields)
+
+    # Also via model_validate with an extra field.
+    valid = decision_fields()
+    valid["executable_token"] = "test-token-value"  # noqa: S105
+    with pytest.raises(ValidationError, match="extra"):
+        PolicyDecisionV2.model_validate(valid)
+
+
+def test_instances_are_frozen() -> None:
+    """Verify PolicyDecisionV2 instances are immutable."""
+    decision = PolicyDecisionV2.build(decision_fields())
+    assert decision.model_config.get("frozen") is True
+
+    with pytest.raises(ValidationError, match="frozen"):
+        decision.outcome = "DENY"  # type: ignore[misc]
+
+    with pytest.raises(ValidationError, match="frozen"):
+        decision.reason_code = "ADMISSION_DENIED"  # type: ignore[misc]
+
+
+def test_identical_inputs_produce_identical_decision_digests() -> None:
+    """Verify deterministic digest: identical inputs produce identical digests."""
+    decision_a = PolicyDecisionV2.build(decision_fields())
+    decision_b = PolicyDecisionV2.build(decision_fields())
+    assert decision_a.decision_digest == decision_b.decision_digest
+
+    # A different input produces a different digest.
+    different = PolicyDecisionV2.build(decision_fields(tenant_id="tenant-b"))
+    assert different.decision_digest != decision_a.decision_digest
