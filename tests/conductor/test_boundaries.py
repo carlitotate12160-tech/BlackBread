@@ -67,13 +67,6 @@ _PURITY_BANNED_CALLS = frozenset(
 )
 
 
-def _module_dotted_name(path: Path, *, source_root: Path = SRC) -> str:
-    """Return the dotted module name for a source file under source_root."""
-    relative = path.relative_to(source_root).with_suffix("")
-    parts = list(relative.parts)
-    return "blackbread." + ".".join(parts)
-
-
 def _current_package(path: Path, *, source_root: Path = SRC) -> list[str]:
     """Return the package parts for a source file.
 
