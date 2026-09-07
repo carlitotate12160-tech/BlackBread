@@ -4,7 +4,27 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from blackbread.conductor.contracts import ActionProposal
+from blackbread.policy.admission import evaluate_admission
+from blackbread.policy.admission_contracts import (
+    AdmissionResult,
+    CapabilityAdmissionSnapshot,
+    DestinationManifest,
+)
+from blackbread.policy.runtime_contracts import RuntimeGateSnapshot
 from tests.conductor._builders import make_proposal
+from tests.policy._builders import (
+    capability_snapshot,
+    egress_destination,
+    identity_snapshot,
+    manifest,
+    policy_snapshot,
+)
+
+# Approval classes exempt from an operator ApprovalGrantSnapshot: LEASE and AUTO_WITH_MANIFEST need
+# no operator grant at the runtime-gate stage (LEASE's execution lease is downstream M1.4d work), so
+# the fixture never fabricates a grant for them and builds one for every other (operator) class.
+_APPROVAL_GRANT_EXEMPT = frozenset({"AUTO_WITH_MANIFEST", "LEASE"})
 
 HEX_APPROVAL = "a" * 64
 HEX_BUDGET = "c" * 64
@@ -106,6 +126,18 @@ def _lock(**overrides: Any) -> dict[str, Any]:
     return fields
 
 
+def _held(holder: uuid.UUID, expires_at: datetime, **overrides: Any) -> dict[str, Any]:
+    return {
+        "schema_name": "policy.runtime.held_lock",
+        "schema_version": 1,
+        "holder_proposal_id": holder,
+        "holder_lease_id": None,
+        "acquired_at": _ts(11, 0),
+        "expires_at": expires_at,
+        **overrides,
+    }
+
+
 def _run(state: str = "ACTIVE", **overrides: Any) -> dict[str, Any]:
     fields: dict[str, Any] = {
         "schema_name": "policy.runtime.engagement_run",
@@ -163,3 +195,115 @@ def _gate(**overrides: Any) -> dict[str, Any]:
         "opsec": None,
         **overrides,
     }
+
+
+# --- Composed runtime-gate helpers (M1.4b2b-R) ---------------------------------------------------
+# The composed evaluator computes admission internally from (policy, identity, capability, manifest,
+# evaluated_at). These helpers build the same admission the evaluator will compute, then a runtime
+# snapshot bound to that admission's digest, so a well-formed case reaches the runtime checks.
+
+_ADMISSION_AT = _ts(12, 5)
+
+
+def _admission_kwargs(
+    proposal: ActionProposal,
+    capability: CapabilityAdmissionSnapshot,
+    destination_manifest: DestinationManifest,
+    evaluated_at: datetime,
+) -> dict[str, Any]:
+    return {
+        "policy": policy_snapshot(graph_version=proposal.graph_version),
+        "identity": identity_snapshot(proposal, achieved_tier=proposal.target_identity_tier),
+        "capability": capability,
+        "manifest": destination_manifest,
+        "evaluated_at": evaluated_at,
+    }
+
+
+def compute_admission(
+    proposal: ActionProposal,
+    capability: CapabilityAdmissionSnapshot,
+    destination_manifest: DestinationManifest,
+    evaluated_at: datetime = _ADMISSION_AT,
+) -> AdmissionResult:
+    return evaluate_admission(
+        proposal, **_admission_kwargs(proposal, capability, destination_manifest, evaluated_at)
+    )
+
+
+def grant_for(
+    proposal: ActionProposal,
+    admission: AdmissionResult,
+    capability: CapabilityAdmissionSnapshot,
+    **overrides: Any,
+) -> dict[str, Any]:
+    objective = capability.approval_class == "SEPARATE_OBJECTIVE"
+    fields = _grant(
+        proposal_id=proposal.proposal_id,
+        proposal_digest=proposal.proposal_digest,
+        admission_result_digest=admission.result_digest,
+        capability_id=proposal.capability_id,
+        target=proposal.target.model_dump(),
+        approval_class=capability.approval_class,
+        objective_ref="objective-001" if objective else None,
+        objective_binding_digest=("0" * 64) if objective else None,
+    )
+    fields.update(overrides)
+    return fields
+
+
+def runtime_snapshot(
+    proposal: ActionProposal, admission: AdmissionResult, **overrides: Any
+) -> RuntimeGateSnapshot:
+    captured = _ts(12, 4)
+    budget = _budget(
+        engagement_account=_account(cost_microunit_limit=10_000_000),
+        agent_account=_account(agent=proposal.agent_instance_id, cost_microunit_limit=10_000_000),
+    )
+    fields = _gate(
+        tenant_id=proposal.tenant_id,
+        engagement_id=proposal.engagement_id,
+        proposal_id=proposal.proposal_id,
+        proposal_digest=proposal.proposal_digest,
+        admission_result_digest=admission.result_digest,
+        capability_id=proposal.capability_id,
+        agent_instance_id=proposal.agent_instance_id,
+        captured_at=captured,
+        fresh_until=_ts(12, 10),
+        budget=budget,
+        lock=_lock(),
+        engagement=_run(),
+        opsec=_opsec(),
+    )
+    fields.update(overrides)
+    return RuntimeGateSnapshot.build(fields)
+
+
+def runtime_case(
+    proposal: ActionProposal | None = None,
+    capability: CapabilityAdmissionSnapshot | None = None,
+    destination_manifest: DestinationManifest | None = None,
+    evaluated_at: datetime = _ADMISSION_AT,
+    runtime: RuntimeGateSnapshot | None = None,
+    **runtime_overrides: Any,
+) -> dict[str, Any]:
+    """Return coherent kwargs for evaluate_runtime_gates, bound to the computed admission."""
+    proposal = make_proposal() if proposal is None else proposal
+    capability = capability_snapshot() if capability is None else capability
+    if destination_manifest is None:
+        egress = capability.network_path == "TARGET_EGRESS"
+        destination_manifest = manifest(
+            proposal, destinations=(egress_destination(),) if egress else ()
+        )
+    admission = compute_admission(proposal, capability, destination_manifest, evaluated_at)
+    if runtime is None:
+        overrides = dict(runtime_overrides)
+        if (
+            capability.approval_class not in _APPROVAL_GRANT_EXEMPT
+            and "approval_grant" not in overrides
+        ):
+            overrides["approval_grant"] = grant_for(proposal, admission, capability)
+        runtime = runtime_snapshot(proposal, admission, **overrides)
+    kwargs = _admission_kwargs(proposal, capability, destination_manifest, evaluated_at)
+    kwargs.pop("evaluated_at")
+    return {"proposal": proposal, "runtime": runtime, "evaluated_at": evaluated_at, **kwargs}
