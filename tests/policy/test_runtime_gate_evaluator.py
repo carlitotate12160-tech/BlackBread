@@ -15,6 +15,7 @@ import pytest
 
 from blackbread.conductor.contracts import BudgetRequest, TargetReference
 from blackbread.policy.runtime_gate import RuntimeGateEvaluationError, evaluate_runtime_gates
+from blackbread.policy.runtime_result import RuntimeGateResult
 from tests.conductor._builders import make_proposal
 from tests.policy._builders import capability_snapshot, egress_destination, manifest
 from tests.policy._runtime_builders import (
@@ -216,6 +217,53 @@ def test_approval_revoked() -> None:
         revocation_ref="rev-001", revocation_timestamp=_ts(12, 0), revocation_digest="a" * 64
     )
     assert revoked == "APPROVAL_REVOKED"
+
+
+def _lease_capability() -> Any:
+    return capability_snapshot(
+        risk_class="ACTIVE_READ_ONLY",
+        required_identity_tier="T1",
+        approval_class="LEASE",
+        network_path="TARGET_EGRESS",
+        max_target_requests=1,
+    )
+
+
+def _lease_proposal() -> Any:
+    return make_proposal(
+        target=TargetReference(target_kind="exact_host", canonical_value="app.example.com"),
+        requested_budget=BudgetRequest(target_requests=1, deadline_seconds=30),
+        target_identity_tier="T1",
+    )
+
+
+def test_lease_class_passes_for_final_decision_without_approval_grant() -> None:
+    # LEASE needs no ApprovalGrantSnapshot at this runtime-gate stage; the execution lease is a
+    # downstream Conductor requirement owned by M1.4d, and PASSED here neither issues nor proves it.
+    case = runtime_case(
+        proposal=_lease_proposal(), capability=_lease_capability(), approval_grant=None
+    )
+    assert case["runtime"].approval_grant is None
+    result = evaluate_runtime_gates(case.pop("proposal"), **case)
+    assert result.outcome == "PASSED_FOR_FINAL_DECISION"
+    assert result.reason_code is None
+    assert result.approval_class == "LEASE"
+    forbidden = {"lease_id", "work_order_id", "executable_token", "target_effect", "allow"}
+    assert forbidden.isdisjoint(RuntimeGateResult.model_fields)
+
+
+def test_lease_fixture_builds_no_approval_grant() -> None:
+    # The passing LEASE fixture must not fabricate an ApprovalGrantSnapshot.
+    case = runtime_case(proposal=_lease_proposal(), capability=_lease_capability())
+    assert case["runtime"].approval_grant is None
+
+
+def test_operator_class_with_valid_grant_passes() -> None:
+    # Operator approval stays fail-closed, but a valid matching grant lets the evaluator continue.
+    case = runtime_case(proposal=_auth_proposal(), capability=_auth_capability())
+    assert case["runtime"].approval_grant is not None
+    result = evaluate_runtime_gates(case.pop("proposal"), **case)
+    assert result.outcome == "PASSED_FOR_FINAL_DECISION"
 
 
 def test_precedence_runtime_binding_before_admission_denial() -> None:

@@ -554,6 +554,12 @@ dispositioned and resolved. A merge does not complete M1.3, M1/R0, `LEDGER-GAP-0
 * **Intermediate reachability:** the evaluator and result are intentionally unwired and
   non-executable; M1.4b2c owns the next pure consumer, and durable reachability is later M1.4c-M1.4f
   work.
+* **Approval/lease boundary (M1.4b2b-R-FIX):** a valid `ApprovalGrantSnapshot` is required only for
+  the operator classes (`OPERATOR_DATA_APPROVAL`, `OPERATOR_EXACT`, `EXACT_TARGET_AND_CAPABILITY`,
+  `SEPARATE_OBJECTIVE`). `AUTO_WITH_MANIFEST` and `LEASE` require no operator grant at this gate.
+  `LEASE` is a downstream Conductor execution-lease requirement owned by M1.4d; a
+  `PASSED_FOR_FINAL_DECISION` here neither issues, represents, validates, nor replaces an execution
+  lease, and no `WorkOrder` may bypass that later lease.
 * **Seal criteria:** the PR #65 substitution reproduced then permanently prevented; runtime-condition,
   precedence, result-contract, and boundary proofs green; affected policy/conductor suites green; all
   repository gates, budgets, and safety-critical coverage green; binding current-head PR-Agent
