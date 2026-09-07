@@ -21,17 +21,10 @@ from tests.policy._builders import (
     policy_snapshot,
 )
 
-# Approval classes for which a coherent fixture must build an ApprovalGrantSnapshot. LEASE and
-# AUTO_WITH_MANIFEST need no operator grant at the runtime-gate stage (LEASE's execution lease is
-# downstream M1.4d work), so the fixture never fabricates a grant for them.
-_APPROVAL_GRANT_REQUIRED = frozenset(
-    {
-        "OPERATOR_DATA_APPROVAL",
-        "OPERATOR_EXACT",
-        "EXACT_TARGET_AND_CAPABILITY",
-        "SEPARATE_OBJECTIVE",
-    }
-)
+# Approval classes exempt from an operator ApprovalGrantSnapshot: LEASE and AUTO_WITH_MANIFEST need
+# no operator grant at the runtime-gate stage (LEASE's execution lease is downstream M1.4d work), so
+# the fixture never fabricates a grant for them and builds one for every other (operator) class.
+_APPROVAL_GRANT_EXEMPT = frozenset({"AUTO_WITH_MANIFEST", "LEASE"})
 
 HEX_APPROVAL = "a" * 64
 HEX_BUDGET = "c" * 64
@@ -306,7 +299,7 @@ def runtime_case(
     if runtime is None:
         overrides = dict(runtime_overrides)
         if (
-            capability.approval_class in _APPROVAL_GRANT_REQUIRED
+            capability.approval_class not in _APPROVAL_GRANT_EXEMPT
             and "approval_grant" not in overrides
         ):
             overrides["approval_grant"] = grant_for(proposal, admission, capability)

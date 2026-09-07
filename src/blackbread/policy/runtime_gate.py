@@ -26,18 +26,10 @@ from blackbread.policy.admission_contracts import (
 from blackbread.policy.runtime_contracts import RuntimeGateSnapshot
 from blackbread.policy.runtime_result import OUTCOME_BY_REASON, RuntimeGateReason, RuntimeGateResult
 
-# Approval classes that require a valid ApprovalGrantSnapshot at this runtime-gate stage.
-# AUTO_WITH_MANIFEST and LEASE are intentionally absent. LEASE is a downstream Conductor execution
-# requirement owned by M1.4d: passing this non-executable gate neither issues nor proves an
-# execution lease, so LEASE bypasses only the operator-grant checks, not execution authorization.
-_APPROVAL_GRANT_REQUIRED = frozenset(
-    {
-        "OPERATOR_DATA_APPROVAL",
-        "OPERATOR_EXACT",
-        "EXACT_TARGET_AND_CAPABILITY",
-        "SEPARATE_OBJECTIVE",
-    }
-)
+# AUTO_WITH_MANIFEST and LEASE need no operator ApprovalGrantSnapshot at this runtime-gate stage.
+# LEASE is a downstream Conductor execution requirement (M1.4d): this non-executable gate neither
+# issues nor proves an execution lease. Every other approval class requires a valid operator grant.
+_APPROVAL_GRANT_EXEMPT = frozenset({"AUTO_WITH_MANIFEST", "LEASE"})
 _RUNTIME_IDENTITY_FIELDS = ("tenant_id", "engagement_id", "proposal_id", "proposal_digest")
 
 
@@ -87,13 +79,13 @@ def _runtime_context_incoherent(context: _Context) -> bool:
         holder = runtime.lock.holder if runtime.lock is not None else None
         timestamps.append(holder.acquired_at if holder is not None else None)
     grant = runtime.approval_grant
-    if context.capability.approval_class in _APPROVAL_GRANT_REQUIRED and grant is not None:
+    if context.capability.approval_class not in _APPROVAL_GRANT_EXEMPT and grant is not None:
         timestamps.append(grant.revocation_timestamp)
     return any(stamp is not None and stamp > runtime.captured_at for stamp in timestamps)
 
 
 def _approval_reason(context: _Context) -> RuntimeGateReason | None:
-    if context.capability.approval_class not in _APPROVAL_GRANT_REQUIRED:
+    if context.capability.approval_class in _APPROVAL_GRANT_EXEMPT:
         return None
     grant = context.runtime.approval_grant
     if grant is None:
