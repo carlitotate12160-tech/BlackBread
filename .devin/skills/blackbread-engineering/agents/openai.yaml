@@ -1,6 +1,9 @@
 interface:
-  display_name: "BlackBread Engineering"
-  short_description: "Architect, implement, review, and seal BlackBread"
-  default_prompt: "Use $blackbread-engineering to verify live BlackBread state and handle the requested work safely."
+  display_name: BlackBread Engineering
+  short_description: Build and seal ADR-governed BlackBread
+  default_prompt: Use $blackbread-engineering to verify live BlackBread authority,
+    apply the relevant architecture lenses, and handle this work safely.
+  icon_small: assets/icon.svg
+  icon_large: assets/icon.svg
 policy:
   allow_implicit_invocation: true
