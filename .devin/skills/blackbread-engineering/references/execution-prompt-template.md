@@ -38,6 +38,8 @@ Use the `blackbread-engineering` skill in `<IMPLEMENT | FIX | REVIEW>` mode.
 * DELIVERY PATH: `<NEW_SLICE | EXISTING_PR | READ_ONLY_REVIEW>`.
 * ARCHITECTURE DECISION: `<ACCEPT | ACCEPT WITH CHANGES>` — <accepted decision and material conditions>.
 * APPLICABLE LENSES: `<red-team | control-plane | trust/provenance | execution-plane | justified none>`.
+  If `justified none`, provide a `NONE JUSTIFICATION` citing the routing table that shows no lens
+  applies. A bare `justified none` without routing-table evidence is treated as `FAIL`.
 * IMPLEMENTATION OWNER: `<one owner>`.
 
 Architecture Feasibility Gate:
@@ -46,16 +48,21 @@ Architecture Feasibility Gate:
 LIVE AUTHORITY:
 EXACT FALSIFIABLE CLAIM:
 SMALLEST VIOLATING COUNTEREXAMPLE:
-INFORMATION SUFFICIENCY: PASS
-PRODUCER/CONSUMER CONTINUITY: PASS
-BOUNDARY ELIMINATION: PASS
-INTERMEDIATE SAFETY: PASS
-FUTURE-CONSUMER SAFETY: PASS
-PROOF ORACLES: PASS
+INFORMATION SUFFICIENCY: PENDING — evidence
+PRODUCER/CONSUMER CONTINUITY: PENDING — evidence
+BOUNDARY ELIMINATION: PENDING — evidence
+INTERMEDIATE SAFETY: PENDING — evidence
+FUTURE-CONSUMER SAFETY: PENDING — evidence
+PROOF ORACLES: PENDING — evidence
 CLAIMS EXPLICITLY NOT MADE:
 ```
 
-Do not use this template while an applicable gate field is `FAIL`.
+Each gate field defaults to `PENDING` and must be raised to an evidence-backed `PASS` before the
+template may be used. A bare `PASS` without concrete evidence (producer, consumer, adversarial
+construction, intermediate-state condition, future-consumer constraint, or proof oracle) is treated
+as `PENDING`, not `PASS`. Do not use this template until every applicable gate field is an
+evidence-backed `PASS`. If any field is `FAIL`, the gate is `NOT READY` and no implementation prompt
+may be issued.
 
 For `IMPLEMENT` or `FIX`, one owner controls all writes to the branch. Do not
 delegate overlapping edits or re-plan accepted architecture unless live drift,

@@ -69,19 +69,25 @@ APPLICABLE LENSES:
 LIVE AUTHORITY:
 EXACT CLAIM:
 COMPONENT AUTHORITY:
-INFORMATION SUFFICIENCY: PASS | FAIL
-ADVERSARIAL COUNTEREXAMPLE: PASS | FAIL
-PRODUCER/CONSUMER CONTINUITY: PASS | FAIL
-BOUNDARY ELIMINATION: PASS | FAIL
-INTERMEDIATE SAFETY: PASS | FAIL
-FUTURE-CONSUMER SAFETY: PASS | FAIL
-PROOF ORACLES: PASS | FAIL
+INFORMATION SUFFICIENCY: PASS | FAIL — evidence
+ADVERSARIAL COUNTEREXAMPLE: PASS | FAIL — evidence
+PRODUCER/CONSUMER CONTINUITY: PASS | FAIL — evidence
+BOUNDARY ELIMINATION: PASS | FAIL — evidence
+INTERMEDIATE SAFETY: PASS | FAIL — evidence
+FUTURE-CONSUMER SAFETY: PASS | FAIL — evidence
+PROOF ORACLES: PASS | FAIL — evidence
 TRUST-BOUNDARY CLAIMS NOT MADE:
-ARCHITECTURE DECISION: ACCEPT | ACCEPT WITH CHANGES | REJECT
+ARCHITECTURE DECISION: ACCEPT | ACCEPT WITH CHANGES | REJECT | NOT READY
 ```
 
-If an applicable safety field is `FAIL`, return `ARCHITECTURE NOT READY` and do not issue an
-implementation prompt.
+Each gate field must include concrete evidence: the producer, consumer, adversarial construction,
+intermediate-state condition, future-consumer constraint, or proof oracle that justifies the status.
+A bare `PASS` without evidence is treated as `FAIL`.
+
+If an applicable safety field is `FAIL`, return `NOT READY` and do not issue an implementation
+prompt. `NOT READY` is distinct from `REJECT`: `REJECT` means the architecture is wrong; `NOT READY`
+means a required safety field has not been satisfied with evidence, but the architecture may be
+correct once the gap is closed.
 
 ## Derive the slice
 
