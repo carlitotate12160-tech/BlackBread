@@ -1,10 +1,10 @@
 [config]
 model = "deepseek/deepseek-v4-pro"
-fallback_models = ["deepseek/deepseek-v4-flash"]
+fallback_models = []
 
 [github_action_config]
-handle_push_trigger = true
-push_commands = ["/review"]
+handle_push_trigger = false
+push_commands = []
 
 [pr_reviewer]
 extra_instructions = """
@@ -14,6 +14,14 @@ Do not propose target-facing execution, destructive actions, credential exfiltra
 Do not add or remove code comments unless the author asks.
 Flag any change that weakens the Policy Kernel, OPSEC stop, Target Identity Guard, scope denial, ledger hashing, tenant isolation, or auditability.
 For Python, enforce strict typing, fail-closed validation, pure deterministic safety code, and the existing Ruff / mypy conventions.
+
+Use the accepted current slice and repository authority to assess requirements.
+References to superseded PRs are historical evidence, not active requirements.
+Do not report intentional removal of a superseded contract as non-compliance.
+For each finding, identify the violated invariant, concrete input or reachable
+path, actual behavior, and expected behavior.
+Distinguish incorrect exception types from authorization bypasses.
+Previously resolved findings require new evidence before being reopened.
 """
 
 [pr_description]
