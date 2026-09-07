@@ -47,8 +47,12 @@ class _Context:
     requested_cost: int
 
 
-def _validate_arguments(typed: tuple[tuple[object, type], ...], evaluated_at: datetime) -> None:
+def _validate_arguments(typed: tuple[tuple[object, type], ...], evaluated_at: object) -> None:
     if any(not isinstance(value, kind) for value, kind in typed):
+        raise RuntimeGateEvaluationError("evaluation arguments failed validation")
+    # Check the type before dereferencing tzinfo/utcoffset so a non-datetime raises the typed error
+    # rather than AttributeError.
+    if not isinstance(evaluated_at, datetime):
         raise RuntimeGateEvaluationError("evaluation arguments failed validation")
     if evaluated_at.tzinfo is None or evaluated_at.utcoffset() != timedelta(0):
         raise RuntimeGateEvaluationError("evaluation arguments failed validation")

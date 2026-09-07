@@ -297,6 +297,16 @@ def test_naive_evaluation_time_raises() -> None:
         evaluate_runtime_gates(case.pop("proposal"), **case)
 
 
+@pytest.mark.parametrize("bad_evaluated_at", [None, "2026-09-03T12:05:00Z", 12345])
+def test_non_datetime_evaluation_time_raises_typed_error(bad_evaluated_at: object) -> None:
+    # A non-datetime evaluated_at must raise the typed evaluation error, not AttributeError from
+    # dereferencing tzinfo/utcoffset before the type is checked.
+    case = runtime_case()
+    case["evaluated_at"] = bad_evaluated_at
+    with pytest.raises(RuntimeGateEvaluationError):
+        evaluate_runtime_gates(case.pop("proposal"), **case)
+
+
 def test_wrong_argument_type_raises() -> None:
     case = runtime_case()
     case["capability"] = "not-a-capability"
