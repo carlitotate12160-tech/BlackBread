@@ -133,7 +133,8 @@ async def engine(migrated_database: None) -> AsyncIterator[AsyncEngine]:
             )
             await connection.execute(
                 text(
-                    "TRUNCATE graph_temporal_head_nodes, graph_temporal_scope_revisions, "
+                    "TRUNCATE action_proposals, "
+                    "graph_temporal_head_nodes, graph_temporal_scope_revisions, "
                     "graph_temporal_scope_roots, graph_temporal_projection_snapshots, "
                     "graph_nodes, graph_projection_snapshots, "
                     "agent_events, engagements, clients"

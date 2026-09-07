@@ -8,7 +8,7 @@ and never overrides live GitHub, accepted architecture, delivery policy, tests, 
 * **State:** ACTIVE
 * **Current milestone:** M1 — Trust Spine
 * **Last verified:** 2026-09-07 UTC
-* **Current branch:** `m1-4b2c-policy-decision-v2-final`
+* **Current branch:** `m1-4c-a-action-proposals-schema`
 * **Active ruleset:** `main-branch-protection` (`21644438`)
 * **Contractual gate:** the live ruleset matches the machine contract. Required status checks are
   `ci-ok` (aggregator for `quality`, `tests`, `security`, `governance`) and `GitGuardian Security
@@ -95,6 +95,7 @@ sealable and fail-closed:
     * **M1.4b2c** — final `PolicyDecision` v2. **ACTIVE on branch `m1-4b2c-policy-decision-v2-final` (M1.4b2c-RECOVERY). PR #69 was rejected after its correction cycle because its import-boundary scanner did not prove equivalent import forms. The `PolicyDecisionV2` production design is retained. Base `main` `b949e8a3` = PR #68 governance-only `.pr_agent.toml` update.**
 * **M1.4c** — durable, tenant-isolated, immutable `action_proposals` and `decision_records` with RLS,
   idempotency, ledger provenance, and atomic persistence.
+  * **M1.4c-a** — `action_proposals` schema, isolation, and immutable digest indices (durable record only). **IMPLEMENTED (branch `m1-4c-a-action-proposals-schema`).**
 * **M1.4d** — budgets, resource locks, and execution leases; no work order without a valid lease.
 * **M1.4e** — dual kill switch and dead-man halt (forensic freeze vs graceful stop) with ledger
   evidence.
