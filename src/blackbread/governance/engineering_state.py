@@ -1,11 +1,28 @@
+import re
 from enum import StrEnum
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, StrictInt, StrictStr, field_validator
 
+SLICE_IDENTIFIER_PATTERN = re.compile(
+    r"^M[0-9]+(?:\.[0-9]+[a-z0-9]*)+(?:-[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)?$"
+)
+
+
+def validate_slice_identifier(value: str, field_name: str = "slice") -> str:
+    if not SLICE_IDENTIFIER_PATTERN.fullmatch(value):
+        raise ValueError(
+            f"{field_name} must match canonical slice grammar (e.g. M1.4c1, M1.4b2b-R): {value!r}"
+        )
+    return value
+
+
+class TransitionError(ValueError):
+    """Raised when a transition candidate violates transition policy."""
+
 
 class EngineeringStateManifest(BaseModel):
-    model_config = ConfigDict(extra="forbid", strict=True)
+    model_config = ConfigDict(extra="forbid", strict=True, frozen=True)
 
     schema_version: StrictInt
     state_revision: StrictInt
@@ -29,21 +46,12 @@ class EngineeringStateManifest(BaseModel):
     @field_validator("selected_next_slice")
     @classmethod
     def validate_selected_next_slice(cls, v: str) -> str:
-        if not v.strip():
-            raise ValueError("selected_next_slice must be a non-empty string")
-        # Ensure it starts with M
-        if not v.startswith("M"):
-            raise ValueError("slice identifiers must start with M (e.g. M1.4c1)")
-        return v
+        return validate_slice_identifier(v, "selected_next_slice")
 
     @field_validator("last_released_slice")
     @classmethod
     def validate_last_released_slice(cls, v: str) -> str:
-        if not v.strip():
-            raise ValueError("last_released_slice must be a non-empty string")
-        if not v.startswith("M"):
-            raise ValueError("slice identifiers must start with M (e.g. M1.4c1)")
-        return v
+        return validate_slice_identifier(v, "last_released_slice")
 
 
 class TransitionKind(StrEnum):
@@ -54,7 +62,7 @@ class TransitionKind(StrEnum):
 
 
 class StateTransition(BaseModel):
-    model_config = ConfigDict(extra="forbid", strict=True)
+    model_config = ConfigDict(extra="forbid", strict=True, frozen=True)
 
     kind: TransitionKind
     base_manifest: EngineeringStateManifest | None
@@ -126,6 +134,77 @@ def check_transition(transition: StateTransition) -> None:
         raise ValueError(f"Unknown transition kind: {transition.kind}")
 
 
+def _build_bootstrap_candidate(
+    base_manifest: EngineeringStateManifest | None,
+    released: str | None,
+    next_slice: str,
+) -> EngineeringStateManifest:
+    if base_manifest is not None:
+        raise TransitionError("Bootstrap requires no base manifest")
+    if released is None:
+        raise TransitionError("Bootstrap requires --released")
+    return EngineeringStateManifest(
+        schema_version=1,
+        state_revision=1,
+        last_released_slice=released,
+        selected_next_slice=next_slice,
+    )
+
+
+def _build_release_candidate(
+    base_manifest: EngineeringStateManifest,
+    released: str | None,
+    next_slice: str,
+) -> EngineeringStateManifest:
+    if released is None:
+        raise TransitionError("Release requires --released")
+    if released != base_manifest.selected_next_slice:
+        raise TransitionError("Release must promote the base selected slice")
+    if next_slice == released:
+        raise TransitionError("Release must select a new slice, different from released")
+    return EngineeringStateManifest(
+        schema_version=1,
+        state_revision=base_manifest.state_revision + 1,
+        last_released_slice=released,
+        selected_next_slice=next_slice,
+    )
+
+
+def _build_select_candidate(
+    base_manifest: EngineeringStateManifest,
+    released: str | None,
+    next_slice: str,
+) -> EngineeringStateManifest:
+    if released is not None:
+        raise TransitionError("Select forbids --released")
+    if next_slice == base_manifest.selected_next_slice:
+        raise TransitionError("Select must change the selected next slice")
+    return EngineeringStateManifest(
+        schema_version=1,
+        state_revision=base_manifest.state_revision + 1,
+        last_released_slice=base_manifest.last_released_slice,
+        selected_next_slice=next_slice,
+    )
+
+
+def build_candidate_manifest(
+    base_manifest: EngineeringStateManifest | None,
+    kind: TransitionKind,
+    released: str | None,
+    next_slice: str,
+) -> EngineeringStateManifest:
+    """Construct and validate a candidate manifest through one pure authority."""
+    if kind == TransitionKind.BOOTSTRAP:
+        return _build_bootstrap_candidate(base_manifest, released, next_slice)
+    if base_manifest is None:
+        raise TransitionError(f"{kind.value} requires a base manifest")
+    if kind == TransitionKind.RELEASE:
+        return _build_release_candidate(base_manifest, released, next_slice)
+    if kind == TransitionKind.SELECT:
+        return _build_select_candidate(base_manifest, released, next_slice)
+    raise TransitionError(f"Unsupported transition kind for construction: {kind}")
+
+
 def render_projection(manifest: EngineeringStateManifest) -> str:
     milestone = manifest.selected_next_slice.split(".")[0]
     return f"""# BlackBread Engineering State
@@ -149,10 +228,7 @@ This file records the repository owner's selected work sequence.
 
 
 def classify_release_bearing_diff(changed_paths: list[str]) -> bool:
-    """
-    Classifies a diff as release-bearing if it touches specific paths.
-    Normalized to repository-relative POSIX format.
-    """
+    """Classify a diff as release-bearing if it touches specific paths."""
     for path_str in changed_paths:
         path = Path(path_str).as_posix()
         if path.startswith("/") or ".." in path:

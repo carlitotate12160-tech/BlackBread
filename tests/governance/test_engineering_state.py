@@ -9,9 +9,11 @@ from blackbread.governance.engineering_state import (
     EngineeringStateManifest,
     StateTransition,
     TransitionKind,
+    build_candidate_manifest,
     check_transition,
     classify_release_bearing_diff,
     render_projection,
+    validate_slice_identifier,
 )
 
 
@@ -317,3 +319,137 @@ def test_no_protected_main_writer():
     content = ci_yml.read_text()
     assert "contents: write" not in content
     assert "git push" not in content
+
+
+# Canonical slice identifier grammar (Test F)
+
+VALID_SLICE_IDS = [
+    "M1.4c1",
+    "M1.4c2a",
+    "M1.4b2b-R",
+    "M1.4b2c-RECOVERY",
+    "M1.4a-FOLLOWUP",
+    "M1.3b3b-HARDEN",
+    "M1.4",
+    "M2.1a3b",
+]
+INVALID_SLICE_IDS = [
+    "M",
+    "M1",
+    "m1.4c1",
+    "M1.4c1 ",
+    " M1.4c1",
+    "M1.4c1\t",
+    "M1.4c1/x",
+    "M arbitrary text",
+    "M1.4c1-",
+    "M1.4c1-r",
+    "M1.4c1 R",
+    "M1.4c1.extra",
+]
+
+
+@pytest.mark.parametrize("identifier", VALID_SLICE_IDS)
+def test_slice_identifier_accepts_canonical_forms(identifier: str):
+    assert validate_slice_identifier(identifier) == identifier
+
+
+@pytest.mark.parametrize("identifier", INVALID_SLICE_IDS)
+def test_slice_identifier_rejects_malformed_forms(identifier: str):
+    with pytest.raises(ValueError):
+        validate_slice_identifier(identifier)
+
+
+# Exact Markdown projection (Test H)
+
+
+def test_projection_exact_bytes():
+    manifest = EngineeringStateManifest(
+        schema_version=1,
+        state_revision=2,
+        last_released_slice="M1.4c2a",
+        selected_next_slice="M1.4c2b",
+    )
+    assert render_projection(manifest) == (
+        "# BlackBread Engineering State\n"
+        "\n"
+        "This file records the repository owner's selected work sequence.\n"
+        "\n"
+        "> [!WARNING]\n"
+        "> - on protected main it is the current released-state checkpoint;\n"
+        "> - on any feature branch it is only a prospective post-merge projection;\n"
+        "> - live GitHub remains the authority for merge, SHA, PR, checks, reviews,\n"
+        "    open branches, and release verification;\n"
+        "> - GAP-REGISTER.md remains the only authority for gap status.\n"
+        "\n"
+        "## State metadata\n"
+        "\n"
+        "* **Current milestone:** M1\n"
+        "* **Last released slice:** M1.4c2a\n"
+        "* **Selected next slice:** M1.4c2b\n"
+        "* **State revision:** 2\n"
+    )
+
+
+# Stale candidate cannot validate against advanced base (Test I)
+
+
+def test_stale_candidate_fails_against_advanced_base():
+    stale = EngineeringStateManifest(
+        schema_version=1,
+        state_revision=2,
+        last_released_slice="M1.4c2a",
+        selected_next_slice="M1.4c2b",
+    )
+    advanced = EngineeringStateManifest(
+        schema_version=1,
+        state_revision=2,
+        last_released_slice="M1.4c2a",
+        selected_next_slice="M1.4c2b",
+    )
+    transition = StateTransition(
+        kind=TransitionKind.RELEASE,
+        base_manifest=advanced,
+        head_manifest=stale,
+        release_bearing_diff=True,
+    )
+    with pytest.raises(ValueError, match="increment state revision by exactly 1"):
+        check_transition(transition)
+
+
+# Pure candidate construction authority (Test C support)
+
+
+def _base(rev: int = 1, released: str = "M1.4c1", nxt: str = "M1.4c2a"):
+    return EngineeringStateManifest(
+        schema_version=1,
+        state_revision=rev,
+        last_released_slice=released,
+        selected_next_slice=nxt,
+    )
+
+
+def test_build_candidate_bootstrap_uses_explicit_arguments():
+    c = build_candidate_manifest(None, TransitionKind.BOOTSTRAP, "M1.4b2b-R", "M1.4c2a")
+    assert c.last_released_slice == "M1.4b2b-R"
+    assert c.selected_next_slice == "M1.4c2a"
+    assert c.state_revision == 1
+
+
+def test_build_candidate_release_promotes_base_selected_slice():
+    c = build_candidate_manifest(_base(), TransitionKind.RELEASE, "M1.4c2a", "M1.4c2b")
+    assert c.state_revision == 2
+    assert c.last_released_slice == "M1.4c2a"
+    assert c.selected_next_slice == "M1.4c2b"
+
+
+def test_build_candidate_release_rejects_wrong_released():
+    with pytest.raises(ValueError, match="must promote the base selected slice"):
+        build_candidate_manifest(_base(), TransitionKind.RELEASE, "M1.4c2b", "M1.4c2c")
+
+
+def test_build_candidate_select_preserves_last_released():
+    c = build_candidate_manifest(_base(), TransitionKind.SELECT, None, "M1.4c2b")
+    assert c.state_revision == 2
+    assert c.last_released_slice == "M1.4c1"
+    assert c.selected_next_slice == "M1.4c2b"
