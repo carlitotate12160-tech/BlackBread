@@ -5,7 +5,7 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, StrictInt, StrictStr, field_validator
 
 SLICE_IDENTIFIER_PATTERN = re.compile(
-    r"^M[0-9]+(?:\.[0-9]+[a-z0-9]*)+(?:-[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)?$"
+    r"^M[0-9]+(?:\.[0-9]+(?:[a-z][a-z0-9]*)?)+(?:-[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)?$"
 )
 
 
