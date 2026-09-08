@@ -86,6 +86,10 @@ jobs:
         env:
           BLACKBREAD_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: uv run python scripts/check_size_budget.py
+      - name: Verify engineering state transition
+        env:
+          BLACKBREAD_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: uv run python scripts/engineering_state.py check --base-ref $BLACKBREAD_BASE_SHA --head-ref HEAD
       - run: uv run pytest tests/governance --no-cov
 
   # Single required status check. Branch protection should require ONLY this

@@ -10,7 +10,7 @@ rule is never maintained in two places. Full architecture and safety decisions: 
 
 Before planning, editing, reviewing, or delivering:
 
-1. Read this `AGENTS.md`, then `ENGINEERING-STATE.md` (the owner's currently selected slice).
+1. Read this `AGENTS.md`, then `.github/engineering-state.json` and `ENGINEERING-STATE.md` (the owner's currently selected slice).
 2. Verify live GitHub independently — protected `main` SHA, open PRs and exact heads, CI, reviews,
    unresolved and pending AI-review threads, rulesets, required checks, and active P0/P1 gaps.
 3. Compare the `ENGINEERING-STATE.md` checkpoint with live GitHub; if they differ, reconstruct the
@@ -20,7 +20,7 @@ Before planning, editing, reviewing, or delivering:
    baseline before editing.
 
 Conversation memory, session summaries, copied prompts, and handoff prose are never implementation
-authority. A state document cannot prove a feature, gap, milestone, or release is complete — only
+authority. A feature-branch manifest is only a prospective post-merge projection. The manifest in protected `main` owns the durable released checkpoint. A state document cannot prove a feature, gap, milestone, or release is complete — only
 tests, migrations, runtime behavior, and release evidence do.
 
 ## Authority order
@@ -65,7 +65,7 @@ Load `.github/agent-delivery.json` before any branch, push, pull request, or mer
   the current contract does not require.
 - An explicit new repository-owner instruction may replace the selected next slice, but may not
   weaken law, authorization, accepted architecture, safety invariants, required delivery gates, or
-  blocking-gap honesty. Record the replacement in `ENGINEERING-STATE.md` so later sessions do not
+  blocking-gap honesty. Record the replacement in `.github/engineering-state.json` and `ENGINEERING-STATE.md` so later sessions do not
   depend on conversational memory.
 - Every implementation handoff and pull-request body states: verified protected-`main` SHA; exact
   current PR head; bounded scope and non-goals; RED and GREEN evidence; tests and repository gates

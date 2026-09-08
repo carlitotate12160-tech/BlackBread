@@ -13,7 +13,7 @@ must enforce the following default path:
 - The branch must be current before merge.
 - **No active ruleset bypass actors.** Automation integrations may create commits, push a feature branch,
   and update a pull request, but they may not bypass the approval, status-check, or thread-resolution
-  gates, and they may not click the merge button. The repository owner is the only merge authority.
+  gates, and they may not click the merge button. The repository owner is the only merge authority. State automation uses prospective pre-merge validation inside required ci-ok, which needs no bypass.
 - **Required status checks** (source-pinned):
   - `ci-ok` — GitHub Actions aggregator job (depends on `quality`, `tests`, `security`, `governance`)
   - `GitGuardian Security Checks` — GitGuardian, App ID 46505
