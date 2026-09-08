@@ -322,4 +322,4 @@ def test_no_product_runtime_imports_governance_cli():
                     if isinstance(node, ast.Import)
                     else [node.module or ""]
                 )
-                assert not any("scripts.engineering_state" in n for n in names)
+                assert all("scripts.engineering_state" not in n for n in names)

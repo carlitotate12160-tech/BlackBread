@@ -164,8 +164,7 @@ def _write_state_files(json_content: str, md_content: str) -> None:
         (MANIFEST_PATH, json_content + "\n"),
         (MARKDOWN_PATH, md_content),
     ):
-        directory = os.path.dirname(path)
-        if directory:
+        if directory := os.path.dirname(path):
             os.makedirs(directory, exist_ok=True)
         with open(path, "w") as f:
             f.write(content)
