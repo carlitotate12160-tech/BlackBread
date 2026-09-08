@@ -10,7 +10,11 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from blackbread.config import get_settings
 from blackbread.models.base import Base
 
-MODEL_MODULES = ("blackbread.models.core", "blackbread.ledger.event")
+MODEL_MODULES = (
+    "blackbread.models.core",
+    "blackbread.ledger.event",
+    "blackbread.models.policy_records",
+)
 for model_module in MODEL_MODULES:
     import_module(model_module)
 

@@ -7,8 +7,8 @@ and never overrides live GitHub, accepted architecture, delivery policy, tests, 
 
 * **State:** ACTIVE
 * **Current milestone:** M1 — Trust Spine
-* **Last verified:** 2026-09-07 UTC
-* **Current branch:** `m1-4b2c-policy-decision-v2-final`
+* **Last verified:** 2026-09-08 UTC
+* **Current branch:** `m1-4c1-policy-record-storage-substrate`
 * **Active ruleset:** `main-branch-protection` (`21644438`)
 * **Contractual gate:** the live ruleset matches the machine contract. Required status checks are
   `ci-ok` (aggregator for `quality`, `tests`, `security`, `governance`) and `GitGuardian Security
@@ -92,9 +92,26 @@ sealable and fail-closed:
         caller-supplied admission, `AdmissionResult` v2, registry loading, signature, persistence,
         ledger publication, `PolicyDecision` v2, lease, work order, or target effect. Intentionally
         unwired; M1.4b2c owns the next consumer.
-    * **M1.4b2c** — final `PolicyDecision` v2. **ACTIVE on branch `m1-4b2c-policy-decision-v2-final` (M1.4b2c-RECOVERY). PR #69 was rejected after its correction cycle because its import-boundary scanner did not prove equivalent import forms. The `PolicyDecisionV2` production design is retained. Base `main` `b949e8a3` = PR #68 governance-only `.pr_agent.toml` update.**
+    * **M1.4b2c** — final `PolicyDecision` v2. **RELEASED (PR #70, squash-merged
+      `738c0cfc`, M1.4b2c-RECOVERY). The rejected PR #69 was superseded; `PolicyDecisionV2`,
+      `evaluate_policy`, and the corrected import-boundary scanner are in `main`. `main` then
+      advanced through the governance/skill-only PR #71 (`ab6dfcda`). Verify the live `main` HEAD
+      on GitHub; it is not hand-typed here.**
 * **M1.4c** — durable, tenant-isolated, immutable `action_proposals` and `decision_records` with RLS,
-  idempotency, ledger provenance, and atomic persistence.
+  idempotency, ledger provenance, and atomic persistence. **ACCEPTED WITH CHANGES: split into a
+  storage substrate (M1.4c1) and a composed producer transaction (M1.4c2) at the write-authority
+  trust boundary.**
+    * **M1.4c1** — durable storage substrate: normalized `action_proposals` and `decision_records`
+      tables, structural constraints, closed outcome/reason vocabulary, exact composite
+      decision-to-proposal lineage, FORCE RLS, append-only immutable-record triggers, runtime
+      SELECT-only privileges, and migration `0007`. **ACTIVE on branch
+      `m1-4c1-policy-record-storage-substrate`.** Intentionally unwired: no production writer, no
+      runtime INSERT authority, no ledger publication, and no caller-supplied `PolicyDecisionV2`
+      persistence API. A stored `ALLOW` row grants no execution permission. M1.4c2 owns the first
+      producer.
+    * **M1.4c2** — compose `evaluate_policy()`, proposal/decision persistence, exact ledger
+      publication, idempotent retry, and runtime write authority inside one tenant-bound atomic
+      transaction.
 * **M1.4d** — budgets, resource locks, and execution leases; no work order without a valid lease.
 * **M1.4e** — dual kill switch and dead-man halt (forensic freeze vs graceful stop) with ledger
   evidence.
@@ -563,7 +580,9 @@ dispositioned and resolved. A merge does not complete M1.3, M1/R0, `LEDGER-GAP-0
   precedence, result-contract, and boundary proofs green; affected policy/conductor suites green; all
   repository gates, budgets, and safety-critical coverage green; binding current-head PR-Agent
   (DeepSeek V4-Pro) review complete with all findings dispositioned.
-* **Next:** M1.4b2c — final `PolicyDecision` v2 (ACTIVE, branch `m1-4b2c-policy-decision-v2-final; PR #69 rejected, superseded by M1.4b2c-RECOVERY).
+* **Next:** M1.4c1 — durable policy-record storage substrate (ACTIVE, branch
+  `m1-4c1-policy-record-storage-substrate`). M1.4b2c is RELEASED through PR #70. After M1.4c1 seals,
+  the next slice is M1.4c2 (composed evaluate-and-record transaction with ledger publication).
 
 ### PR-M1.3b3b-3
 
