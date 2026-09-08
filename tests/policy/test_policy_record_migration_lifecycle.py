@@ -143,3 +143,49 @@ async def test_upgrade_installs_rls_triggers_privileges_and_lineage(
             )
         )
         assert int(lineage_fk or 0) == 1
+
+
+# ALTER DEFAULT PRIVILEGES on schema public granting DML to the runtime role, applied AS the same
+# (admin) role that runs Alembic, so tables the 0007 migration creates would inherit those grants
+# unless the migration explicitly revokes them. Confined to the disposable lifecycle database.
+_GRANT_DEFAULTS = (
+    "ALTER DEFAULT PRIVILEGES IN SCHEMA public "
+    "GRANT INSERT, UPDATE, DELETE, TRUNCATE ON TABLES TO blackbread_runtime"
+)
+_REVOKE_DEFAULTS = (
+    "ALTER DEFAULT PRIVILEGES IN SCHEMA public "
+    "REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON TABLES FROM blackbread_runtime"
+)
+
+
+async def test_upgrade_strips_default_privilege_dml_from_runtime(
+    lifecycle_db: str, lifecycle_admin_engine: AsyncEngine
+) -> None:
+    """Regression: even when default privileges would grant the runtime role DML on new tables,
+    the 0007 migration must leave blackbread_runtime with SELECT only. Fails on the pre-correction
+    head (no REVOKE ... FROM blackbread_runtime); passes after the correction."""
+    run_alembic(lifecycle_db, "downgrade", BASE)
+    run_alembic(lifecycle_db, "upgrade", REV_0006)
+
+    async with lifecycle_admin_engine.begin() as conn:
+        await conn.execute(text(_GRANT_DEFAULTS))
+    try:
+        run_alembic(lifecycle_db, "upgrade", HEAD)
+        async with lifecycle_admin_engine.begin() as conn:
+            for table in NEW_TABLES:
+                has_select = await conn.scalar(
+                    text("SELECT has_table_privilege('blackbread_runtime', :t, 'SELECT')"),
+                    {"t": table},
+                )
+                assert has_select is True, table
+                for privilege in ("INSERT", "UPDATE", "DELETE", "TRUNCATE"):
+                    leaked = await conn.scalar(
+                        text("SELECT has_table_privilege('blackbread_runtime', :t, :p)"),
+                        {"t": table, "p": privilege},
+                    )
+                    assert leaked is False, f"{table}:{privilege} leaked to runtime via defaults"
+    finally:
+        # Reset the default privileges so the shared module-scoped lifecycle DB stays clean for
+        # sibling tests (ALTER DEFAULT PRIVILEGES is database-scoped, surviving downgrade/upgrade).
+        async with lifecycle_admin_engine.begin() as conn:
+            await conn.execute(text(_REVOKE_DEFAULTS))
