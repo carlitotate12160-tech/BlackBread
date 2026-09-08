@@ -70,10 +70,6 @@ def _check_bootstrap(transition: StateTransition) -> None:
         raise ValueError("Bootstrap requires schema version 1")
     if head.state_revision != 1:
         raise ValueError("Bootstrap requires state revision 1")
-    if head.last_released_slice != "M1.4c1":
-        raise ValueError("Bootstrap requires last released slice M1.4c1")
-    if head.selected_next_slice != "M1.4c2a":
-        raise ValueError("Bootstrap requires selected next slice M1.4c2a")
 
 
 def _check_release(transition: StateTransition) -> None:
