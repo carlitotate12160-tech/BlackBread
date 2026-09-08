@@ -125,26 +125,28 @@ async def engine(migrated_database: None) -> AsyncIterator[AsyncEngine]:
     admin = create_async_engine(TEST_MIGRATION_DATABASE_URL, pool_pre_ping=True)
     try:
         async with admin.begin() as connection:
-            await connection.execute(
-                text("ALTER TABLE agent_events DISABLE TRIGGER agent_events_reject_mutation")
+            # Immutable append-only tables reject TRUNCATE; disable those triggers to clean them.
+            append_only_triggers = (
+                ("agent_events", "agent_events_reject_mutation"),
+                ("agent_events", "agent_events_reject_truncate"),
+                ("action_proposals", "action_proposals_reject_mutation"),
+                ("action_proposals", "action_proposals_reject_truncate"),
+                ("decision_records", "decision_records_reject_mutation"),
+                ("decision_records", "decision_records_reject_truncate"),
             )
-            await connection.execute(
-                text("ALTER TABLE agent_events DISABLE TRIGGER agent_events_reject_truncate")
-            )
+            for table, trigger in append_only_triggers:
+                await connection.execute(text(f"ALTER TABLE {table} DISABLE TRIGGER {trigger}"))
             await connection.execute(
                 text(
-                    "TRUNCATE graph_temporal_head_nodes, graph_temporal_scope_revisions, "
+                    "TRUNCATE decision_records, action_proposals, "
+                    "graph_temporal_head_nodes, graph_temporal_scope_revisions, "
                     "graph_temporal_scope_roots, graph_temporal_projection_snapshots, "
                     "graph_nodes, graph_projection_snapshots, "
                     "agent_events, engagements, clients"
                 )
             )
-            await connection.execute(
-                text("ALTER TABLE agent_events ENABLE TRIGGER agent_events_reject_mutation")
-            )
-            await connection.execute(
-                text("ALTER TABLE agent_events ENABLE TRIGGER agent_events_reject_truncate")
-            )
+            for table, trigger in append_only_triggers:
+                await connection.execute(text(f"ALTER TABLE {table} ENABLE TRIGGER {trigger}"))
     finally:
         await admin.dispose()
 
