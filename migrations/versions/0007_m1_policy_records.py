@@ -303,6 +303,11 @@ def _grant_runtime_privileges() -> None:
     require_isolatable_runtime_role(op.get_bind())
     statements = (
         "REVOKE ALL ON TABLE action_proposals, decision_records FROM PUBLIC",
+        # Defence in depth: strip any direct/default-privilege grants to the runtime role before
+        # granting SELECT, so the SELECT-only guarantee holds even if a future ALTER DEFAULT
+        # PRIVILEGES grants DML to blackbread_runtime. Revoking from PUBLIC does not remove
+        # role-direct grants, and require_isolatable_runtime_role checks role attributes, not ACLs.
+        "REVOKE ALL ON TABLE action_proposals, decision_records FROM blackbread_runtime",
         f"REVOKE ALL ON FUNCTION {MUTATION_FUNCTION}() FROM PUBLIC",
         "GRANT SELECT ON TABLE action_proposals, decision_records TO blackbread_runtime",
     )
