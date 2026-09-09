@@ -148,6 +148,19 @@ def _imported_modules(path: Path, *, source_root: Path = SRC) -> set[str]:
     return names
 
 
+def _matches_forbidden_module(name: str) -> bool:
+    """True when ``name`` is a forbidden BlackBread module or a descendant of one.
+
+    Catches both exact imports (``blackbread.gateway``) and dotted descendants
+    (``blackbread.gateway.client``) so the boundary check cannot be bypassed by
+    importing a submodule of a forbidden root.
+    """
+    return any(
+        name == forbidden or name.startswith(f"{forbidden}.")
+        for forbidden in FORBIDDEN_BLACKBREAD_MODULES
+    )
+
+
 def _direct_importers(module: str) -> set[Path]:
     return {
         path.relative_to(SRC) for path in SRC.rglob("*.py") if module in _imported_modules(path)
@@ -175,7 +188,7 @@ def test_no_forbidden_framework_or_persistence_imports(path: Path) -> None:
     for name in imported:
         root = name.split(".")[0]
         assert root not in FORBIDDEN_IMPORT_ROOTS, f"{path.name} imports {name}"
-        assert name not in FORBIDDEN_BLACKBREAD_MODULES, f"{path.name} imports {name}"
+        assert not _matches_forbidden_module(name), f"{path.name} imports {name}"
 
 
 def test_intake_boundary_has_no_wall_clock_or_uuid_generation() -> None:
@@ -320,7 +333,7 @@ def test_policy_v2_modules_are_pure(path: Path) -> None:
     for name in imported:
         root = name.split(".")[0]
         assert root not in FORBIDDEN_IMPORT_ROOTS, f"{path.name} imports {name}"
-        assert name not in FORBIDDEN_BLACKBREAD_MODULES, f"{path.name} imports {name}"
+        assert not _matches_forbidden_module(name), f"{path.name} imports {name}"
 
 
 def test_imported_modules_resolves_equivalent_import_forms(
@@ -389,6 +402,19 @@ def test_imported_modules_resolves_equivalent_import_forms(
             assert expected in imported, f"[{test_id}] expected {expected!r} in {imported}"
         for forbidden in required_absent:
             assert forbidden not in imported, f"[{test_id}] forbidden {forbidden!r} in {imported}"
+
+
+def test_forbidden_module_check_rejects_descendant_imports() -> None:
+    """_matches_forbidden_module must reject dotted descendants of forbidden
+    modules so the purity boundary cannot be bypassed by importing a submodule.
+    """
+    assert _matches_forbidden_module("blackbread.gateway")
+    assert _matches_forbidden_module("blackbread.gateway.client")
+    assert _matches_forbidden_module("blackbread.database.models")
+    assert _matches_forbidden_module("blackbread.ledger.append")
+    assert not _matches_forbidden_module("blackbread.policy.evaluation")
+    assert not _matches_forbidden_module("blackbread.conductor.contracts")
+    assert not _matches_forbidden_module("blackbread")
 
 
 def test_policy_evaluator_is_intentionally_unwired_and_non_authoritative() -> None:
