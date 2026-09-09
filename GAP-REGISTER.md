@@ -194,27 +194,14 @@ has no live effect; it is retained only as rollback evidence:
 
 ## GOV-GAP-006 — Post-merge `ENGINEERING-STATE.md` main SHA pointer automation missing
 
-- **Status:** OPEN
+- **Status:** CLOSED
 - **Severity:** P1 governance
 - **Owner:** repository administrator
 - **Target milestone:** M0 governance hardening
 - **Blocks:** none — a stale or missing SHA pointer is not a merge blocker, per AGENTS.md and
   `.devin/rules/blackbread.md` preflight rule #10.
-- **Current evidence:** PR #43 was squash-merged to `main` at `f721f72`. The `ENGINEERING-STATE.md`
-  `PR-M1.3b2b` release record was manually updated to `f721f72` on branch `gov-gap-006-state-update`
-  (a PR-level release record is permitted). No protected-main-baseline pointer was added, consistent
-  with the no-hand-typing policy. The required post-merge automation is still missing, so
-  `GOV-GAP-006` remains open.
-- **Required closure:** a required post-merge automation step (e.g., a `push`/`merge` triggered
-  GitHub Actions workflow with `contents: write` and a protected-branch bypass for the automation
-  identity, or a repository rule that stamps the merged SHA) updates the
-  `ENGINEERING-STATE.md` `Protected main baseline` pointer immediately after a PR is squash-merged
-  to `main`. Manual edits to that pointer are no longer needed and no longer allowed.
-- **Verification:** after a merge, the pointer matches the actual `main` HEAD SHA within one
-  workflow run, without creating a follow-up PR.
-- **Compensating control:** until the automation is live, `ENGINEERING-STATE.md` may contain a
-  hand-typed or stale SHA pointer, which must be cross-checked against live GitHub. The file's own
-  header and preflight rule #10 state that it is a checkpoint, not a substitute for live GitHub.
+- **Closed at:** 2026-09-08
+- **Closure evidence:** the former post-merge SHA-writer requirement conflicted with protected main having no bypass actors and prohibiting direct writes; that closure design is withdrawn. Prospective pre-merge validation inside required ci-ok replaces it. No protected-main SHA is persisted. The candidate CLOSED status becomes authoritative only after this PR is merged to protected main.
 
 ## LEDGER-GAP-001 — R0 trust-spine integration remains incomplete
 

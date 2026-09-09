@@ -36,9 +36,7 @@ rather than a copy here. Two delivery-side rules bind regardless of that skill:
 - `ENGINEERING-STATE.md` content (phase, last decision, open gaps, next action) is updated in the
   same PR that changes them, written against that PR's own diff — never against a future commit SHA.
   A PR that changes phase/decision/gap state without updating this narrative in the same diff is
-  incomplete and blocks merge. The "current main HEAD" pointer is never hand-typed: a required
-  post-merge automation step stamps the actual merged SHA after merge; a missing or stale pointer is
-  a tracked gap (`GAP-REGISTER.md`), not a merge blocker.
+  incomplete and blocks merge. The state is driven by a machine-validated `.github/engineering-state.json` manifest and enforced prospectively before merge; no post-merge SHA stamping is performed.
 
 ## Hard invariants (never violate)
 - **Authorization first.** No target action without a valid, unexpired, attested engagement manifest verified by the Policy Kernel.

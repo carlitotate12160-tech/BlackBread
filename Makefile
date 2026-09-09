@@ -13,6 +13,7 @@ security:
 
 governance:
 	uv run pytest tests/governance --no-cov
+	uv run python scripts/engineering_state.py check --base-ref origin/main --head-ref HEAD
 
 format:
 	uv run ruff format .
