@@ -21,6 +21,7 @@ from blackbread.policy.decision_v2 import (
 from blackbread.policy.evaluation import evaluate_policy
 
 SRC = Path(__file__).parents[2] / "src" / "blackbread"
+EVALUATION_FACTS_PATH = Path("policy/evaluation_facts.py")
 
 FORBIDDEN_IMPORT_ROOTS = frozenset(
     {
@@ -43,6 +44,13 @@ FORBIDDEN_BLACKBREAD_MODULES = frozenset(
         "blackbread.graph.persistence",
         "blackbread.graph.temporal_persistence",
         "blackbread.ledger.append",
+        "blackbread.tenancy",
+        "blackbread.api",
+        "blackbread.routes",
+        "blackbread.leases",
+        "blackbread.work_orders",
+        "blackbread.gateway",
+        "blackbread.executor",
     }
 )
 
@@ -140,6 +148,25 @@ def _imported_modules(path: Path, *, source_root: Path = SRC) -> set[str]:
     return names
 
 
+def _matches_forbidden_module(name: str) -> bool:
+    """True when ``name`` is a forbidden BlackBread module or a descendant of one.
+
+    Catches both exact imports (``blackbread.gateway``) and dotted descendants
+    (``blackbread.gateway.client``) so the boundary check cannot be bypassed by
+    importing a submodule of a forbidden root.
+    """
+    return any(
+        name == forbidden or name.startswith(f"{forbidden}.")
+        for forbidden in FORBIDDEN_BLACKBREAD_MODULES
+    )
+
+
+def _direct_importers(module: str) -> set[Path]:
+    return {
+        path.relative_to(SRC) for path in SRC.rglob("*.py") if module in _imported_modules(path)
+    }
+
+
 PURE_MODULES = (
     SRC / "conductor" / "contracts.py",
     SRC / "conductor" / "intake.py",
@@ -151,6 +178,7 @@ PURE_MODULES = (
     SRC / "policy" / "runtime_result.py",
     SRC / "policy" / "decision_v2.py",
     SRC / "policy" / "evaluation.py",
+    SRC / EVALUATION_FACTS_PATH,
 )
 
 
@@ -160,7 +188,7 @@ def test_no_forbidden_framework_or_persistence_imports(path: Path) -> None:
     for name in imported:
         root = name.split(".")[0]
         assert root not in FORBIDDEN_IMPORT_ROOTS, f"{path.name} imports {name}"
-        assert name not in FORBIDDEN_BLACKBREAD_MODULES, f"{path.name} imports {name}"
+        assert not _matches_forbidden_module(name), f"{path.name} imports {name}"
 
 
 def test_intake_boundary_has_no_wall_clock_or_uuid_generation() -> None:
@@ -226,13 +254,17 @@ def test_runtime_gate_contracts_are_intentionally_unwired_and_non_authoritative(
     assert "from blackbread.conductor import" not in runtime_source
     assert "conductor.intake" not in runtime_source
 
-    # The composed runtime-gate evaluator and final policy evaluator are legitimate consumers.
-    gate_path = SRC / "policy" / "runtime_gate.py"
-    eval_path = SRC / "policy" / "evaluation.py"
-    for path in SRC.rglob("*.py"):
-        if path in {runtime_path, gate_path, eval_path}:
-            continue
-        assert "blackbread.policy.runtime_contracts" not in _imported_modules(path)
+    # Exact direct-importer set: runtime_contracts is consumed only by the
+    # runtime gate, the final evaluator, and the c2a evaluation-facts producer.
+    expected_runtime_contracts_importers = {
+        Path("policy/runtime_gate.py"),
+        Path("policy/evaluation.py"),
+        Path("policy/evaluation_facts.py"),
+    }
+    assert (
+        _direct_importers("blackbread.policy.runtime_contracts")
+        == expected_runtime_contracts_importers
+    )
 
     intake_source = (SRC / "conductor" / "intake.py").read_text(encoding="utf-8")
     forbidden = ("ALLOW", "APPROVAL_REQUIRED", "lease_id", "work_order_id", "executable_token")
@@ -260,21 +292,16 @@ def test_runtime_gate_evaluator_is_intentionally_unwired_and_non_authoritative()
         assert name.split(".")[0] not in FORBIDDEN_IMPORT_ROOTS
         assert name not in FORBIDDEN_BLACKBREAD_MODULES
 
-    # Intentional non-wiring: no production entry point consumes the evaluator or its result yet.
-    # M1.4b2c pure final policy evaluator is the authorized consumer of the runtime gate.
-    # The decision_v2 object is allowed to import the reason vocabulary from runtime_result.
-    eval_path = SRC / "policy" / "evaluation.py"
-    decision_v2_path = SRC / "policy" / "decision_v2.py"
-
-    isolated_gate = {gate_path, eval_path}
-    isolated_result = {gate_path, result_path, eval_path, decision_v2_path}
-
-    for path in SRC.rglob("*.py"):
-        imports = _imported_modules(path)
-        if path not in isolated_gate:
-            assert "blackbread.policy.runtime_gate" not in imports
-        if path not in isolated_result:
-            assert "blackbread.policy.runtime_result" not in imports
+    # Exact direct-importer sets: the runtime gate and runtime result are
+    # consumed only by the authorized policy modules.  No other production
+    # module may import them.
+    assert _direct_importers("blackbread.policy.runtime_gate") == {Path("policy/evaluation.py")}
+    assert _direct_importers("blackbread.policy.runtime_result") == {
+        Path("policy/runtime_gate.py"),
+        Path("policy/evaluation.py"),
+        Path("policy/decision_v2.py"),
+        Path("policy/evaluation_facts.py"),
+    }
 
     # The result grants no execution authority.
     forbidden = {
@@ -306,7 +333,7 @@ def test_policy_v2_modules_are_pure(path: Path) -> None:
     for name in imported:
         root = name.split(".")[0]
         assert root not in FORBIDDEN_IMPORT_ROOTS, f"{path.name} imports {name}"
-        assert name not in FORBIDDEN_BLACKBREAD_MODULES, f"{path.name} imports {name}"
+        assert not _matches_forbidden_module(name), f"{path.name} imports {name}"
 
 
 def test_imported_modules_resolves_equivalent_import_forms(
@@ -377,6 +404,19 @@ def test_imported_modules_resolves_equivalent_import_forms(
             assert forbidden not in imported, f"[{test_id}] forbidden {forbidden!r} in {imported}"
 
 
+def test_forbidden_module_check_rejects_descendant_imports() -> None:
+    """_matches_forbidden_module must reject dotted descendants of forbidden
+    modules so the purity boundary cannot be bypassed by importing a submodule.
+    """
+    assert _matches_forbidden_module("blackbread.gateway")
+    assert _matches_forbidden_module("blackbread.gateway.client")
+    assert _matches_forbidden_module("blackbread.database.models")
+    assert _matches_forbidden_module("blackbread.ledger.append")
+    assert not _matches_forbidden_module("blackbread.policy.evaluation")
+    assert not _matches_forbidden_module("blackbread.conductor.contracts")
+    assert not _matches_forbidden_module("blackbread")
+
+
 def test_policy_evaluator_is_intentionally_unwired_and_non_authoritative() -> None:
     """The final policy evaluator and PolicyDecisionV2 are the authorized consumers
     of the runtime-gate evaluator and result.  No other production module may
@@ -394,13 +434,18 @@ def test_policy_evaluator_is_intentionally_unwired_and_non_authoritative() -> No
     decision_imports = _imported_modules(decision_v2_path)
     assert "blackbread.policy.runtime_result" in decision_imports
 
-    # No other production module imports evaluation or decision_v2.
-    for path in SRC.rglob("*.py"):
-        if path in {eval_path, decision_v2_path}:
-            continue
-        imports = _imported_modules(path)
-        assert "blackbread.policy.evaluation" not in imports, f"{path.name} imports evaluation"
-        assert "blackbread.policy.decision_v2" not in imports, f"{path.name} imports decision_v2"
+    # No other production module imports evaluation or decision_v2 beyond the
+    # authorized c2a evaluation-facts producer (for both) and the evaluator
+    # itself (for decision_v2).
+    assert _direct_importers("blackbread.policy.evaluation") == {Path("policy/evaluation_facts.py")}
+    assert _direct_importers("blackbread.policy.decision_v2") == {
+        Path("policy/evaluation.py"),
+        Path("policy/evaluation_facts.py"),
+    }
+
+    # The c2a evaluation-facts producer is itself an unwired leaf: no
+    # production module imports it.
+    assert _direct_importers("blackbread.policy.evaluation_facts") == set()
 
     # PolicyDecisionV2 has no lease, WorkOrder, token, activation, or target-effect field.
     forbidden_decision_fields = {
