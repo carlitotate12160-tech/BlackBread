@@ -22,6 +22,19 @@ def test_path_classification_is_segment_aware() -> None:
     assert paths_require_binding_review(["src/blackbread/kill_switch.py"])
 
 
+def test_migration_versions_are_safety_critical() -> None:
+    assert paths_require_binding_review(["migrations/versions/0008_m1_policy_recorder_identity.py"])
+    assert paths_require_binding_review(["migrations/versions/0007_m1_policy_records.py"])
+
+
+def test_migration_lookalike_paths_are_not_safety_critical() -> None:
+    assert not paths_require_binding_review(["migrations/env.py"])
+    assert not paths_require_binding_review(["migrations/script.py.mako"])
+    assert not paths_require_binding_review(["migrations/versions_archive/0001_old.py"])
+    assert not paths_require_binding_review(["docs/migrations/versions/example.py"])
+    assert not paths_require_binding_review(["tests/migrations/versions/test_probe.py"])
+
+
 def test_pr_agent_workflow_fails_closed_and_matches_label_exactly() -> None:
     workflow = WORKFLOW.read_text(encoding="utf-8")
 

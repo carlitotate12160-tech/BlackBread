@@ -2,10 +2,15 @@
 
 This list is the single source consumed by governance tests and the PR-Agent
 workflow classifier. Every safety-critical coverage module named in
-``pyproject.toml`` must be recognized here.
+``pyproject.toml`` must be recognized here. It also lists safety-critical
+delivery paths that are not coverage modules, such as Alembic migrations under
+``migrations/versions/`` (schema, tenant-isolation, privilege, and role DDL),
+so those changes require the binding current-head review and the
+``safety-critical`` label.
 """
 
 SAFETY_CRITICAL_PATH_PARTS = (
+    "migrations/versions/",
     "src/blackbread/ledger/",
     "src/blackbread/conductor/",
     "src/blackbread/graph/",
