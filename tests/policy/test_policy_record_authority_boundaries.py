@@ -6,22 +6,29 @@ Run against real PostgreSQL 17.
 
 from __future__ import annotations
 
+import copy
 import json
 import pathlib
+import re
 import uuid
 from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, ProgrammingError
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
 
+from blackbread.ledger.event import AgentEvent
 from blackbread.ledger.hashing import (
     GENESIS_PREV_HASH,
+    HASH_ALGORITHM,
+    HASH_VERSION,
     compute_event_hash,
     compute_payload_hash,
 )
 from tests.conftest import TEST_MIGRATION_DATABASE_URL
+from tests.policy._policy_record_builders import event_params, insert_event
+from tests.policy.conftest import LINEAGE_TENANT
 
 pytestmark = pytest.mark.anyio
 
@@ -312,3 +319,75 @@ def test_no_production_lease_workorder_token() -> None:
         content = py.read_text()
         for term in forbidden:
             assert term not in content, f"production module {py} references {term}"
+
+
+# ────────────────────────────────────────────────────────────────────
+# §B — Runtime identity oracle (mutation-sensitive)
+# ────────────────────────────────────────────────────────────────────
+
+
+async def test_runtime_cannot_insert_fully_valid_reserved_event(
+    session: AsyncSession, policy_admin_engine: AsyncEngine, lineage_base: dict
+) -> None:
+    """A reserved event that satisfies every NON-identity invariant is still refused for the
+    ordinary runtime role.
+
+    The submitted row carries the exact stored lineage (policy_decision_id = causation_id =
+    decision_id, correlation_id = proposal_id), the exact envelope and payload the trigger
+    rebuilds, real canonical payload/event hashes, the correct sequence and prev-hash for the
+    engagement head, and the matching tenant GUC. The only thing wrong with it is *who* inserts,
+    so the trigger's non-recorder ``current_user`` rejection is the sole possible cause of
+    failure. Removing that one rejection makes this insert succeed (mutation proof).
+    """
+    proposal, decision = lineage_base["proposal"], lineage_base["decision"]
+    event = copy.deepcopy(lineage_base["event"])
+    event["policy_decision_id"] = decision["decision_id"]
+
+    # Identity fields are exact, not derived.
+    assert event["causation_id"] == decision["decision_id"]
+    assert event["correlation_id"] == proposal["proposal_id"]
+    assert event["policy_decision_id"] == decision["decision_id"]
+
+    params = event_params(event, sequence=1, prev_hash=GENESIS_PREV_HASH)
+    params["payload_hash"] = compute_payload_hash(event["payload"])
+    sealed = AgentEvent(
+        id=params["id"],
+        engagement_id=event["engagement_id"],
+        tenant_id=event["tenant_id"],
+        sequence=params["sequence"],
+        schema_name=event["schema_name"],
+        schema_version=event["schema_version"],
+        producer=event["producer"],
+        correlation_id=event["correlation_id"],
+        causation_id=event["causation_id"],
+        occurred_at=event["occurred_at"],
+        recorded_at=params["recorded_at"],
+        payload=event["payload"],
+        payload_hash=params["payload_hash"],
+        prev_event_hash=params["prev_event_hash"],
+        event_hash="",
+        hash_algorithm=HASH_ALGORITHM,
+        hash_version=HASH_VERSION,
+        sensitivity=event["sensitivity"],
+        redaction_refs=event["redaction_refs"],
+    )
+    params["event_hash"] = compute_event_hash(sealed)
+
+    await session.execute(
+        text("SELECT set_config('blackbread.tenant_id', :t, true)"), {"t": LINEAGE_TENANT}
+    )
+    with pytest.raises(
+        (ProgrammingError, IntegrityError),
+        match=re.escape("policy.decision.recorded is reserved for blackbread_policy_recorder"),
+    ):
+        await insert_event(session, params)
+    await session.rollback()
+
+    async with policy_admin_engine.begin() as conn:
+        await conn.execute(
+            text("SELECT set_config('blackbread.tenant_id', :t, true)"), {"t": LINEAGE_TENANT}
+        )
+        surviving = await conn.scalar(
+            text("SELECT count(*) FROM agent_events WHERE schema_name = 'policy.decision.recorded'")
+        )
+    assert surviving == 0

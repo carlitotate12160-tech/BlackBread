@@ -52,11 +52,11 @@ _ROLE_FLAGS = sa.text(
     "rolcreatedb, rolcreaterole, rolreplication FROM pg_roles WHERE rolname = :role"
 )
 
+_RECORDER_TABLES = ("action_proposals", "decision_records", "agent_events", "engagements")
+_TABLE_REVOKES = tuple(f"REVOKE ALL ON TABLE {t} FROM {{role}}" for t in _RECORDER_TABLES)
+
 _GRANTS = (
-    "REVOKE ALL ON TABLE action_proposals FROM {role}",
-    "REVOKE ALL ON TABLE decision_records FROM {role}",
-    "REVOKE ALL ON TABLE agent_events FROM {role}",
-    "REVOKE ALL ON TABLE engagements FROM {role}",
+    *_TABLE_REVOKES,
     "REVOKE ALL ON SCHEMA public FROM {role}",
     "GRANT USAGE ON SCHEMA public TO {role}",
     "GRANT SELECT, INSERT ON TABLE action_proposals TO {role}",
@@ -69,13 +69,7 @@ _GRANTS = (
     "REVOKE ALL ON FUNCTION public.blackbread_validate_policy_event() FROM PUBLIC",
 )
 
-_REVOKES = (
-    "REVOKE ALL ON TABLE action_proposals FROM {role}",
-    "REVOKE ALL ON TABLE decision_records FROM {role}",
-    "REVOKE ALL ON TABLE agent_events FROM {role}",
-    "REVOKE ALL ON TABLE engagements FROM {role}",
-    "REVOKE USAGE ON SCHEMA public FROM {role}",
-)
+_REVOKES = (*_TABLE_REVOKES, "REVOKE USAGE ON SCHEMA public FROM {role}")
 
 # The trigger compares the whole payload against an object rebuilt from the durable proposal and
 # decision rows. jsonb equality is exact over keys, types and values (an empty object or wrong
@@ -233,16 +227,14 @@ $$
 
 def _effective_table_privileges(conn: sa.engine.Connection) -> set[tuple[str, str]]:
     """Every table privilege the recorder currently holds, including any reaching it via PUBLIC."""
-    rows = conn.execute(
-        _EFFECTIVE_TABLE_PRIVILEGES, {"role": RECORDER_ROLE, "privs": list(_TABLE_PRIVILEGES)}
-    ).all()
-    return {(row.table_name, row.privilege) for row in rows}
+    params = {"role": RECORDER_ROLE, "privs": list(_TABLE_PRIVILEGES)}
+    return {tuple(row) for row in conn.execute(_EFFECTIVE_TABLE_PRIVILEGES, params).all()}
 
 
-def _effective_column_privileges(conn: sa.engine.Connection) -> list[tuple[str, str, str]]:
+def _effective_column_privileges(conn: sa.engine.Connection) -> list[tuple[str, ...]]:
     """Column-level grants the recorder holds directly or via PUBLIC (missed by table checks)."""
     rows = conn.execute(_EFFECTIVE_COLUMN_PRIVILEGES, {"role": RECORDER_ROLE}).all()
-    return [(row.table_name, row.column_name, row.privilege_type) for row in rows]
+    return [tuple(row) for row in rows]
 
 
 def _validate_existing_recorder(conn: sa.engine.Connection) -> None:

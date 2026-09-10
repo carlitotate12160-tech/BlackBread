@@ -71,24 +71,17 @@ async def test_recorder_has_no_password(admin_session: AsyncSession) -> None:
     assert is_null is True
 
 
-async def test_recorder_has_no_parent_roles(admin_session: AsyncSession) -> None:
-    """Zero pg_auth_members rows where recorder is member."""
+@pytest.mark.parametrize("direction", ["member", "roleid"])
+async def test_recorder_has_no_role_memberships(
+    admin_session: AsyncSession, direction: str
+) -> None:
+    """Zero pg_auth_members rows in either direction: no parent roles and no member roles."""
     oid = await admin_session.scalar(
         text("SELECT oid FROM pg_roles WHERE rolname = 'blackbread_policy_recorder'")
     )
     count = await admin_session.scalar(
-        text("SELECT count(*) FROM pg_auth_members WHERE member = :oid"), {"oid": oid}
-    )
-    assert count == 0
-
-
-async def test_recorder_has_no_member_roles(admin_session: AsyncSession) -> None:
-    """Zero pg_auth_members rows where recorder is parent."""
-    oid = await admin_session.scalar(
-        text("SELECT oid FROM pg_roles WHERE rolname = 'blackbread_policy_recorder'")
-    )
-    count = await admin_session.scalar(
-        text("SELECT count(*) FROM pg_auth_members WHERE roleid = :oid"), {"oid": oid}
+        text(f"SELECT count(*) FROM pg_auth_members WHERE {direction} = :oid"),  # noqa: S608
+        {"oid": oid},
     )
     assert count == 0
 
@@ -100,87 +93,81 @@ async def test_runtime_cannot_assume_recorder(session: AsyncSession) -> None:
 
 
 # ────────────────────────────────────────────────────────────────────
-# §A — Schema privilege proofs
+# §A — Schema, table and column privilege proofs
 # ────────────────────────────────────────────────────────────────────
 
 
-async def test_recorder_has_schema_usage(session: AsyncSession) -> None:
+@pytest.mark.parametrize("privilege, expected", [("USAGE", True), ("CREATE", False)])
+async def test_recorder_schema_privileges(
+    session: AsyncSession, privilege: str, expected: bool
+) -> None:
+    """USAGE on schema public is granted; CREATE never is."""
     result = await session.scalar(
-        text("SELECT has_schema_privilege('blackbread_policy_recorder', 'public', 'USAGE')")
+        text("SELECT has_schema_privilege('blackbread_policy_recorder', 'public', :p)"),
+        {"p": privilege},
     )
-    assert result is True
+    assert result is expected
 
 
-async def test_recorder_has_no_schema_create(session: AsyncSession) -> None:
-    result = await session.scalar(
-        text("SELECT has_schema_privilege('blackbread_policy_recorder', 'public', 'CREATE')")
-    )
-    assert result is False
-
-
-# ────────────────────────────────────────────────────────────────────
-# §A — Table/column privilege proofs
-# ────────────────────────────────────────────────────────────────────
-
-
-_RECORDER_GRANTED_SELECT_INSERT = (
-    "action_proposals",
-    "decision_records",
-    "agent_events",
+@pytest.mark.parametrize("table", ["action_proposals", "decision_records", "agent_events"])
+@pytest.mark.parametrize(
+    "privilege, expected",
+    [
+        ("SELECT", True),
+        ("INSERT", True),
+        ("UPDATE", False),
+        ("DELETE", False),
+        ("TRUNCATE", False),
+    ],
 )
-
-
-@pytest.mark.parametrize("table", _RECORDER_GRANTED_SELECT_INSERT)
-async def test_recorder_select_insert_granted(session: AsyncSession, table: str) -> None:
-    for priv in ("SELECT", "INSERT"):
-        result = await session.scalar(
-            text(f"SELECT has_table_privilege('blackbread_policy_recorder', '{table}', '{priv}')")
-        )
-        assert result is True, f"expected {priv} on {table}"
-
-
-@pytest.mark.parametrize("table", _RECORDER_GRANTED_SELECT_INSERT)
-@pytest.mark.parametrize("priv", ["UPDATE", "DELETE", "TRUNCATE"])
-async def test_recorder_mutation_denied(session: AsyncSession, table: str, priv: str) -> None:
+async def test_recorder_table_privileges(
+    session: AsyncSession, table: str, privilege: str, expected: bool
+) -> None:
+    """Exactly SELECT+INSERT on the policy tables; never UPDATE, DELETE or TRUNCATE."""
     result = await session.scalar(
-        text(f"SELECT has_table_privilege('blackbread_policy_recorder', '{table}', '{priv}')")
+        text("SELECT has_table_privilege('blackbread_policy_recorder', :t, :p)"),
+        {"t": table, "p": privilege},
     )
-    assert result is False, f"unexpected {priv} on {table}"
+    assert result is expected, f"{privilege} on {table}"
 
 
 async def test_recorder_engagement_select(session: AsyncSession) -> None:
+    """The ledger anchor is readable so the recorder can lock it."""
     result = await session.scalar(
         text("SELECT has_table_privilege('blackbread_policy_recorder', 'engagements', 'SELECT')")
     )
     assert result is True
 
 
-async def test_recorder_engagement_lock_token_update(session: AsyncSession) -> None:
+@pytest.mark.parametrize(
+    "column, expected",
+    [
+        ("ledger_lock_token", True),
+        ("ledger_event_count", False),
+        ("ledger_head_hash", False),
+        ("status", False),
+    ],
+)
+async def test_recorder_engagement_column_updates(
+    session: AsyncSession, column: str, expected: bool
+) -> None:
+    """ledger_lock_token is the only engagements column the recorder may ever update."""
     result = await session.scalar(
         text(
-            "SELECT has_column_privilege("
-            "'blackbread_policy_recorder', 'engagements', 'ledger_lock_token', 'UPDATE')"
-        )
+            "SELECT has_column_privilege('blackbread_policy_recorder', 'engagements', :c, 'UPDATE')"
+        ),
+        {"c": column},
     )
-    assert result is True
-
-
-@pytest.mark.parametrize("col", ["ledger_event_count", "ledger_head_hash", "status"])
-async def test_recorder_engagement_other_cols_denied(session: AsyncSession, col: str) -> None:
-    result = await session.scalar(
-        text(
-            f"SELECT has_column_privilege("
-            f"'blackbread_policy_recorder', 'engagements', '{col}', 'UPDATE')"
-        )
-    )
-    assert result is False, f"unexpected UPDATE on engagements.{col}"
+    assert result is expected, f"UPDATE on engagements.{column}"
 
 
 @pytest.mark.parametrize("table", _DENIED_TABLES)
 async def test_recorder_no_privilege_on_unrelated_tables(session: AsyncSession, table: str) -> None:
+    """No effective privilege of any kind on application tables outside the grant list."""
     for priv in ("SELECT", "INSERT", "UPDATE", "DELETE"):
         result = await session.scalar(
-            text(f"SELECT has_table_privilege('blackbread_policy_recorder', '{table}', '{priv}')")
+            text("SELECT has_table_privilege('blackbread_policy_recorder', :t, :p)"),
+            {"t": table, "p": priv},
         )
         assert result is False, f"unexpected {priv} on {table}"
 
@@ -190,36 +177,40 @@ async def test_recorder_no_privilege_on_unrelated_tables(session: AsyncSession, 
 # ────────────────────────────────────────────────────────────────────
 
 
-async def test_trigger_is_security_invoker(session: AsyncSession) -> None:
-    """pg_proc.prosecdef = false for the validation trigger function."""
-    is_definer = await session.scalar(
-        text("SELECT prosecdef FROM pg_proc WHERE proname = 'blackbread_validate_policy_event'")
-    )
-    assert is_definer is False
+async def test_trigger_function_catalog_shape(session: AsyncSession) -> None:
+    """The validation function is SECURITY INVOKER, path-pinned, and not callable by PUBLIC.
 
-
-async def test_trigger_search_path(session: AsyncSession) -> None:
-    """proconfig contains the expected search_path."""
-    proconfig = (
+    PUBLIC's EXECUTE cannot be probed with ``has_function_privilege('PUBLIC', ...)``: PostgreSQL
+    has no role named PUBLIC and that call errors. The ACL is inspected instead, where PUBLIC is
+    grantee OID 0; a NULL ``proacl`` means the built-in default, which *does* grant EXECUTE to
+    PUBLIC, so it is rejected rather than treated as an empty grant list.
+    """
+    row = (
         await session.execute(
-            text("SELECT proconfig FROM pg_proc WHERE proname = 'blackbread_validate_policy_event'")
+            text(
+                "SELECT prosecdef, proconfig, "
+                "  proacl IS NOT NULL AND NOT EXISTS ("
+                "    SELECT 1 FROM aclexplode(proacl) AS a "
+                "    WHERE a.grantee = 0 AND a.privilege_type = 'EXECUTE') AS public_revoked "
+                "FROM pg_proc WHERE proname = 'blackbread_validate_policy_event'"
+            )
         )
-    ).scalar_one()
-    assert "search_path=pg_catalog, public" in proconfig
+    ).one()
+    assert row.prosecdef is False, "trigger function must be SECURITY INVOKER"
+    assert "search_path=pg_catalog, public" in row.proconfig
+    assert row.public_revoked is True, "PUBLIC must hold no EXECUTE on the trigger function"
 
 
 # ────────────────────────────────────────────────────────────────────
-# §A — Membership mutation proof (correction #3)
+# §A — Membership mutation proof
 # ────────────────────────────────────────────────────────────────────
 
 
 async def test_membership_mutation_proof(session: AsyncSession) -> None:
-    """Temporarily grant recorder to the test runtime, prove the non-assumability oracle fails,
-    revoke, and prove it holds again.
+    """Grant recorder to the test runtime, prove non-assumability fails, revoke, prove it holds.
 
-    Role membership is a cluster-wide, non-transactional grant, so the REVOKE runs in a ``finally``
-    to restore ``pg_auth_members`` even if an assertion fails. The suite runs serially (no xdist),
-    so no other worker observes the transient grant.
+    Membership is a cluster-wide, non-transactional grant, so the REVOKE runs in a ``finally`` to
+    restore ``pg_auth_members`` even if an assertion fails. The suite runs serially (no xdist).
     """
     admin = create_async_engine(TEST_MIGRATION_DATABASE_URL, isolation_level="AUTOCOMMIT")
     try:
@@ -237,9 +228,11 @@ async def test_membership_mutation_proof(session: AsyncSession) -> None:
                 await admin_conn.execute(
                     text("REVOKE blackbread_policy_recorder FROM blackbread_test_runtime")
                 )
+                # roleid, not member: the grant made the recorder the *granted role*, so the
+                # members-of-recorder direction is the one that must return to zero.
                 members = await admin_conn.scalar(
                     text(
-                        "SELECT count(*) FROM pg_auth_members WHERE member = "
+                        "SELECT count(*) FROM pg_auth_members WHERE roleid = "
                         "(SELECT oid FROM pg_roles WHERE rolname = 'blackbread_policy_recorder')"
                     )
                 )
@@ -254,30 +247,17 @@ async def test_membership_mutation_proof(session: AsyncSession) -> None:
 
 
 # ────────────────────────────────────────────────────────────────────
-# §G — Migration upgrade refusal with existing data
-# ────────────────────────────────────────────────────────────────────
-# These tests require isolated disposable databases.
-# They are created in their own conftest lifecycle harness.
-# See test_policy_record_migration_lifecycle.py for the isolated DB fixture.
-
-
-# ────────────────────────────────────────────────────────────────────
-# §5 — Incompatible existing recorder role (correction #5)
-# ────────────────────────────────────────────────────────────────────
-# This test needs an isolated lifecycle DB with a mis-privileged recorder.
-# It is placed in the migration lifecycle suite.
-
-
-# ────────────────────────────────────────────────────────────────────
-# §J — Compatibility: c2a golden hash and registry unchanged
+# §J — Compatibility: released c2a registry and preimage unchanged
 # ────────────────────────────────────────────────────────────────────
 
 
-async def test_c2a_golden_hash_preserved(session: AsyncSession) -> None:
-    """The released golden SHA-256 is unchanged."""
-    registry = policy_decision_registry()
-    key = ("policy.decision.recorded", 1)
-    assert key in registry._schemas
+async def test_policy_decision_registry_unchanged(session: AsyncSession) -> None:
+    """The frozen c2a registry still resolves the released schema key.
+
+    The golden SHA-256 vector itself is asserted by the preserved c2a suite
+    (tests/policy/test_policy_decision_recorded_event.py), which this slice does not modify.
+    """
+    assert ("policy.decision.recorded", 1) in policy_decision_registry()._schemas
 
 
 async def test_event_preimage_unchanged(session: AsyncSession) -> None:
@@ -309,25 +289,20 @@ async def _alembic_version(engine: AsyncEngine) -> str | None:
 
 async def _has_0008_objects(engine: AsyncEngine) -> bool:
     async with engine.begin() as conn:
-        trigger = await conn.scalar(
+        present = await conn.scalar(
             text(
-                "SELECT count(*) FROM pg_trigger "
-                "WHERE tgname = 'agent_events_validate_policy_event'"
+                "SELECT (SELECT count(*) FROM pg_trigger "
+                "        WHERE tgname = 'agent_events_validate_policy_event') "
+                "     + (SELECT count(*) FROM information_schema.columns "
+                "        WHERE table_name = 'agent_events' "
+                "          AND column_name = 'policy_decision_id')"
             )
         )
-        column = await conn.scalar(
-            text(
-                "SELECT count(*) FROM information_schema.columns "
-                "WHERE table_name = 'agent_events' AND column_name = 'policy_decision_id'"
-            )
-        )
-    return bool(trigger) or bool(column)
+    return bool(present)
 
 
-_APPEND_ONLY = (
-    ("agent_events", "agent_events_reject_truncate"),
-    ("action_proposals", "action_proposals_reject_truncate"),
-    ("decision_records", "decision_records_reject_truncate"),
+_APPEND_ONLY = tuple(
+    (t, f"{t}_reject_truncate") for t in ("agent_events", "action_proposals", "decision_records")
 )
 
 # Every column a c1 (0007) decision carries — the 0008 evaluation_request_digest is absent there.
@@ -367,39 +342,30 @@ async def _insert_decision_0007(engine: AsyncEngine, tenant: str, decision: dict
         )
 
 
-async def _seed_proposal(engine: AsyncEngine, tenant: str) -> tuple[dict, dict, uuid.UUID]:
+async def _seed_proposal(engine: AsyncEngine, tenant: str) -> dict:
+    """Commit one proposal at the current revision and return its coherent (unsaved) decision."""
     engagement = uuid.uuid4()
     proposal = proposal_row(tenant_id=tenant, engagement_id=engagement, proposal_id=uuid.uuid4())
-    decision = decision_row(proposal, tenant_id=tenant, engagement_id=engagement)
     await seed_engagement(engine, tenant, engagement)
     async with engine.begin() as conn:
         await conn.execute(
             text("SELECT set_config('blackbread.tenant_id', :t, true)"), {"t": tenant}
         )
         await insert_proposal(conn, proposal)
-    return proposal, decision, engagement
+    return decision_row(proposal, tenant_id=tenant, engagement_id=engagement)
 
 
-async def test_upgrade_refused_when_proposal_exists(
-    lifecycle_db: str, lifecycle_admin_engine: AsyncEngine
+@pytest.mark.parametrize("seed_decision", [False, True], ids=["proposal-only", "with-decision"])
+async def test_upgrade_refused_when_policy_rows_exist(
+    lifecycle_db: str, lifecycle_admin_engine: AsyncEngine, seed_decision: bool
 ) -> None:
-    await _reset_lifecycle(lifecycle_admin_engine, lifecycle_db)
-    run_alembic(lifecycle_db, "upgrade", REV_0007)
-    await _seed_proposal(lifecycle_admin_engine, f"t-{uuid.uuid4().hex[:8]}")
-    with pytest.raises(subprocess.CalledProcessError):
-        run_alembic(lifecycle_db, "upgrade", REV_0008)
-    assert await _alembic_version(lifecycle_admin_engine) == REV_0007
-    assert await _has_0008_objects(lifecycle_admin_engine) is False
-
-
-async def test_upgrade_refused_when_decision_exists(
-    lifecycle_db: str, lifecycle_admin_engine: AsyncEngine
-) -> None:
+    """0008 refuses to upgrade while any proposal (or proposal+decision) row survives at 0007."""
     await _reset_lifecycle(lifecycle_admin_engine, lifecycle_db)
     run_alembic(lifecycle_db, "upgrade", REV_0007)
     tenant = f"t-{uuid.uuid4().hex[:8]}"
-    _proposal, decision, _ = await _seed_proposal(lifecycle_admin_engine, tenant)
-    await _insert_decision_0007(lifecycle_admin_engine, tenant, decision)
+    decision = await _seed_proposal(lifecycle_admin_engine, tenant)
+    if seed_decision:
+        await _insert_decision_0007(lifecycle_admin_engine, tenant, decision)
     with pytest.raises(subprocess.CalledProcessError):
         run_alembic(lifecycle_db, "upgrade", REV_0008)
     assert await _alembic_version(lifecycle_admin_engine) == REV_0007
@@ -412,7 +378,7 @@ async def test_downgrade_refused_when_policy_state_exists(
     await _reset_lifecycle(lifecycle_admin_engine, lifecycle_db)
     run_alembic(lifecycle_db, "upgrade", REV_0008)
     tenant = f"t-{uuid.uuid4().hex[:8]}"
-    _proposal, decision, _ = await _seed_proposal(lifecycle_admin_engine, tenant)
+    decision = await _seed_proposal(lifecycle_admin_engine, tenant)
     async with lifecycle_admin_engine.begin() as conn:
         await conn.execute(
             text("SELECT set_config('blackbread.tenant_id', :t, true)"), {"t": tenant}
