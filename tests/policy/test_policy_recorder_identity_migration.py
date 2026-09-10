@@ -56,18 +56,25 @@ _SWEEP_MEMBERSHIP = text(
 
 @pytest.fixture(scope="module", autouse=True)
 def sweep_recorder_membership_after_module() -> Iterator[None]:
-    """Revoke any residual recorder membership left by an interrupted sensitivity test."""
+    """Revoke any residual recorder membership before and after the module.
+
+    Sweeps before ``yield`` to clean up residue from a prior interrupted test process, and after
+    ``yield`` to clean up residue from this module's own sensitivity test if it is interrupted.
+    """
+    asyncio.run(_sweep_membership())
+
     yield
 
-    async def _sweep() -> None:
-        admin = create_async_engine(TEST_MIGRATION_DATABASE_URL, isolation_level="AUTOCOMMIT")
-        try:
-            async with admin.connect() as conn:
-                await conn.execute(_SWEEP_MEMBERSHIP)
-        finally:
-            await admin.dispose()
+    asyncio.run(_sweep_membership())
 
-    asyncio.run(_sweep())
+
+async def _sweep_membership() -> None:
+    admin = create_async_engine(TEST_MIGRATION_DATABASE_URL, isolation_level="AUTOCOMMIT")
+    try:
+        async with admin.connect() as conn:
+            await conn.execute(_SWEEP_MEMBERSHIP)
+    finally:
+        await admin.dispose()
 
 
 @pytest_asyncio.fixture
