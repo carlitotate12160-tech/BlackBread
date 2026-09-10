@@ -257,6 +257,10 @@ class DecisionRecord(Base):
             "decision_id",
             name="uq_decision_records_decision_identity",
         ),
+        CheckConstraint(
+            "evaluation_request_digest ~ '^[0-9a-f]{64}$'",
+            name="ck_decision_records_eval_request_digest",
+        ),
         ForeignKeyConstraint(
             ["engagement_id", "tenant_id"],
             ["engagements.id", "engagements.tenant_id"],
