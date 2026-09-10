@@ -130,6 +130,4 @@ class AgentEvent(Base):
         default=list,
         server_default=text("'[]'::jsonb"),
     )
-    policy_decision_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), nullable=True
-    )
+    policy_decision_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)

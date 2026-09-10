@@ -113,6 +113,36 @@ async def _drop_runtime_login() -> None:
         await admin.dispose()
 
 
+_POLICY_TRUNCATE_TABLES = ("agent_events", "action_proposals", "decision_records")
+
+
+async def _clear_policy_state() -> None:
+    """Empty the policy-record and event tables before the teardown downgrade.
+
+    Migration 0008 blocks a downgrade while any proposal, decision, or policy event survives, so a
+    suite that leaves rows would otherwise wedge the shared teardown. Skips silently when the
+    tables are absent (a run that never reached those migrations)."""
+    admin = create_async_engine(TEST_MIGRATION_DATABASE_URL)
+    try:
+        async with admin.begin() as connection:
+            present = await connection.scalar(text("SELECT to_regclass('public.action_proposals')"))
+            if present is None:
+                return
+            for table in _POLICY_TRUNCATE_TABLES:
+                await connection.execute(
+                    text(f"ALTER TABLE {table} DISABLE TRIGGER {table}_reject_truncate")
+                )
+            await connection.execute(
+                text("TRUNCATE agent_events, action_proposals, decision_records CASCADE")
+            )
+            for table in _POLICY_TRUNCATE_TABLES:
+                await connection.execute(
+                    text(f"ALTER TABLE {table} ENABLE TRIGGER {table}_reject_truncate")
+                )
+    finally:
+        await admin.dispose()
+
+
 @pytest.fixture(scope="session")
 def migrated_database() -> Iterator[None]:
     environment = _migration_environment()
@@ -124,6 +154,9 @@ def migrated_database() -> Iterator[None]:
         check=True,
     )
     yield
+    # Migration 0008 refuses to downgrade while policy rows exist (the production guarantee), so any
+    # rows a suite left behind are cleared before the teardown downgrade runs.
+    asyncio.run(_clear_policy_state())
     subprocess.run(
         [sys.executable, "-m", "alembic", "downgrade", "base"],
         cwd=ROOT,

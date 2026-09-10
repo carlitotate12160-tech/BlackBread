@@ -17,6 +17,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from blackbread.conductor.contracts import ActionProposal
+from blackbread.ledger.hashing import canonical_timestamp
 from blackbread.policy.decision_v2 import PolicyDecisionV2
 from tests.conductor._builders import make_proposal
 
@@ -221,8 +222,6 @@ def policy_event_row(
 
     The trigger derives policy_decision_id from causation_id when null.
     """
-    from blackbread.ledger.hashing import canonical_timestamp
-
     decided_at_text = canonical_timestamp(decision["decided_at"])
     graph = {
         "state_root_version": decision["graph_state_root_version"],
@@ -261,3 +260,68 @@ def policy_event_row(
     }
     row.update(overrides)
     return row
+
+
+EVENT_COLUMNS = (
+    "id",
+    "engagement_id",
+    "tenant_id",
+    "sequence",
+    "schema_name",
+    "schema_version",
+    "producer",
+    "correlation_id",
+    "causation_id",
+    "policy_decision_id",
+    "occurred_at",
+    "recorded_at",
+    "payload",
+    "payload_hash",
+    "prev_event_hash",
+    "event_hash",
+    "hash_algorithm",
+    "hash_version",
+    "sensitivity",
+    "redaction_refs",
+)
+_EVENT_JSONB_COLUMNS = frozenset({"payload", "redaction_refs"})
+GENESIS_HASH = "0" * 64
+
+
+def event_params(
+    event: dict[str, Any],
+    *,
+    sequence: int = 1,
+    prev_hash: str = GENESIS_HASH,
+) -> dict[str, Any]:
+    """Full ``agent_events`` parameters for one lineage row.
+
+    Hash columns carry syntactically valid filler: the lineage trigger never inspects them, and
+    every rejection under test must be attributable to a lineage invariant rather than to a hash
+    check. The dedicated hash-continuity proof uses ``append_event`` instead of this helper.
+    """
+    row: dict[str, Any] = {
+        "id": uuid.uuid4(),
+        "sequence": sequence,
+        "recorded_at": datetime.now(UTC),
+        "policy_decision_id": None,
+        "payload_hash": uuid.uuid4().hex * 2,
+        "prev_event_hash": prev_hash,
+        "event_hash": uuid.uuid4().hex * 2,
+        "hash_algorithm": "sha256",
+        "hash_version": 1,
+    }
+    row.update(event)
+    return row
+
+
+async def insert_event(conn: AsyncConnection, row: dict[str, Any]) -> None:
+    """Insert an agent_events row via parameterized raw SQL."""
+    placeholders = ", ".join(
+        f"CAST(:{c} AS jsonb)" if c in _EVENT_JSONB_COLUMNS else f":{c}" for c in EVENT_COLUMNS
+    )
+    statement = text(
+        f"INSERT INTO agent_events ({', '.join(EVENT_COLUMNS)}) VALUES ({placeholders})"  # noqa: S608
+    )
+    params = {c: json.dumps(row[c]) if c in _EVENT_JSONB_COLUMNS else row[c] for c in EVENT_COLUMNS}
+    await conn.execute(statement, params)

@@ -530,12 +530,8 @@ async def test_migration_installs_integrity_controls(session: AsyncSession) -> N
         (
             await session.execute(
                 text(
-                    """
-                    SELECT tgname
-                    FROM pg_trigger
-                    WHERE tgrelid = 'agent_events'::regclass
-                      AND NOT tgisinternal
-                    """
+                    "SELECT tgname FROM pg_trigger "
+                    "WHERE tgrelid = 'agent_events'::regclass AND NOT tgisinternal"
                 )
             )
         )
@@ -545,13 +541,7 @@ async def test_migration_installs_integrity_controls(session: AsyncSession) -> N
     constraints = set(
         (
             await session.execute(
-                text(
-                    """
-                    SELECT conname
-                    FROM pg_constraint
-                    WHERE conrelid = 'agent_events'::regclass
-                    """
-                )
+                text("SELECT conname FROM pg_constraint WHERE conrelid = 'agent_events'::regclass")
             )
         )
         .scalars()

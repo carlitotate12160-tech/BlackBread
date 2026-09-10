@@ -37,6 +37,7 @@ async def _fresh(engine: AsyncEngine) -> tuple[str, uuid.UUID]:
 
 
 async def _commit_proposal(engine: AsyncEngine, **overrides: Any) -> dict[str, Any]:
+    overrides.setdefault("idempotency_key", f"idem-{uuid.uuid4().hex[:12]}")
     row = proposal_row(proposal_id=uuid.uuid4(), **overrides)
     async with engine.begin() as conn:
         await insert_proposal(conn, row)
@@ -79,17 +80,14 @@ async def test_all_released_outcome_reason_pairs_are_accepted(
     policy_admin_engine: AsyncEngine,
 ) -> None:
     tenant, engagement_id = await _fresh(policy_admin_engine)
-    proposal = await _commit_proposal(
-        policy_admin_engine, tenant_id=tenant, engagement_id=engagement_id
-    )
     pairs: list[tuple[str, str | None]] = [("ALLOW", None)]
     pairs += [(outcome, reason) for reason, outcome in FINAL_OUTCOME_BY_REASON.items()]
     for outcome, reason in pairs:
-        p = await _commit_proposal(policy_admin_engine, tenant_id=tenant, engagement_id=engagement_id)
+        p = await _commit_proposal(
+            policy_admin_engine, tenant_id=tenant, engagement_id=engagement_id
+        )
         async with policy_admin_engine.begin() as conn:
-            await insert_decision(
-                conn, decision_row(p, build_outcome=outcome, build_reason=reason)
-            )
+            await insert_decision(conn, decision_row(p, build_outcome=outcome, build_reason=reason))
     assert await _count(policy_admin_engine, "decision_records", tenant) == len(pairs)
 
 
@@ -97,25 +95,28 @@ async def test_all_cross_category_outcome_reason_pairs_are_rejected(
     policy_admin_engine: AsyncEngine,
 ) -> None:
     tenant, engagement_id = await _fresh(policy_admin_engine)
-    proposal = await _commit_proposal(
-        policy_admin_engine, tenant_id=tenant, engagement_id=engagement_id
-    )
     for reason, correct in FINAL_OUTCOME_BY_REASON.items():
         for wrong in FINAL_OUTCOMES - {correct}:
-            p = await _commit_proposal(policy_admin_engine, tenant_id=tenant, engagement_id=engagement_id)
+            p = await _commit_proposal(
+                policy_admin_engine, tenant_id=tenant, engagement_id=engagement_id
+            )
             bad = decision_row(p, outcome=wrong, reason_code=reason)
             await _reject(
                 policy_admin_engine, insert_decision, bad, "ck_decision_records_outcome_reason"
             )
     # ALLOW must carry no reason; a non-ALLOW outcome must carry one.
-    p_allow = await _commit_proposal(policy_admin_engine, tenant_id=tenant, engagement_id=engagement_id)
+    p_allow = await _commit_proposal(
+        policy_admin_engine, tenant_id=tenant, engagement_id=engagement_id
+    )
     await _reject(
         policy_admin_engine,
         insert_decision,
         decision_row(p_allow, outcome="ALLOW", reason_code="ADMISSION_DENIED"),
         "ck_decision_records_outcome_reason",
     )
-    p_deny = await _commit_proposal(policy_admin_engine, tenant_id=tenant, engagement_id=engagement_id)
+    p_deny = await _commit_proposal(
+        policy_admin_engine, tenant_id=tenant, engagement_id=engagement_id
+    )
     await _reject(
         policy_admin_engine,
         insert_decision,

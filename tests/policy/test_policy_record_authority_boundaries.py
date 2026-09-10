@@ -6,16 +6,22 @@ Run against real PostgreSQL 17.
 
 from __future__ import annotations
 
+import json
+import pathlib
 import uuid
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, ProgrammingError
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
-from tests.policy._policy_record_builders import (
-    proposal_row,
+from blackbread.ledger.hashing import (
+    GENESIS_PREV_HASH,
+    compute_event_hash,
+    compute_payload_hash,
 )
+from tests.conftest import TEST_MIGRATION_DATABASE_URL
 
 pytestmark = pytest.mark.anyio
 
@@ -31,7 +37,6 @@ async def test_runtime_proposal_insert_denied(session: AsyncSession) -> None:
     """blackbread_test_runtime INSERT into action_proposals fails."""
     await session.execute(text(f"SET LOCAL blackbread.tenant_id = '{TENANT}'"))
     engagement_id = uuid.uuid4()
-    p = proposal_row(tenant_id=TENANT, engagement_id=engagement_id)
     with pytest.raises(ProgrammingError, match="permission denied"):
         await session.execute(
             text(
@@ -128,9 +133,7 @@ async def test_runtime_cannot_assume_recorder_role(session: AsyncSession) -> Non
 
 async def test_no_durable_row_after_denial(session: AsyncSession) -> None:
     """Admin confirms zero policy rows after denied runtime inserts."""
-    from sqlalchemy.ext.asyncio import create_async_engine
 
-    from tests.conftest import TEST_MIGRATION_DATABASE_URL
     admin_url = TEST_MIGRATION_DATABASE_URL
     admin = create_async_engine(admin_url)
     try:
@@ -168,9 +171,7 @@ async def test_ordinary_non_policy_event_succeeds(session: AsyncSession) -> None
 
     This proves ordinary runtime event append remains compatible.
     """
-    from sqlalchemy.ext.asyncio import create_async_engine
 
-    from tests.conftest import TEST_MIGRATION_DATABASE_URL
     admin_url = TEST_MIGRATION_DATABASE_URL
     admin = create_async_engine(admin_url)
     compat_tenant = "compat-non-policy-tenant"
@@ -181,8 +182,8 @@ async def test_ordinary_non_policy_event_succeeds(session: AsyncSession) -> None
             # Create a client and engagement for this test
             client_id = uuid.uuid4()
             await conn.execute(
-                text("INSERT INTO clients (id, tenant_id) VALUES (:id, :tid)"),
-                {"id": client_id, "tid": compat_tenant},
+                text("INSERT INTO clients (id, name, tenant_id) VALUES (:id, :n, :tid)"),
+                {"id": client_id, "n": "compat-client", "tid": compat_tenant},
             )
             await conn.execute(
                 text(
@@ -195,8 +196,6 @@ async def test_ordinary_non_policy_event_succeeds(session: AsyncSession) -> None
         await admin.dispose()
 
     # Now insert a normal event as the runtime role
-    from blackbread.ledger.hashing import GENESIS_PREV_HASH, compute_event_hash, compute_payload_hash
-    from datetime import UTC, datetime
 
     event_id = uuid.uuid4()
     now = datetime.now(UTC)
@@ -228,8 +227,6 @@ async def test_ordinary_non_policy_event_succeeds(session: AsyncSession) -> None
     h.redaction_refs = []
     event_hash = compute_event_hash(h)
 
-    import json
-
     await session.execute(text(f"SET LOCAL blackbread.tenant_id = '{compat_tenant}'"))
     await session.execute(
         text(
@@ -238,7 +235,7 @@ async def test_ordinary_non_policy_event_succeeds(session: AsyncSession) -> None
             "payload, payload_hash, prev_event_hash, event_hash, "
             "hash_algorithm, hash_version, sensitivity, redaction_refs) "
             "VALUES (:id, :eid, :tid, 1, 'engagement.attested', 1, "
-            "'test-runtime.v1', :occ, :rec, :p::jsonb, :ph, :peh, :eh, "
+            "'test-runtime.v1', :occ, :rec, CAST(:p AS jsonb), :ph, :peh, :eh, "
             "'sha256', 1, 'internal', '[]'::jsonb)"
         ),
         {
@@ -273,8 +270,6 @@ async def test_ordinary_non_policy_event_succeeds(session: AsyncSession) -> None
 
 def test_no_production_evaluation_facts_import() -> None:
     """No production module imports evaluation_facts for persistence."""
-    import pathlib
-
     src = pathlib.Path("src/blackbread")
     excluded = {"governance", "__pycache__"}
     for py in src.rglob("*.py"):
@@ -290,8 +285,6 @@ def test_no_production_evaluation_facts_import() -> None:
 
 def test_no_production_set_role_recorder() -> None:
     """No production code contains SET ROLE blackbread_policy_recorder."""
-    import pathlib
-
     src = pathlib.Path("src/blackbread")
     for py in src.rglob("*.py"):
         content = py.read_text()
@@ -302,14 +295,10 @@ def test_no_production_set_role_recorder() -> None:
 
 def test_no_production_append_policy_event() -> None:
     """No production code calls append_event for policy.decision.recorded."""
-    import pathlib
-
     src = pathlib.Path("src/blackbread")
     for py in src.rglob("*.py"):
         content = py.read_text()
-        if "policy.decision.recorded" in content and py.name not in (
-            "evaluation_facts.py",
-        ):
+        if "policy.decision.recorded" in content and py.name not in ("evaluation_facts.py",):
             assert "append_event" not in content, (
                 f"production module {py} has both policy.decision.recorded and append_event"
             )
@@ -317,8 +306,6 @@ def test_no_production_append_policy_event() -> None:
 
 def test_no_production_lease_workorder_token() -> None:
     """No production code adds lease, WorkOrder, token, or capability activation fields."""
-    import pathlib
-
     src = pathlib.Path("src/blackbread")
     forbidden = ["WorkOrder", "execution_token", "capability_activation", "target_effect"]
     for py in src.rglob("*.py"):

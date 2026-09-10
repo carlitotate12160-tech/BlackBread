@@ -172,7 +172,7 @@ async def test_upgrade_strips_default_privilege_dml_from_runtime(
     async with lifecycle_admin_engine.begin() as conn:
         await conn.execute(text(_GRANT_DEFAULTS))
     try:
-        run_alembic(lifecycle_db, "upgrade", HEAD)
+        run_alembic(lifecycle_db, "upgrade", REV_0007)
         async with lifecycle_admin_engine.begin() as conn:
             for table in NEW_TABLES:
                 has_select = await conn.scalar(

@@ -252,7 +252,10 @@ class DecisionRecord(Base):
             "tenant_id", "engagement_id", "proposal_id", name="uq_decision_records_proposal"
         ),
         UniqueConstraint(
-            "tenant_id", "engagement_id", "decision_id", name="uq_decision_records_decision_identity"
+            "tenant_id",
+            "engagement_id",
+            "decision_id",
+            name="uq_decision_records_decision_identity",
         ),
         ForeignKeyConstraint(
             ["engagement_id", "tenant_id"],

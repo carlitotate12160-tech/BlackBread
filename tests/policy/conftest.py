@@ -20,12 +20,22 @@ import pytest
 import pytest_asyncio
 from sqlalchemy import text
 from sqlalchemy.engine import make_url
+from sqlalchemy.exc import IntegrityError, ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from sqlalchemy.pool import NullPool
 
 from tests.conftest import (
     TEST_MIGRATION_DATABASE_URL,
     TEST_RUNTIME_PASSWORD,
+)
+from tests.policy._policy_record_builders import (
+    decision_row,
+    event_params,
+    insert_decision,
+    insert_event,
+    insert_proposal,
+    policy_event_row,
+    proposal_row,
 )
 
 ROOT = Path(__file__).parents[2]
@@ -183,3 +193,114 @@ async def lifecycle_admin_engine(lifecycle_db: str) -> AsyncIterator[AsyncEngine
         yield engine
     finally:
         await engine.dispose()
+
+
+# ---------------------------------------------------------------------------
+# M1.4c2b0 decision-event lineage helpers
+# ---------------------------------------------------------------------------
+
+LINEAGE_TENANT = "lineage-test-tenant"
+
+
+async def _seed_lineage(engine: AsyncEngine, tenant: str) -> dict[str, object]:
+    """Seed one coherent proposal + decision and return the lineage building blocks.
+
+    Insertion runs on the superuser admin engine because the runtime login lacks INSERT on the
+    proposal and decision tables; the recorder is assumed separately for event inserts.
+    """
+    engagement_id = uuid.uuid4()
+    proposal = proposal_row(
+        tenant_id=tenant,
+        engagement_id=engagement_id,
+        proposal_id=uuid.uuid4(),
+        idempotency_key=f"idem-{uuid.uuid4().hex[:12]}",
+    )
+    decision = decision_row(proposal, tenant_id=tenant, engagement_id=engagement_id)
+    async with engine.begin() as conn:
+        await conn.execute(
+            text("SELECT set_config('blackbread.tenant_id', :t, true)"), {"t": tenant}
+        )
+        await seed_engagement(engine, tenant, engagement_id)
+    async with engine.begin() as conn:
+        await conn.execute(
+            text("SELECT set_config('blackbread.tenant_id', :t, true)"), {"t": tenant}
+        )
+        await insert_proposal(conn, proposal)
+        await insert_decision(conn, decision)
+    return {
+        "proposal": proposal,
+        "decision": decision,
+        "event": policy_event_row(proposal, decision),
+        "engagement_id": engagement_id,
+        "tenant": tenant,
+    }
+
+
+@pytest_asyncio.fixture
+async def lineage_base(policy_admin_engine: AsyncEngine) -> dict[str, object]:
+    """A committed proposal + decision plus a coherent policy-event template."""
+    return await _seed_lineage(policy_admin_engine, LINEAGE_TENANT)
+
+
+async def insert_event_as_recorder(
+    engine: AsyncEngine,
+    event: dict[str, object],
+    *,
+    tenant: str = LINEAGE_TENANT,
+    sequence: int = 1,
+    prev_hash: str = GENESIS_HASH,
+) -> None:
+    """Insert an agent_events row while impersonating the inert recorder role."""
+    async with engine.begin() as conn:
+        await conn.execute(
+            text("SELECT set_config('blackbread.tenant_id', :t, true)"), {"t": tenant}
+        )
+        await conn.execute(text("SET LOCAL ROLE blackbread_policy_recorder"))
+        await insert_event(conn, event_params(event, sequence=sequence, prev_hash=prev_hash))
+
+
+async def assert_recorder_insert_rejected(
+    engine: AsyncEngine,
+    event: dict[str, object],
+    *,
+    match: str,
+    tenant: str = LINEAGE_TENANT,
+    sequence: int = 1,
+) -> None:
+    """Assert the recorder insert fails and the failure is the intended invariant, not another.
+
+    ``match`` is asserted against the raised database error so each rejection is attributed to the
+    trigger message (or constraint) it is meant to prove, never to an unrelated check.
+    """
+    with pytest.raises((IntegrityError, ProgrammingError), match=match):
+        await insert_event_as_recorder(engine, event, tenant=tenant, sequence=sequence)
+
+
+_APPEND_ONLY_TRIGGERS = (
+    ("agent_events", "agent_events_reject_mutation"),
+    ("agent_events", "agent_events_reject_truncate"),
+    ("action_proposals", "action_proposals_reject_mutation"),
+    ("action_proposals", "action_proposals_reject_truncate"),
+    ("decision_records", "decision_records_reject_mutation"),
+    ("decision_records", "decision_records_reject_truncate"),
+)
+
+
+async def reset_policy_state(engine: AsyncEngine) -> None:
+    """Empty the policy-record and event tables so a suite leaves no rows behind.
+
+    Append-only tables reject TRUNCATE, so their guard triggers are disabled around the wipe. This
+    keeps the session-scoped ``downgrade base`` teardown honest: 0008 refuses to downgrade while
+    policy rows exist, which is the intended production guarantee, not a teardown failure.
+    """
+    async with engine.begin() as conn:
+        for table, trigger in _APPEND_ONLY_TRIGGERS:
+            await conn.execute(text(f"ALTER TABLE {table} DISABLE TRIGGER {trigger}"))
+        await conn.execute(
+            text(
+                "TRUNCATE agent_events, decision_records, action_proposals, "
+                "engagements, clients CASCADE"
+            )
+        )
+        for table, trigger in _APPEND_ONLY_TRIGGERS:
+            await conn.execute(text(f"ALTER TABLE {table} ENABLE TRIGGER {trigger}"))
