@@ -7,15 +7,19 @@ migrated test database (revision ``0008_m1_policy_recorder_identity``). Proves t
 BlackBread login/runtime identities cannot ``SET ROLE`` to it.
 
 A temporary-mutation proof shows the non-assumability oracle is genuinely sensitive: granting
-recorder membership to the test runtime makes ``SET ROLE`` succeed, and the grant is revoked in
-``finally`` so the mutation is never left behind. ``blackbread_app`` does not exist in the loopback
-test cluster (``deploy/postgres/init-runtime.sh`` creates it only on a deployed cluster); its
-non-assumability is proven on the Oracle ARM64 cluster and recorded in the pull request.
+recorder membership to the test runtime makes ``SET ROLE`` succeed. The grant is committed
+transiently (the separate ``runtime_login_engine`` login session must observe it), then reverted in
+``finally``; a module-scoped finalizer additionally sweeps any residual membership so an interrupted
+run cannot leave it behind. The suite runs serially (no ``pytest -n``), so no concurrent test
+observes the transient grant. ``blackbread_app`` does not exist in the loopback test cluster
+(``deploy/postgres/init-runtime.sh`` creates it only on a deployed cluster); its non-assumability is
+proven on the Oracle ARM64 cluster and recorded in the pull request.
 """
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+import asyncio
+from collections.abc import AsyncIterator, Iterator
 
 import pytest
 import pytest_asyncio
@@ -24,7 +28,7 @@ from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from sqlalchemy.pool import NullPool
 
-from tests.conftest import TEST_DATABASE_URL
+from tests.conftest import TEST_DATABASE_URL, TEST_MIGRATION_DATABASE_URL
 
 RECORDER_ROLE = "blackbread_policy_recorder"
 RUNTIME_ROLE = "blackbread_runtime"
@@ -39,6 +43,31 @@ _ATTRIBUTES = text(
     "rolbypassrls, rolconnlimit, (rolpassword IS NULL) AS pw_null, "
     "(rolvaliduntil IS NULL) AS valid_null FROM pg_authid WHERE rolname = :name"
 )
+# Best-effort sweep of the transient sensitivity-test membership; a DO block so it is a no-op when
+# either role is absent (REVOKE on a non-existent role would otherwise error).
+_SWEEP_MEMBERSHIP = text(
+    "DO $$ BEGIN "
+    "IF EXISTS (SELECT 1 FROM pg_authid WHERE rolname = 'blackbread_policy_recorder') "
+    "AND EXISTS (SELECT 1 FROM pg_authid WHERE rolname = 'blackbread_test_runtime') "
+    "THEN EXECUTE 'REVOKE blackbread_policy_recorder FROM blackbread_test_runtime'; "
+    "END IF; END $$"
+)
+
+
+@pytest.fixture(scope="module", autouse=True)
+def sweep_recorder_membership_after_module() -> Iterator[None]:
+    """Revoke any residual recorder membership left by an interrupted sensitivity test."""
+    yield
+
+    async def _sweep() -> None:
+        admin = create_async_engine(TEST_MIGRATION_DATABASE_URL, isolation_level="AUTOCOMMIT")
+        try:
+            async with admin.connect() as conn:
+                await conn.execute(_SWEEP_MEMBERSHIP)
+        finally:
+            await admin.dispose()
+
+    asyncio.run(_sweep())
 
 
 @pytest_asyncio.fixture
@@ -158,8 +187,9 @@ async def test_non_assumability_oracle_is_sensitive_to_membership(
     policy_admin_engine: AsyncEngine, runtime_login_engine: AsyncEngine
 ) -> None:
     """Adversarial sensitivity check: with recorder membership granted the SET ROLE succeeds, so a
-    passing non-assumability oracle above is meaningful. The membership is revoked in ``finally``
-    and is never committed."""
+    passing non-assumability oracle above is meaningful. The grant is committed transiently so the
+    separate ``runtime_login_engine`` login session observes it, then reverted in ``finally``; the
+    module finalizer sweeps any residue if this test is interrupted before the revoke."""
     async with policy_admin_engine.begin() as conn:
         await conn.execute(text(f"GRANT {RECORDER_ROLE} TO {TEST_LOGIN_ROLE}"))
     try:

@@ -172,24 +172,26 @@ async def test_clean_pre_existing_role_preserved_with_same_oid(
     assert await _recorder_oid(lifecycle_admin_engine) == oid_before, "role was dropped/recreated"
 
 
-# label -> (attribute fragment that breaks the inert shape, fragment that restores it).
-_ATTRIBUTE_CASES: tuple[tuple[str, str, str], ...] = (
-    ("login", "LOGIN", "NOLOGIN"),
-    ("inherit", "INHERIT", "NOINHERIT"),
-    ("superuser", "SUPERUSER", "NOSUPERUSER"),
-    ("createdb", "CREATEDB", "NOCREATEDB"),
-    ("createrole", "CREATEROLE", "NOCREATEROLE"),
-    ("replication", "REPLICATION", "NOREPLICATION"),
-    ("bypassrls", "BYPASSRLS", "NOBYPASSRLS"),
-    ("connlimit", "CONNECTION LIMIT 5", "CONNECTION LIMIT -1"),
-    ("password", "PASSWORD 'not-inert'", "PASSWORD NULL"),
-    ("validity", "VALID UNTIL '2030-01-01'", "VALID UNTIL 'infinity'"),
-    ("role_setting", "SET search_path = public", "RESET search_path"),
+# label -> ``ALTER ROLE`` fragment that breaks the exact inert shape. Cleanup drops and recreates
+# the role (there is no ``NO VALID UNTIL`` clause, so ``VALID UNTIL`` cannot be reset to NULL by
+# ALTER); recreating restores the exact inert identity uniformly for every case.
+_ATTRIBUTE_CASES: tuple[tuple[str, str], ...] = (
+    ("login", "LOGIN"),
+    ("inherit", "INHERIT"),
+    ("superuser", "SUPERUSER"),
+    ("createdb", "CREATEDB"),
+    ("createrole", "CREATEROLE"),
+    ("replication", "REPLICATION"),
+    ("bypassrls", "BYPASSRLS"),
+    ("connlimit", "CONNECTION LIMIT 5"),
+    ("password", "PASSWORD 'not-inert'"),
+    ("validity", "VALID UNTIL '2030-01-01'"),
+    ("role_setting", "SET search_path = public"),
 )
 
 
 @pytest.mark.parametrize(
-    ("label", "break_frag", "restore_frag"),
+    ("label", "break_frag"),
     _ATTRIBUTE_CASES,
     ids=[case[0] for case in _ATTRIBUTE_CASES],
 )
@@ -198,7 +200,6 @@ async def test_upgrade_rejects_non_inert_role(
     lifecycle_admin_engine: AsyncEngine,
     label: str,
     break_frag: str,
-    restore_frag: str,
 ) -> None:
     await _reset_to_0007(lifecycle_db)
     await _ensure_clean_recorder()
@@ -211,7 +212,9 @@ async def test_upgrade_rejects_non_inert_role(
         # No silent normalisation: the role is still present and the same object.
         assert await _recorder_oid(lifecycle_admin_engine) == oid_before
     finally:
-        await _run_admin(f"ALTER ROLE {RECORDER_ROLE} {restore_frag}")
+        # Recreate rather than ALTER back: this restores the exact inert identity for every case,
+        # including ``validity`` where ``VALID UNTIL 'infinity'`` would leave rolvaliduntil set.
+        await _ensure_clean_recorder()
 
 
 _MEMBERSHIP_CASES = (
