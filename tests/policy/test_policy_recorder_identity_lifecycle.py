@@ -414,6 +414,33 @@ async def test_downgrade_aborts_when_role_has_dependency(
         await probe.dispose()
 
 
+async def test_downgrade_aborts_when_recorder_role_is_missing(
+    lifecycle_db: str, lifecycle_admin_engine: AsyncEngine
+) -> None:
+    """A missing recorder role during downgrade must abort and leave Alembic at 0008, not silently
+    advance to 0007 via ``DROP ROLE IF EXISTS``. The migration must not recreate or invent the role.
+    """
+    await _reset_to_0007(lifecycle_db)
+    await _drop_recorder()
+    run_alembic(lifecycle_db, "upgrade", REV_0008)
+    assert await _alembic_version(lifecycle_admin_engine) == REV_0008
+    assert await _recorder_present(lifecycle_admin_engine)
+
+    # A privileged actor deletes the recorder out-of-band between the upgrade and the downgrade.
+    await _drop_recorder()
+    assert not await _recorder_present(lifecycle_admin_engine)
+
+    output = _alembic_expecting_failure(lifecycle_db, "downgrade", REV_0007)
+    assert RECORDER_ROLE in output, "failure must name the recorder role"
+    assert "missing" in output.lower(), "failure must report the missing recorder-role state"
+    # The downgrade must not advance: revision stays at 0008 with inconsistent recorder state.
+    assert await _alembic_version(lifecycle_admin_engine) == REV_0008
+    # The migration must not recreate or invent the role during the aborted downgrade.
+    assert not await _recorder_present(lifecycle_admin_engine)
+    # Restore the exact clean role so randomized ordering and module teardown are not poisoned.
+    await _ensure_clean_recorder()
+
+
 async def test_commit_ambiguity_reconciliation_matrix(
     lifecycle_db: str, lifecycle_admin_engine: AsyncEngine
 ) -> None:

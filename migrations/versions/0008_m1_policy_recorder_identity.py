@@ -175,11 +175,16 @@ def upgrade() -> None:
 def downgrade() -> None:
     bind = op.get_bind()
     state = _load_recorder_state(bind)
-    if state is not None and not state.is_clean:
+    if state is None:
+        raise RuntimeError(
+            f"{RECORDER_ROLE} is missing; refusing to advance downgrade from "
+            "0008 with inconsistent recorder-role state"
+        )
+    if not state.is_clean:
         raise RuntimeError(
             f"{RECORDER_ROLE} changed or acquired a dependency (attribute "
             f"violations={state.attribute_violations()}, "
             f"direct_dependencies={state.direct_dependencies}, memberships={state.memberships}, "
             f"settings={state.settings}); refusing to drop it during downgrade"
         )
-    op.execute(sa.text(f"DROP ROLE IF EXISTS {RECORDER_ROLE}"))
+    op.execute(sa.text(f"DROP ROLE {RECORDER_ROLE}"))
