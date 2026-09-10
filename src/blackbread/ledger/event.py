@@ -35,11 +35,11 @@ class AgentEvent(Base):
             name="fk_agent_events_engagement_tenant",
             ondelete="RESTRICT",
         ),
-        # M1.4c2b0 policy-decision lineage. Migration 0008 owns the composite foreign key
-        # (agent_events.{tenant_id,engagement_id,policy_decision_id} -> decision_records); it is
-        # deliberately NOT mirrored here because it would couple every ledger-only mapper
-        # configuration to the policy layer's decision_records table. The coherence CHECK and the
-        # partial unique index reference only agent_events columns, so they are mirrored safely.
+        # M1.4c2b0 policy-decision lineage. Migration 0008 owns the composite foreign key from
+        # (tenant_id, engagement_id, policy_decision_id) to the policy decision record; it is
+        # deliberately NOT mirrored here because that would couple every ledger-only mapper
+        # configuration to the policy mapping module, which this layer must not name. The coherence
+        # CHECK and the partial unique index reference only agent_events columns, so they are safe.
         CheckConstraint(
             "(schema_name = 'policy.decision.recorded' AND schema_version = 1 "
             "AND policy_decision_id IS NOT NULL) "
