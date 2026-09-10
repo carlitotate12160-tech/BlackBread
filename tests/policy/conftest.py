@@ -46,6 +46,19 @@ async def _ensure_roles() -> None:
                         "NOCREATEDB NOCREATEROLE NOREPLICATION"
                     )
                 )
+            recorder_exists = await conn.scalar(
+                text(
+                    "SELECT EXISTS (SELECT 1 FROM pg_roles "
+                    "WHERE rolname = 'blackbread_policy_recorder')"
+                )
+            )
+            if not recorder_exists:
+                await conn.execute(
+                    text(
+                        "CREATE ROLE blackbread_policy_recorder NOLOGIN NOINHERIT NOSUPERUSER "
+                        "NOBYPASSRLS NOCREATEDB NOCREATEROLE NOREPLICATION"
+                    )
+                )
             await conn.execute(text("DROP ROLE IF EXISTS blackbread_test_runtime"))
             create = await conn.scalar(
                 text(

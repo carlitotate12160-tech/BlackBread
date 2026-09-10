@@ -24,4 +24,12 @@ CREATE ROLE blackbread_app
     NOREPLICATION
     PASSWORD :'runtime_password'
     IN ROLE blackbread_runtime;
+CREATE ROLE blackbread_policy_recorder
+    NOLOGIN
+    NOINHERIT
+    NOSUPERUSER
+    NOBYPASSRLS
+    NOCREATEDB
+    NOCREATEROLE
+    NOREPLICATION;
 SQL

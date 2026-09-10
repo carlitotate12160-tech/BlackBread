@@ -4,6 +4,8 @@ Runs only against a private throwaway database created by the lifecycle harness;
 the shared development or Oracle production database. Proves the upgrade creates the M1.4c1 objects,
 the downgrade removes only those objects, and representative <=0006 ledger behavior survives the
 round trip.
+
+Pinned to REV_0007 (not head) so this suite does not silently absorb c2b0 responsibilities.
 """
 
 from __future__ import annotations
@@ -17,7 +19,7 @@ from tests.policy.conftest import run_alembic, seed_engagement, seed_ledger_even
 
 BASE = "base"
 REV_0006 = "0006_m1_temporal_scope_graph"
-HEAD = "head"
+REV_0007 = "0007_m1_policy_records"
 NEW_TABLES = ("action_proposals", "decision_records")
 
 
@@ -65,7 +67,7 @@ async def test_full_lifecycle_preserves_0006_behavior(
         assert not await _table_exists(lifecycle_admin_engine, table)
 
     # 0006 -> 0007
-    run_alembic(lifecycle_db, "upgrade", HEAD)
+    run_alembic(lifecycle_db, "upgrade", REV_0007)
     for table in NEW_TABLES:
         assert await _table_exists(lifecycle_admin_engine, table)
     assert await _function_exists(
@@ -90,7 +92,7 @@ async def test_full_lifecycle_preserves_0006_behavior(
     assert await _ledger_count(lifecycle_admin_engine, tenant_after_downgrade) == 1
 
     # 0006 -> 0007 again.
-    run_alembic(lifecycle_db, "upgrade", HEAD)
+    run_alembic(lifecycle_db, "upgrade", REV_0007)
     for table in NEW_TABLES:
         assert await _table_exists(lifecycle_admin_engine, table)
 
@@ -99,7 +101,7 @@ async def test_upgrade_installs_rls_triggers_privileges_and_lineage(
     lifecycle_db: str, lifecycle_admin_engine: AsyncEngine
 ) -> None:
     run_alembic(lifecycle_db, "downgrade", BASE)
-    run_alembic(lifecycle_db, "upgrade", HEAD)
+    run_alembic(lifecycle_db, "upgrade", REV_0007)
 
     async with lifecycle_admin_engine.begin() as conn:
         for table in NEW_TABLES:

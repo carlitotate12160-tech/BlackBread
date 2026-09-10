@@ -85,9 +85,10 @@ async def test_all_released_outcome_reason_pairs_are_accepted(
     pairs: list[tuple[str, str | None]] = [("ALLOW", None)]
     pairs += [(outcome, reason) for reason, outcome in FINAL_OUTCOME_BY_REASON.items()]
     for outcome, reason in pairs:
+        p = await _commit_proposal(policy_admin_engine, tenant_id=tenant, engagement_id=engagement_id)
         async with policy_admin_engine.begin() as conn:
             await insert_decision(
-                conn, decision_row(proposal, build_outcome=outcome, build_reason=reason)
+                conn, decision_row(p, build_outcome=outcome, build_reason=reason)
             )
     assert await _count(policy_admin_engine, "decision_records", tenant) == len(pairs)
 
@@ -101,21 +102,24 @@ async def test_all_cross_category_outcome_reason_pairs_are_rejected(
     )
     for reason, correct in FINAL_OUTCOME_BY_REASON.items():
         for wrong in FINAL_OUTCOMES - {correct}:
-            bad = decision_row(proposal, outcome=wrong, reason_code=reason)
+            p = await _commit_proposal(policy_admin_engine, tenant_id=tenant, engagement_id=engagement_id)
+            bad = decision_row(p, outcome=wrong, reason_code=reason)
             await _reject(
                 policy_admin_engine, insert_decision, bad, "ck_decision_records_outcome_reason"
             )
     # ALLOW must carry no reason; a non-ALLOW outcome must carry one.
+    p_allow = await _commit_proposal(policy_admin_engine, tenant_id=tenant, engagement_id=engagement_id)
     await _reject(
         policy_admin_engine,
         insert_decision,
-        decision_row(proposal, outcome="ALLOW", reason_code="ADMISSION_DENIED"),
+        decision_row(p_allow, outcome="ALLOW", reason_code="ADMISSION_DENIED"),
         "ck_decision_records_outcome_reason",
     )
+    p_deny = await _commit_proposal(policy_admin_engine, tenant_id=tenant, engagement_id=engagement_id)
     await _reject(
         policy_admin_engine,
         insert_decision,
-        decision_row(proposal, outcome="DENY", reason_code=None),
+        decision_row(p_deny, outcome="DENY", reason_code=None),
         "ck_decision_records_outcome_reason",
     )
     assert await _count(policy_admin_engine, "decision_records", tenant) == 0

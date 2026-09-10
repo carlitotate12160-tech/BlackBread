@@ -562,6 +562,7 @@ async def test_migration_installs_integrity_controls(session: AsyncSession) -> N
         "agent_events_advance_head",
         "agent_events_reject_mutation",
         "agent_events_reject_truncate",
+        "agent_events_validate_policy_event",
     }
     assert "fk_agent_events_engagement_tenant" in constraints
     assert "ck_agent_events_event_hash_hex" in constraints

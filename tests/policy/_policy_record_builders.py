@@ -74,6 +74,7 @@ DECISION_COLUMNS = (
     "graph_ledger_head_hash",
     "runtime_gate_result_digest",
     "decision_digest",
+    "evaluation_request_digest",
 )
 
 
@@ -172,6 +173,7 @@ def decision_row(
         "graph_ledger_head_hash": decision.graph_version.ledger_head_hash,
         "runtime_gate_result_digest": decision.runtime_gate_result_digest,
         "decision_digest": decision.decision_digest,
+        "evaluation_request_digest": overrides.pop("evaluation_request_digest", "b" * 64),
     }
     row.update(overrides)
     return row
@@ -208,3 +210,54 @@ async def insert_decision(conn: AsyncConnection, row: dict[str, Any]) -> None:
     """Insert a decision_records row via parameterized raw SQL."""
     statement = text(_insert("decision_records", DECISION_COLUMNS))
     await conn.execute(statement, _params(DECISION_COLUMNS, row))
+
+
+def policy_event_row(
+    proposal: dict[str, Any],
+    decision: dict[str, Any],
+    **overrides: Any,
+) -> dict[str, Any]:
+    """Build a coherent policy.decision.recorded event row for lineage tests.
+
+    The trigger derives policy_decision_id from causation_id when null.
+    """
+    from blackbread.ledger.hashing import canonical_timestamp
+
+    decided_at_text = canonical_timestamp(decision["decided_at"])
+    graph = {
+        "state_root_version": decision["graph_state_root_version"],
+        "projector_version": decision["graph_projector_version"],
+        "state_root": decision["graph_state_root"],
+        "ledger_event_count": decision["graph_ledger_event_count"],
+        "ledger_head_hash": decision["graph_ledger_head_hash"],
+    }
+    payload: dict[str, Any] = {
+        "decision_schema_name": decision["schema_name"],
+        "decision_schema_version": decision["schema_version"],
+        "proposal_id": str(proposal["proposal_id"]),
+        "proposal_digest": proposal["proposal_digest"],
+        "idempotency_key": proposal["idempotency_key"],
+        "decision_id": str(decision["decision_id"]),
+        "decision_authority": decision["decision_authority"],
+        "outcome": decision["outcome"],
+        "reason_code": decision["reason_code"],
+        "decided_at": decided_at_text,
+        "graph_version": graph,
+        "runtime_gate_result_digest": decision["runtime_gate_result_digest"],
+        "decision_digest": decision["decision_digest"],
+    }
+    row: dict[str, Any] = {
+        "tenant_id": decision["tenant_id"],
+        "engagement_id": decision["engagement_id"],
+        "schema_name": "policy.decision.recorded",
+        "schema_version": 1,
+        "producer": "policy-record-transaction.v1",
+        "correlation_id": proposal["proposal_id"],
+        "causation_id": decision["decision_id"],
+        "occurred_at": decision["decided_at"],
+        "sensitivity": "internal",
+        "redaction_refs": [],
+        "payload": payload,
+    }
+    row.update(overrides)
+    return row

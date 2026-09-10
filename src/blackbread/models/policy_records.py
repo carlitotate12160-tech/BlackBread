@@ -248,6 +248,12 @@ class DecisionRecord(Base):
         UniqueConstraint(
             "tenant_id", "engagement_id", "decision_digest", name="uq_decision_records_digest"
         ),
+        UniqueConstraint(
+            "tenant_id", "engagement_id", "proposal_id", name="uq_decision_records_proposal"
+        ),
+        UniqueConstraint(
+            "tenant_id", "engagement_id", "decision_id", name="uq_decision_records_decision_identity"
+        ),
         ForeignKeyConstraint(
             ["engagement_id", "tenant_id"],
             ["engagements.id", "engagements.tenant_id"],
@@ -312,3 +318,4 @@ class DecisionRecord(Base):
     graph_ledger_head_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     runtime_gate_result_digest: Mapped[str] = mapped_column(String(64), nullable=False)
     decision_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    evaluation_request_digest: Mapped[str] = mapped_column(String(64), nullable=False)

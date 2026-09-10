@@ -4,7 +4,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-EXPECTED_SCHEMA_REVISION = "0007_m1_policy_records"
+EXPECTED_SCHEMA_REVISION = "0008_m1_policy_record_authority"
 UNDEFINED_TABLE_SQLSTATE = "42P01"
 
 
