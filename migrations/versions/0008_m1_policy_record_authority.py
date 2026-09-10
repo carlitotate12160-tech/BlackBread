@@ -24,27 +24,35 @@ RECORDER_ROLE = "blackbread_policy_recorder"
 
 # A recorder created by ``init-runtime.sh`` holds no object grants; any pre-existing privilege is
 # unexpected and must abort the migration rather than be normalised away.
-_ACCEPTABLE_PRE_UPGRADE_PRIVILEGES: frozenset[tuple[str, str]] = frozenset()
-
-_TABLE_PRIVILEGES = ("SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER")
-
-_EFFECTIVE_TABLE_PRIVILEGES = sa.text(
-    "SELECT c.relname AS table_name, p.priv AS privilege "
-    "FROM pg_class AS c "
-    "JOIN pg_namespace AS n ON n.oid = c.relnamespace "
-    "CROSS JOIN unnest(CAST(:privs AS text[])) AS p(priv) "
-    "WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') "
-    "AND has_table_privilege(:role, c.oid, p.priv) "
-    "ORDER BY c.relname, p.priv"
-)
-
-# has_table_privilege reports only table-wide privileges, so a column-level grant (e.g.
-# ``UPDATE (status) ON engagements``) is enumerated separately to keep validation fail-closed.
-_EFFECTIVE_COLUMN_PRIVILEGES = sa.text(
-    "SELECT table_name, column_name, privilege_type "
-    "FROM information_schema.column_privileges "
-    "WHERE table_schema = 'public' AND grantee IN (:role, 'PUBLIC') "
-    "ORDER BY table_name, column_name, privilege_type"
+#
+# The audit sweeps ACLs by grantee instead of enumerating object classes, so a grant on a view,
+# materialised view, foreign table, sequence, column, function, or an object in any non-system
+# schema is caught — none of which a table-only enumeration would see. PUBLIC (grantee 0) is
+# included for relations, columns and functions; the schema arm is restricted to direct recorder
+# grants because PostgreSQL ships an explicit PUBLIC USAGE entry on schema ``public``.
+_NON_SYSTEM = "n.nspname !~ '^pg_' AND n.nspname <> 'information_schema'"
+_EFFECTIVE_RECORDER_GRANTS = sa.text(
+    "WITH rec AS (SELECT oid FROM pg_roles WHERE rolname = :role) "  # noqa: S608 - fixed literals
+    "SELECT n.nspname || '.' || c.relname || ' [' || c.relkind::text || '] ' || a.privilege_type "
+    "       AS g "
+    "  FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace, "
+    "       aclexplode(c.relacl) a, rec "
+    f" WHERE a.grantee IN (rec.oid, 0) AND {_NON_SYSTEM} "
+    "UNION "
+    "SELECT n.nspname || '.' || c.relname || '.' || att.attname || ' ' || a.privilege_type "
+    "  FROM pg_attribute att JOIN pg_class c ON c.oid = att.attrelid "
+    "  JOIN pg_namespace n ON n.oid = c.relnamespace, aclexplode(att.attacl) a, rec "
+    f" WHERE a.grantee IN (rec.oid, 0) AND {_NON_SYSTEM} "
+    "UNION "
+    "SELECT 'function ' || n.nspname || '.' || p.proname || ' ' || a.privilege_type "
+    "  FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace, "
+    "       aclexplode(p.proacl) a, rec "
+    f" WHERE a.grantee IN (rec.oid, 0) AND {_NON_SYSTEM} "
+    "UNION "
+    "SELECT 'schema ' || n.nspname || ' ' || a.privilege_type "
+    "  FROM pg_namespace n, aclexplode(n.nspacl) a, rec "
+    " WHERE a.grantee = rec.oid "
+    " ORDER BY 1"
 )
 
 _ROLE_FLAGS = sa.text(
@@ -225,16 +233,9 @@ $$
 """
 
 
-def _effective_table_privileges(conn: sa.engine.Connection) -> set[tuple[str, str]]:
-    """Every table privilege the recorder currently holds, including any reaching it via PUBLIC."""
-    params = {"role": RECORDER_ROLE, "privs": list(_TABLE_PRIVILEGES)}
-    return {tuple(row) for row in conn.execute(_EFFECTIVE_TABLE_PRIVILEGES, params).all()}
-
-
-def _effective_column_privileges(conn: sa.engine.Connection) -> list[tuple[str, ...]]:
-    """Column-level grants the recorder holds directly or via PUBLIC (missed by table checks)."""
-    rows = conn.execute(_EFFECTIVE_COLUMN_PRIVILEGES, {"role": RECORDER_ROLE}).all()
-    return [tuple(row) for row in rows]
+def _effective_recorder_grants(conn: sa.engine.Connection) -> list[str]:
+    """Every object grant the recorder holds, across object classes and non-system schemas."""
+    return [row[0] for row in conn.execute(_EFFECTIVE_RECORDER_GRANTS, {"role": RECORDER_ROLE})]
 
 
 def _validate_existing_recorder(conn: sa.engine.Connection) -> None:
@@ -265,22 +266,13 @@ def _validate_existing_recorder(conn: sa.engine.Connection) -> None:
     ):
         raise RuntimeError(f"pre-existing {RECORDER_ROLE} has CREATE on schema public")
 
-    unexpected = sorted(_effective_table_privileges(conn) - _ACCEPTABLE_PRE_UPGRADE_PRIVILEGES)
+    unexpected = _effective_recorder_grants(conn)
     if unexpected:
         raise RuntimeError(
-            f"pre-existing {RECORDER_ROLE} holds unexpected table privileges {unexpected}; "
-            "0008 refuses to normalise it. A privilege reaching the recorder through PUBLIC "
-            "cannot be corrected inside the named-role boundary and must be resolved by the "
-            "repository owner before upgrading."
-        )
-
-    # A freshly bootstrapped recorder holds no column grants; any present are invisible to
-    # has_table_privilege and would survive a table-wide REVOKE, so they abort the upgrade.
-    unexpected_columns = _effective_column_privileges(conn)
-    if unexpected_columns:
-        raise RuntimeError(
-            f"pre-existing {RECORDER_ROLE} holds unexpected column privileges "
-            f"{unexpected_columns}; resolve the grant before upgrading."
+            f"pre-existing {RECORDER_ROLE} holds unexpected grants {unexpected}; 0008 refuses to "
+            "normalise it. A privilege reaching the recorder through PUBLIC cannot be corrected "
+            "inside the named-role boundary and must be resolved by the repository owner before "
+            "upgrading."
         )
 
 

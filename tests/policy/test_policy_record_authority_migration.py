@@ -412,33 +412,72 @@ async def test_empty_0007_0008_0007_round_trip_preserves_unrelated_data(
 
 
 @pytest.mark.parametrize(
-    "grant_sql, revoke_sql",
+    "setup_sql, teardown_sql",
     [
+        # Ordinary table grant in public.
         (
-            "GRANT SELECT ON clients TO blackbread_policy_recorder",
-            "REVOKE SELECT ON clients FROM blackbread_policy_recorder",
+            ("GRANT SELECT ON clients TO blackbread_policy_recorder",),
+            ("REVOKE SELECT ON clients FROM blackbread_policy_recorder",),
         ),
-        # Column-level grant (binding review regression): invisible to has_table_privilege and it
-        # would survive a table-wide REVOKE, so validation must still abort fail-closed.
+        # Column-level grant: invisible to has_table_privilege.
         (
-            "GRANT UPDATE (status) ON engagements TO blackbread_policy_recorder",
-            "REVOKE UPDATE (status) ON engagements FROM blackbread_policy_recorder",
+            ("GRANT UPDATE (status) ON engagements TO blackbread_policy_recorder",),
+            ("REVOKE UPDATE (status) ON engagements FROM blackbread_policy_recorder",),
+        ),
+        # View in public.
+        (
+            (
+                "CREATE VIEW probe_view AS SELECT 1 AS x",
+                "GRANT SELECT ON probe_view TO blackbread_policy_recorder",
+            ),
+            ("DROP VIEW IF EXISTS probe_view CASCADE",),
+        ),
+        # Sequence: relkind 'S', outside any table-only enumeration.
+        (
+            (
+                "CREATE SEQUENCE probe_seq",
+                "GRANT SELECT ON SEQUENCE probe_seq TO blackbread_policy_recorder",
+            ),
+            ("DROP SEQUENCE IF EXISTS probe_seq CASCADE",),
+        ),
+        # Table living outside schema public.
+        (
+            (
+                "CREATE SCHEMA probe_ns",
+                "CREATE TABLE probe_ns.probe_tbl (id int)",
+                "GRANT SELECT ON probe_ns.probe_tbl TO blackbread_policy_recorder",
+            ),
+            ("DROP SCHEMA IF EXISTS probe_ns CASCADE",),
+        ),
+        # USAGE on a schema other than public.
+        (
+            (
+                "CREATE SCHEMA probe_ns2",
+                "GRANT USAGE ON SCHEMA probe_ns2 TO blackbread_policy_recorder",
+            ),
+            ("DROP SCHEMA IF EXISTS probe_ns2 CASCADE",),
         ),
     ],
-    ids=["table-grant", "column-grant"],
+    ids=["table", "column", "view", "sequence", "other-schema-table", "other-schema-usage"],
 )
 async def test_upgrade_refused_when_recorder_holds_unexpected_privilege(
-    lifecycle_db: str, lifecycle_admin_engine: AsyncEngine, grant_sql: str, revoke_sql: str
+    lifecycle_db: str,
+    lifecycle_admin_engine: AsyncEngine,
+    setup_sql: tuple[str, ...],
+    teardown_sql: tuple[str, ...],
 ) -> None:
-    """A pre-existing recorder carrying any unauthorized grant aborts the upgrade fail-closed.
+    """A pre-existing recorder carrying ANY unauthorized grant aborts the upgrade fail-closed.
 
-    Grants are database-scoped, so they never leak past this disposable database, and the migration
-    must abort without rewriting the cluster role.
+    The audit must not be scoped to ordinary tables in schema ``public``: a view, sequence,
+    out-of-schema table, or schema-level USAGE grant is equally unauthorized and equally invisible
+    to a table-only enumeration. Grants are database-scoped, so they never leak past this
+    disposable database, and the migration must abort without rewriting the cluster role.
     """
     await _reset_lifecycle(lifecycle_admin_engine, lifecycle_db)
     run_alembic(lifecycle_db, "upgrade", REV_0007)
     async with lifecycle_admin_engine.begin() as conn:
-        await conn.execute(text(grant_sql))
+        for statement in setup_sql:
+            await conn.execute(text(statement))
     try:
         with pytest.raises(subprocess.CalledProcessError):
             run_alembic(lifecycle_db, "upgrade", REV_0008)
@@ -456,4 +495,5 @@ async def test_upgrade_refused_when_recorder_holds_unexpected_privilege(
         assert flags == (False, False)  # migration aborted; role attributes untouched
     finally:
         async with lifecycle_admin_engine.begin() as conn:
-            await conn.execute(text(revoke_sql))
+            for statement in teardown_sql:
+                await conn.execute(text(statement))
