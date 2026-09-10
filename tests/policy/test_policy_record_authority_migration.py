@@ -283,25 +283,11 @@ async def test_c2a_golden_hash_preserved(session: AsyncSession) -> None:
 async def test_event_preimage_unchanged(session: AsyncSession) -> None:
     """_event_preimage fields remain exactly as released."""
     source = inspect.getsource(_event_preimage)
-    expected_fields = [
-        "event_id",
-        "engagement_id",
-        "tenant_id",
-        "sequence",
-        "schema_name",
-        "schema_version",
-        "producer",
-        "correlation_id",
-        "causation_id",
-        "occurred_at",
-        "recorded_at",
-        "payload_hash",
-        "prev_event_hash",
-        "hash_algorithm",
-        "hash_version",
-        "sensitivity",
-        "redaction_refs",
-    ]
+    expected_fields = (  # noqa: SIM905 — compact split kept intentionally
+        "event_id engagement_id tenant_id sequence schema_name schema_version producer "
+        "correlation_id causation_id occurred_at recorded_at payload_hash prev_event_hash "
+        "hash_algorithm hash_version sensitivity redaction_refs"
+    ).split()
     for field in expected_fields:
         assert field in source, f"missing preimage field: {field}"
     assert "policy_decision_id" not in source
@@ -459,25 +445,40 @@ async def test_empty_0007_0008_0007_round_trip_preserves_unrelated_data(
     assert surviving == 1
 
 
+@pytest.mark.parametrize(
+    "grant_sql, revoke_sql",
+    [
+        (
+            "GRANT SELECT ON clients TO blackbread_policy_recorder",
+            "REVOKE SELECT ON clients FROM blackbread_policy_recorder",
+        ),
+        # Column-level grant (binding review regression): invisible to has_table_privilege and it
+        # would survive a table-wide REVOKE, so validation must still abort fail-closed.
+        (
+            "GRANT UPDATE (status) ON engagements TO blackbread_policy_recorder",
+            "REVOKE UPDATE (status) ON engagements FROM blackbread_policy_recorder",
+        ),
+    ],
+    ids=["table-grant", "column-grant"],
+)
 async def test_upgrade_refused_when_recorder_holds_unexpected_privilege(
-    lifecycle_db: str, lifecycle_admin_engine: AsyncEngine
+    lifecycle_db: str, lifecycle_admin_engine: AsyncEngine, grant_sql: str, revoke_sql: str
 ) -> None:
-    """A correctly shaped recorder carrying one unauthorized table privilege aborts the upgrade.
+    """A pre-existing recorder carrying any unauthorized grant aborts the upgrade fail-closed.
 
-    The grant is database-scoped, so it never leaks past this disposable database, and the cluster
-    role itself is left unchanged.
+    Grants are database-scoped, so they never leak past this disposable database, and the migration
+    must abort without rewriting the cluster role.
     """
     await _reset_lifecycle(lifecycle_admin_engine, lifecycle_db)
     run_alembic(lifecycle_db, "upgrade", REV_0007)
     async with lifecycle_admin_engine.begin() as conn:
-        await conn.execute(text("GRANT SELECT ON clients TO blackbread_policy_recorder"))
+        await conn.execute(text(grant_sql))
     try:
         with pytest.raises(subprocess.CalledProcessError):
             run_alembic(lifecycle_db, "upgrade", REV_0008)
         assert await _alembic_version(lifecycle_admin_engine) == REV_0007
         assert await _has_0008_objects(lifecycle_admin_engine) is False
         async with lifecycle_admin_engine.begin() as conn:
-            # The migration must not have silently rewritten the role's attributes.
             flags = (
                 await conn.execute(
                     text(
@@ -486,7 +487,7 @@ async def test_upgrade_refused_when_recorder_holds_unexpected_privilege(
                     )
                 )
             ).one()
-        assert flags == (False, False)
+        assert flags == (False, False)  # migration aborted; role attributes untouched
     finally:
         async with lifecycle_admin_engine.begin() as conn:
-            await conn.execute(text("REVOKE SELECT ON clients FROM blackbread_policy_recorder"))
+            await conn.execute(text(revoke_sql))

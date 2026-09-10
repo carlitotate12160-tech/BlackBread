@@ -1,13 +1,11 @@
 """Policy-record authority substrate: inert recorder role, lineage constraints, and event trigger.
 
-Migration 0008 creates the inert ``blackbread_policy_recorder`` role (if absent), validates its
-exact shape fail-closed, adds ``decision_records.evaluation_request_digest`` with the decision
-uniqueness constraints, adds the ``agent_events.policy_decision_id`` lineage column with its
-composite foreign key, coherence CHECK and partial unique index, installs a SECURITY INVOKER
-trigger enforcing exact decision-event lineage, and grants narrowly bounded recorder privileges.
-
-The slice is intentionally unwired: no production code assumes the recorder and no production
-transaction calls this substrate.  M1.4c2b1 exclusively owns evaluate-and-record transactions.
+Migration 0008 creates/validates the inert ``blackbread_policy_recorder`` role fail-closed, adds
+``decision_records.evaluation_request_digest`` and its uniqueness constraints, adds the
+``agent_events.policy_decision_id`` lineage column with its composite FK, coherence CHECK and
+partial unique index, installs a SECURITY INVOKER trigger enforcing exact decision-event lineage,
+and grants narrowly bounded recorder privileges. The slice is intentionally unwired; M1.4c2b1
+exclusively owns evaluate-and-record transactions.
 """
 
 from collections.abc import Sequence
@@ -24,9 +22,8 @@ depends_on: str | Sequence[str] | None = None
 
 RECORDER_ROLE = "blackbread_policy_recorder"
 
-# Table privileges the recorder may already hold when migration 0008 starts.  A recorder created
-# by ``init-runtime.sh`` holds none: it is created without any database-object grant.  Anything
-# else is an unexpected privilege that must abort the migration rather than be normalised away.
+# A recorder created by ``init-runtime.sh`` holds no object grants; any pre-existing privilege is
+# unexpected and must abort the migration rather than be normalised away.
 _ACCEPTABLE_PRE_UPGRADE_PRIVILEGES: frozenset[tuple[str, str]] = frozenset()
 
 _TABLE_PRIVILEGES = ("SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER")
@@ -39,6 +36,15 @@ _EFFECTIVE_TABLE_PRIVILEGES = sa.text(
     "WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') "
     "AND has_table_privilege(:role, c.oid, p.priv) "
     "ORDER BY c.relname, p.priv"
+)
+
+# has_table_privilege reports only table-wide privileges, so a column-level grant (e.g.
+# ``UPDATE (status) ON engagements``) is enumerated separately to keep validation fail-closed.
+_EFFECTIVE_COLUMN_PRIVILEGES = sa.text(
+    "SELECT table_name, column_name, privilege_type "
+    "FROM information_schema.column_privileges "
+    "WHERE table_schema = 'public' AND grantee IN (:role, 'PUBLIC') "
+    "ORDER BY table_name, column_name, privilege_type"
 )
 
 _ROLE_FLAGS = sa.text(
@@ -72,9 +78,9 @@ _REVOKES = (
 )
 
 # The trigger compares the whole payload against an object rebuilt from the durable proposal and
-# decision rows.  jsonb equality is exact over key sets, JSON types and values, so a missing key,
-# an extra key, an empty object or a wrong JSON type can never pass.  The only gap jsonb equality
-# leaves is numeric scale (2.0 equals 2), which the trailing canonical-text check closes.
+# decision rows. jsonb equality is exact over keys, types and values (an empty object or wrong
+# type can never pass); the only gap is numeric scale (2.0 == 2), closed by the canonical-text
+# check that follows.
 _TRIGGER_FUNCTION = """
 CREATE FUNCTION public.blackbread_validate_policy_event()
 RETURNS trigger
@@ -233,6 +239,12 @@ def _effective_table_privileges(conn: sa.engine.Connection) -> set[tuple[str, st
     return {(row.table_name, row.privilege) for row in rows}
 
 
+def _effective_column_privileges(conn: sa.engine.Connection) -> list[tuple[str, str, str]]:
+    """Column-level grants the recorder holds directly or via PUBLIC (missed by table checks)."""
+    rows = conn.execute(_EFFECTIVE_COLUMN_PRIVILEGES, {"role": RECORDER_ROLE}).all()
+    return [(row.table_name, row.column_name, row.privilege_type) for row in rows]
+
+
 def _validate_existing_recorder(conn: sa.engine.Connection) -> None:
     """Fail closed on a pre-existing recorder that is not exactly the inert shape 0008 expects."""
     flags = conn.execute(_ROLE_FLAGS, {"role": RECORDER_ROLE}).one()
@@ -268,6 +280,15 @@ def _validate_existing_recorder(conn: sa.engine.Connection) -> None:
             "0008 refuses to normalise it. A privilege reaching the recorder through PUBLIC "
             "cannot be corrected inside the named-role boundary and must be resolved by the "
             "repository owner before upgrading."
+        )
+
+    # A freshly bootstrapped recorder holds no column grants; any present are invisible to
+    # has_table_privilege and would survive a table-wide REVOKE, so they abort the upgrade.
+    unexpected_columns = _effective_column_privileges(conn)
+    if unexpected_columns:
+        raise RuntimeError(
+            f"pre-existing {RECORDER_ROLE} holds unexpected column privileges "
+            f"{unexpected_columns}; resolve the grant before upgrading."
         )
 
 
