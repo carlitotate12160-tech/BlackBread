@@ -49,6 +49,19 @@ async def test_readiness_rejects_outdated_migration() -> None:
 
 
 @pytest.mark.asyncio
+async def test_expected_head_is_recorder_identity_revision() -> None:
+    assert EXPECTED_SCHEMA_REVISION == "0008_m1_policy_recorder_identity"
+
+
+@pytest.mark.asyncio
+async def test_readiness_rejects_prior_policy_record_head() -> None:
+    readiness = await check_readiness(_engine_with_revisions("0007_m1_policy_records"))
+
+    assert readiness.ready is False
+    assert readiness.migrations == "0007_m1_policy_records"
+
+
+@pytest.mark.asyncio
 async def test_readiness_rejects_extra_migration_heads() -> None:
     readiness = await check_readiness(
         _engine_with_revisions(EXPECTED_SCHEMA_REVISION, "unexpected_head")
