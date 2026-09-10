@@ -26,11 +26,19 @@ RECORDER_ROLE = "blackbread_policy_recorder"
 # unexpected and must abort the migration rather than be normalised away.
 #
 # The audit sweeps ACLs by grantee instead of enumerating object classes, so a grant on a view,
-# materialised view, foreign table, sequence, column, function, or an object in any non-system
-# schema is caught — none of which a table-only enumeration would see. PUBLIC (grantee 0) is
-# included for relations, columns and functions; the schema arm is restricted to direct recorder
-# grants because PostgreSQL ships an explicit PUBLIC USAGE entry on schema ``public``.
+# materialised view, foreign table, sequence, column, routine, or an object in any non-system
+# schema is caught — none of which a table-only enumeration would see. Both the recorder and
+# PUBLIC (grantee 0) are audited on every arm.
+#
+# Two exactness rules keep it fail-closed without normalising unrelated privileges:
+#  * schemas: PUBLIC USAGE on schema ``public`` is the PostgreSQL-shipped baseline and is the only
+#    accepted PUBLIC schema privilege; PUBLIC USAGE elsewhere, or PUBLIC CREATE anywhere, aborts.
+#  * routines: a NULL ``proacl`` means the built-in default, which grants EXECUTE to PUBLIC, so the
+#    effective ACL is evaluated with ``acldefault('f', proowner)``. Only routines returning
+#    ``trigger`` are exempt, because PostgreSQL refuses to invoke those directly ("trigger
+#    functions can only be called as triggers"), so PUBLIC EXECUTE on them confers no call path.
 _NON_SYSTEM = "n.nspname !~ '^pg_' AND n.nspname <> 'information_schema'"
+_PUBLIC_BASELINE = "NOT (n.nspname = 'public' AND a.grantee = 0 AND a.privilege_type = 'USAGE')"
 _EFFECTIVE_RECORDER_GRANTS = sa.text(
     "WITH rec AS (SELECT oid FROM pg_roles WHERE rolname = :role) "  # noqa: S608 - fixed literals
     "SELECT n.nspname || '.' || c.relname || ' [' || c.relkind::text || '] ' || a.privilege_type "
@@ -44,14 +52,15 @@ _EFFECTIVE_RECORDER_GRANTS = sa.text(
     "  JOIN pg_namespace n ON n.oid = c.relnamespace, aclexplode(att.attacl) a, rec "
     f" WHERE a.grantee IN (rec.oid, 0) AND {_NON_SYSTEM} "
     "UNION "
-    "SELECT 'function ' || n.nspname || '.' || p.proname || ' ' || a.privilege_type "
+    "SELECT 'routine ' || n.nspname || '.' || p.proname || ' ' || a.privilege_type "
     "  FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace, "
-    "       aclexplode(p.proacl) a, rec "
+    "       aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) a, rec "
     f" WHERE a.grantee IN (rec.oid, 0) AND {_NON_SYSTEM} "
+    "   AND p.prorettype <> 'pg_catalog.trigger'::regtype "
     "UNION "
     "SELECT 'schema ' || n.nspname || ' ' || a.privilege_type "
     "  FROM pg_namespace n, aclexplode(n.nspacl) a, rec "
-    " WHERE a.grantee = rec.oid "
+    f" WHERE a.grantee IN (rec.oid, 0) AND {_NON_SYSTEM} AND {_PUBLIC_BASELINE} "
     " ORDER BY 1"
 )
 
@@ -291,12 +300,15 @@ def _ensure_recorder_role(conn: sa.engine.Connection) -> None:
     )
 
 
-def _assert_no_policy_state(conn: sa.engine.Connection, action: str) -> None:
+def _assert_no_policy_state(
+    conn: sa.engine.Connection, action: str, *extra: tuple[str, str]
+) -> None:
     """Abort unless every policy-record table and the reserved-event slice are empty."""
     for table, predicate in (
         ("action_proposals", "TRUE"),
         ("decision_records", "TRUE"),
         ("agent_events", "schema_name = 'policy.decision.recorded'"),
+        *extra,
     ):
         count = conn.exec_driver_sql(
             f"SELECT count(*) FROM {table} WHERE {predicate}"  # noqa: S608 - fixed literals
@@ -370,11 +382,7 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     conn = op.get_bind()
-    _assert_no_policy_state(conn, "downgrade")
-    if conn.exec_driver_sql(
-        "SELECT count(*) FROM agent_events WHERE policy_decision_id IS NOT NULL"
-    ).scalar():
-        raise RuntimeError("cannot downgrade: agent_events holds policy lineage references")
+    _assert_no_policy_state(conn, "downgrade", ("agent_events", "policy_decision_id IS NOT NULL"))
 
     for statement in _REVOKES:
         conn.exec_driver_sql(statement.format(role=RECORDER_ROLE))
