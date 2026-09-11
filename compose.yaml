@@ -25,7 +25,11 @@ services:
     command: ["alembic", "upgrade", "head"]
     environment:
       BLACKBREAD_ARTIFACT_KEY: ${BLACKBREAD_ARTIFACT_KEY:?set BLACKBREAD_ARTIFACT_KEY}
-      BLACKBREAD_DATABASE_URL: postgresql+asyncpg://blackbread_migration:${POSTGRES_MIGRATION_PASSWORD:?set POSTGRES_MIGRATION_PASSWORD}@database:5432/blackbread
+      BLACKBREAD_DB_HOST: database
+      BLACKBREAD_DB_NAME: blackbread
+      BLACKBREAD_DB_PASSWORD: ${POSTGRES_MIGRATION_PASSWORD:?set POSTGRES_MIGRATION_PASSWORD}
+      BLACKBREAD_DB_PORT: "5432"
+      BLACKBREAD_DB_USER: blackbread_migration
     depends_on:
       database:
         condition: service_healthy
@@ -39,7 +43,11 @@ services:
     environment:
       BLACKBREAD_ARTIFACT_KEY: ${BLACKBREAD_ARTIFACT_KEY:?set BLACKBREAD_ARTIFACT_KEY}
       BLACKBREAD_ARTIFACT_ROOT: /var/lib/blackbread/artifacts
-      BLACKBREAD_DATABASE_URL: postgresql+asyncpg://blackbread_app:${BLACKBREAD_RUNTIME_DB_PASSWORD:?set BLACKBREAD_RUNTIME_DB_PASSWORD}@database:5432/blackbread
+      BLACKBREAD_DB_HOST: database
+      BLACKBREAD_DB_NAME: blackbread
+      BLACKBREAD_DB_PASSWORD: ${BLACKBREAD_RUNTIME_DB_PASSWORD:?set BLACKBREAD_RUNTIME_DB_PASSWORD}
+      BLACKBREAD_DB_PORT: "5432"
+      BLACKBREAD_DB_USER: blackbread_app
     depends_on:
       database:
         condition: service_healthy

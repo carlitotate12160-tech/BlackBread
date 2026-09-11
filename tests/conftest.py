@@ -39,11 +39,11 @@ TEST_RUNTIME_PASSWORD = os.environ.get(
     "blackbread_test_runtime",
 )
 
-# Settings.database_url is required with no default (no repository-known credential),
-# so importing blackbread.app -- which builds the ASGI app at module load -- needs a
-# value. Bootstrap it here from the loopback test database URL before any BlackBread
-# module is imported, so test collection never depends on a production fallback. This
-# is a test-only value; production supplies BLACKBREAD_DATABASE_URL from deployment.
+# Settings requires exactly one database source with no default (no repository-known
+# credential), so importing blackbread.app -- which builds the ASGI app at module load --
+# needs a value. Bootstrap the test/development alternative here from the loopback test
+# database URL before any BlackBread module is imported, so test collection never depends
+# on a production fallback. Production supplies the BLACKBREAD_DB_* component set instead.
 os.environ.setdefault("BLACKBREAD_DATABASE_URL", TEST_DATABASE_URL)
 
 # These imports must follow the environment bootstrap above so importing BlackBread
