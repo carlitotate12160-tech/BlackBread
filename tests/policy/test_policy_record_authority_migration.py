@@ -62,10 +62,27 @@ async def test_recorder_has_no_write_authority_over_records(
 async def test_recorder_authority_is_minimal_across_other_tables(
     policy_admin_engine: AsyncEngine,
 ) -> None:
-    for table in ("engagements", "clients"):
-        for privilege in ("SELECT", "INSERT", "UPDATE", "DELETE"):
-            granted = await table_privilege(policy_admin_engine, RECORDER_ROLE, table, privilege)
-            assert granted is False, f"recorder must hold no {privilege} on {table}"
+    # Enumerate the complete effective grant set rather than probing a few tables: the recorder's
+    # table- and column-level privileges in schema public must be exactly the reviewed minimum.
+    async with policy_admin_engine.connect() as conn:
+        rows = (
+            await conn.execute(
+                text(
+                    "SELECT table_name, privilege_type FROM information_schema.role_table_grants "
+                    "WHERE grantee = :r AND table_schema = 'public' "
+                    "UNION ALL "
+                    "SELECT table_name, privilege_type FROM information_schema.column_privileges "
+                    "WHERE grantee = :r AND table_schema = 'public'"
+                ),
+                {"r": RECORDER_ROLE},
+            )
+        ).all()
+    granted = {(str(row[0]), str(row[1])) for row in rows}
+    assert granted == {
+        ("action_proposals", "SELECT"),
+        ("decision_records", "SELECT"),
+        ("agent_events", "INSERT"),
+    }, f"recorder privileges must be exactly the minimal set, got {sorted(granted)}"
     create = await _scalar(
         policy_admin_engine,
         "SELECT has_schema_privilege(:r, 'public', 'CREATE')",
@@ -154,6 +171,14 @@ async def test_lineage_fk_and_partial_unique_index_shape(
         "AND conrelid = 'agent_events'::regclass",
     )
     assert fk == "decision_records"
+    fkdef = await _scalar(
+        policy_admin_engine,
+        "SELECT pg_get_constraintdef(oid) FROM pg_constraint "
+        "WHERE conname = 'fk_agent_events_policy_decision'",
+    )
+    assert isinstance(fkdef, str)
+    assert "FOREIGN KEY (tenant_id, engagement_id, policy_decision_id)" in fkdef
+    assert "REFERENCES decision_records(tenant_id, engagement_id, decision_id)" in fkdef
     index = await _scalar(
         policy_admin_engine,
         "SELECT indexdef FROM pg_indexes WHERE indexname = 'uq_agent_events_policy_decision'",

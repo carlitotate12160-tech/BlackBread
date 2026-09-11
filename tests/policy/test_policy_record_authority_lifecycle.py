@@ -257,6 +257,80 @@ async def test_upgrade_rejects_recorder_with_membership(
         await run_admin(f"DROP ROLE IF EXISTS {PROBE_ROLE}")
 
 
+# --- 0009 authority gate: a recorder altered after 0008 must be refused reserved authority ------
+
+_AUTHORITY_GATE_CASES: tuple[tuple[str, tuple[str, ...], tuple[str, ...]], ...] = (
+    (
+        "inherit",
+        (f"ALTER ROLE {RECORDER_ROLE} INHERIT",),
+        (f"ALTER ROLE {RECORDER_ROLE} NOINHERIT",),
+    ),
+    (
+        "password",
+        (f"ALTER ROLE {RECORDER_ROLE} PASSWORD 'probe-secret'",),
+        (f"ALTER ROLE {RECORDER_ROLE} PASSWORD NULL",),
+    ),
+    (
+        "createdb",
+        (f"ALTER ROLE {RECORDER_ROLE} CREATEDB",),
+        (f"ALTER ROLE {RECORDER_ROLE} NOCREATEDB",),
+    ),
+    (
+        "role_setting",
+        (f"ALTER ROLE {RECORDER_ROLE} SET search_path = public",),
+        (f"ALTER ROLE {RECORDER_ROLE} RESET search_path",),
+    ),
+    (
+        "member_of",
+        (f"CREATE ROLE {PROBE_ROLE} NOLOGIN", f"GRANT {PROBE_ROLE} TO {RECORDER_ROLE}"),
+        (
+            f"REVOKE {PROBE_ROLE} FROM {RECORDER_ROLE}",
+            f"DROP ROLE IF EXISTS {PROBE_ROLE}",
+        ),
+    ),
+    (
+        "has_member",
+        (f"CREATE ROLE {PROBE_ROLE} NOLOGIN", f"GRANT {RECORDER_ROLE} TO {PROBE_ROLE}"),
+        (
+            f"REVOKE {RECORDER_ROLE} FROM {PROBE_ROLE}",
+            f"DROP ROLE IF EXISTS {PROBE_ROLE}",
+        ),
+    ),
+    (
+        "owned_object",
+        (
+            "CREATE TABLE probe_auth_t (id int)",
+            f"ALTER TABLE probe_auth_t OWNER TO {RECORDER_ROLE}",
+        ),
+        ("DROP TABLE IF EXISTS probe_auth_t",),
+    ),
+)
+
+
+@pytest.mark.parametrize(
+    ("label", "setup", "cleanup"), _AUTHORITY_GATE_CASES, ids=[c[0] for c in _AUTHORITY_GATE_CASES]
+)
+async def test_upgrade_to_authority_rejects_altered_recorder(
+    lifecycle_db: str,
+    lifecycle_admin_engine: AsyncEngine,
+    label: str,
+    setup: tuple[str, ...],
+    cleanup: tuple[str, ...],
+) -> None:
+    """0009 must fail closed when the recorder drifted from its inert 0008 shape before grants."""
+    reset_to(lifecycle_db, REV_0008)
+    await ensure_clean_recorder()
+    probe_url = lifecycle_url(lifecycle_db)
+    await run_admin(setup, url=probe_url)
+    try:
+        output = alembic_expecting_failure(lifecycle_db, "upgrade", REV_0009)
+        assert RECORDER_ROLE in output, f"{label}: failure must name the recorder role"
+        assert await alembic_version(lifecycle_admin_engine) == REV_0008
+    finally:
+        await run_admin(cleanup, url=probe_url)
+        await ensure_clean_recorder()
+
+
 async def test_upgrade_rejects_dependency_in_second_database(
     lifecycle_db: str, lifecycle_admin_engine: AsyncEngine
 ) -> None:

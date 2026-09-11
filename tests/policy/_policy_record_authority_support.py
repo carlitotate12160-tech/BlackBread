@@ -191,19 +191,28 @@ def alembic_expecting_failure(db_name: str, direction: str, target: str) -> str:
 
 
 async def truncate_policy_rows(url: str = TEST_MIGRATION_DATABASE_URL) -> None:
-    """Empty the append-only policy substrate on ``url`` (disabling the reject triggers first)."""
+    """Empty the append-only policy substrate on ``url`` (disabling the reject triggers first).
+
+    Each ``ALTER TABLE`` commits independently under AUTOCOMMIT, so a disable or TRUNCATE that
+    raises must not leave append-only enforcement off: only the triggers that actually disabled are
+    re-enabled, in ``finally``.
+    """
     engine = _autocommit(url)
     try:
         async with engine.connect() as conn:
-            for table, trigger in _APPEND_ONLY_TRIGGERS:
-                await conn.execute(text(f"ALTER TABLE {table} DISABLE TRIGGER {trigger}"))
-            # CASCADE also clears read-model tables (e.g. graph_projection_snapshots) whose FK
-            # references agent_events; those projections are rebuildable and safe to drop here.
-            await conn.execute(
-                text("TRUNCATE decision_records, action_proposals, agent_events CASCADE")
-            )
-            for table, trigger in _APPEND_ONLY_TRIGGERS:
-                await conn.execute(text(f"ALTER TABLE {table} ENABLE TRIGGER {trigger}"))
+            disabled: list[tuple[str, str]] = []
+            try:
+                for table, trigger in _APPEND_ONLY_TRIGGERS:
+                    await conn.execute(text(f"ALTER TABLE {table} DISABLE TRIGGER {trigger}"))
+                    disabled.append((table, trigger))
+                # CASCADE also clears read-model tables (e.g. graph_projection_snapshots) whose FK
+                # references agent_events; those projections are rebuildable and safe to drop here.
+                await conn.execute(
+                    text("TRUNCATE decision_records, action_proposals, agent_events CASCADE")
+                )
+            finally:
+                for table, trigger in disabled:
+                    await conn.execute(text(f"ALTER TABLE {table} ENABLE TRIGGER {trigger}"))
     finally:
         await engine.dispose()
 
@@ -219,10 +228,12 @@ def suspend_shared_authority_head() -> Iterator[None]:
     """Suspend the shared database's 0009 recorder grants for revision-0008 role proofs.
 
     Revoking the exact grants makes the cluster-global recorder dependency-free so a 0008-level test
-    may drop/recreate it and assert the inert shape. Head is always restored in ``finally``.
+    may drop/recreate it and assert the inert shape. Head is always restored in ``finally`` —
+    including when a revoke partially commits under AUTOCOMMIT and then raises, so the shared
+    database is never left with the recorder's grants half-suspended.
     """
-    asyncio.run(run_admin(AUTHORITY_REVOKES))
     try:
+        asyncio.run(run_admin(AUTHORITY_REVOKES))
         yield
     finally:
         asyncio.run(_restore_shared_head())

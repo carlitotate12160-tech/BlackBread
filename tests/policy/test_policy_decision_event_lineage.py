@@ -229,9 +229,15 @@ _MUTATIONS: tuple[tuple[str, MutationBuilder], ...] = (
     ("decision_id", _payload_mutation(decision_id=str(uuid.uuid4()))),
     ("decided_at", _payload_mutation(decided_at="2027-01-01T00:00:00Z")),
     ("float_schema_version", _payload_mutation(decision_schema_version=2.0)),
+    # JSON null reaches the trigger as SQL NULL via ->>; every canonical-integer field must reject
+    # it rather than evaluate the check to NULL and skip the rejection branch.
+    ("null_schema_version", _payload_mutation(decision_schema_version=None)),
     ("graph_state_root", _graph_mutation(state_root="f" * 64)),
     ("graph_head_hash", _graph_mutation(ledger_head_hash="f" * 64)),
     ("float_ledger_count", _graph_mutation(ledger_event_count=7.0)),
+    ("null_state_root_version", _graph_mutation(state_root_version=None)),
+    ("null_projector_version", _graph_mutation(projector_version=None)),
+    ("null_ledger_event_count", _graph_mutation(ledger_event_count=None)),
     ("nested_scalar", _payload_mutation(outcome={"nested": "object"})),
     ("nested_graph_extra", _graph_mutation(unexpected="x")),
     ("extra_key", _payload_mutation(unexpected_field="x")),

@@ -183,15 +183,21 @@ BEGIN
     END IF;
 
     -- Canonical integers: a fractional/exponent JSON number (e.g. 1.0) must not stand in for the
-    -- integer the contract stores.
-    IF payload->>'decision_schema_version' !~ '^[0-9]+$'
-       OR (payload->>'decision_schema_version')::bigint <> decision.schema_version
+    -- integer the contract stores. ``->>`` turns a JSON null into SQL NULL, which would make these
+    -- predicates evaluate to NULL and skip the rejection branch, so each field is checked with an
+    -- explicit IS NULL first and the comparison itself is NULL-safe (IS DISTINCT FROM).
+    IF payload->>'decision_schema_version' IS NULL
+       OR payload->>'decision_schema_version' !~ '^[0-9]+$'
+       OR (payload->>'decision_schema_version')::bigint IS DISTINCT FROM decision.schema_version
+       OR graph->>'state_root_version' IS NULL
        OR graph->>'state_root_version' !~ '^[0-9]+$'
-       OR (graph->>'state_root_version')::bigint <> decision.graph_state_root_version
+       OR (graph->>'state_root_version')::bigint IS DISTINCT FROM decision.graph_state_root_version
+       OR graph->>'projector_version' IS NULL
        OR graph->>'projector_version' !~ '^[0-9]+$'
-       OR (graph->>'projector_version')::bigint <> decision.graph_projector_version
+       OR (graph->>'projector_version')::bigint IS DISTINCT FROM decision.graph_projector_version
+       OR graph->>'ledger_event_count' IS NULL
        OR graph->>'ledger_event_count' !~ '^[0-9]+$'
-       OR (graph->>'ledger_event_count')::bigint <> decision.graph_ledger_event_count THEN
+       OR (graph->>'ledger_event_count')::bigint IS DISTINCT FROM decision.graph_ledger_event_count THEN
         RAISE EXCEPTION 'policy decision payload integers are not canonical or do not match'
             USING ERRCODE = '23514';
     END IF;
@@ -208,23 +214,59 @@ _LINEAGE_CHECK = (
 )
 
 
+# The recorder must still hold the complete inert shape 0008 owns before this migration grants it
+# authority: granting SELECT/INSERT to a role that drifted out-of-band (INHERIT, a membership, a
+# password, a dependency, or a role setting) would silently extend the reserved writer beyond the
+# reviewed contract. The checks below mirror 0008's inert contract exactly, fail closed, and run
+# before any grant so the cluster-global pg_shdepend count is still zero at check time.
+_ROLE_ATTRIBUTES = sa.text(
+    "SELECT oid, rolcanlogin, rolinherit, rolsuper, rolcreatedb, rolcreaterole, rolreplication, "
+    "rolbypassrls, rolconnlimit, (rolpassword IS NOT NULL) AS has_password, "
+    "(rolvaliduntil IS NOT NULL) AS has_validity FROM pg_authid WHERE rolname = :name"
+)
+_DIRECT_DEPENDENCIES = sa.text(
+    "SELECT count(*) FROM pg_shdepend WHERE refclassid = 'pg_authid'::regclass AND refobjid = :oid"
+)
+_MEMBERSHIPS = sa.text(
+    "SELECT count(*) FROM pg_auth_members WHERE roleid = :oid OR member = :oid OR grantor = :oid"
+)
+_ROLE_SETTINGS = sa.text("SELECT count(*) FROM pg_db_role_setting WHERE setrole = :oid")
+
+
 def _require_inert_recorder() -> None:
-    """Fail closed unless the recorder role exists in the inert, non-login shape 0008 owns."""
+    """Fail closed unless the recorder role still holds the exact inert identity 0008 owns."""
     bind = op.get_bind()
-    row = (
-        bind.execute(
-            sa.text(
-                "SELECT rolcanlogin, rolsuper, rolbypassrls FROM pg_roles WHERE rolname = :name"
-            ),
-            {"name": RECORDER_ROLE},
-        )
-        .mappings()
-        .one_or_none()
-    )
+    row = bind.execute(_ROLE_ATTRIBUTES, {"name": RECORDER_ROLE}).mappings().one_or_none()
     if row is None:
         raise RuntimeError(f"required inert role {RECORDER_ROLE} does not exist")
-    if row["rolcanlogin"] or row["rolsuper"] or row["rolbypassrls"]:
-        raise RuntimeError(f"{RECORDER_ROLE} must remain an inert NOLOGIN, non-bypassing identity")
+    violations = [
+        label
+        for label, value in (
+            ("LOGIN", row["rolcanlogin"]),
+            ("INHERIT", row["rolinherit"]),
+            ("SUPERUSER", row["rolsuper"]),
+            ("CREATEDB", row["rolcreatedb"]),
+            ("CREATEROLE", row["rolcreaterole"]),
+            ("REPLICATION", row["rolreplication"]),
+            ("BYPASSRLS", row["rolbypassrls"]),
+            ("PASSWORD", row["has_password"]),
+            ("VALID UNTIL", row["has_validity"]),
+        )
+        if value
+    ]
+    if int(row["rolconnlimit"]) != -1:
+        violations.append("CONNECTION LIMIT")
+    oid = int(row["oid"])
+    dependencies = int(bind.scalar(_DIRECT_DEPENDENCIES, {"oid": oid}) or 0)
+    memberships = int(bind.scalar(_MEMBERSHIPS, {"oid": oid}) or 0)
+    settings = int(bind.scalar(_ROLE_SETTINGS, {"oid": oid}) or 0)
+    if violations or dependencies or memberships or settings:
+        raise RuntimeError(
+            f"{RECORDER_ROLE} must still be the exact inert, dependency-free identity 0008 owns "
+            f"before it is granted authority (attribute violations={violations}, "
+            f"direct_dependencies={dependencies}, memberships={memberships}, "
+            f"settings={settings}); refusing to normalise it"
+        )
 
 
 def upgrade() -> None:
