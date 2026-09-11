@@ -21,12 +21,16 @@ Proof map:
        with the committed NOLOGIN boundary active, the actual script run as a
        competing process must refuse and NEVER restore LOGIN; restoration only
        happens under serialized ownership
+  O    the documented manual crash-recovery restore owns the reconciliation
+       advisory lock in the same session as its ALTER ROLE statements
 
 All credentials are synthetic per-run values; no real or repository-known secret
 is used, printed, or asserted.
 """
 
 from __future__ import annotations
+
+import re
 
 import pytest
 
@@ -36,6 +40,7 @@ from tests.deployment.credential_support import (
     MAINT_ROLE,
     OLD_MIGRATION,
     OLD_RUNTIME,
+    ROOT,
     can_authenticate,
     connect,
     host_port,
@@ -384,3 +389,26 @@ async def test_maintenance_identity_has_no_usable_tcp_password() -> None:
             )
             == "true|true"
         )
+
+
+def test_documented_manual_restore_owns_reconciliation_lock() -> None:
+    """README's manual LOGIN restore must own advisory lock 727274.
+
+    The crash-recovery block restores LOGIN without rotating; the lock, both
+    ALTER ROLE statements, and the unlock must run in one psql session so a
+    manual restore can never reopen LOGIN inside another owner's committed
+    NOLOGIN boundary.
+    """
+    readme = (ROOT / "README.md").read_text(encoding="utf-8").replace("\r\n", "\n")
+    blocks = re.findall(r"```bash\n(.*?)```", readme, re.DOTALL)
+    restore = next(b for b in blocks if "ALTER ROLE" in b and "LOGIN" in b)
+    lock = f"pg_advisory_lock({ADVISORY_LOCK_KEY})"
+    unlock = f"pg_advisory_unlock({ADVISORY_LOCK_KEY})"
+    assert lock in restore, "manual restore never acquires the reconciliation lock"
+    assert restore.index(lock) < restore.index("ALTER ROLE")
+    for role in ("blackbread_migration", "blackbread_app"):
+        assert f"ALTER ROLE {role} LOGIN" in restore
+    assert restore.rindex("ALTER ROLE") < restore.index(unlock)
+    assert "--no-psqlrc" in restore and "ON_ERROR_STOP=1" in restore
+    # One psql invocation carries lock, restoration, and unlock: a single session.
+    assert len(re.findall(r"\bpsql\b", restore)) == 1

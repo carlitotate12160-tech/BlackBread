@@ -52,9 +52,9 @@ Conductor admission, Policy Kernel enforcement, leases, and the kill switch rema
 
 There is no repository-known database credential. `POSTGRES_MIGRATION_PASSWORD` and
 `BLACKBREAD_RUNTIME_DB_PASSWORD` are required and must be non-empty; Compose fails configuration
-before any container starts if either is missing or empty. Passwords are handed to PostgreSQL
-verbatim and are never interpolated into a URL string, so any characters are allowed. Generate
-unique secrets and never commit them.
+before any container starts if either is missing or empty. Passwords must be printable, single-line
+secrets — generate them with the `secrets.token_urlsafe(...)` commands below and never commit them.
+They reach PostgreSQL verbatim, never via URL interpolation; proven reserved set: `: @ / ? # %`.
 
 Inside the stack, Compose passes the database coordinates to the `api` and `migrate` services as
 separate `BLACKBREAD_DB_*` settings (user, password, host, port, database); the application builds
@@ -115,11 +115,19 @@ the api/migrate services first, rotate, then bring them back up.
 **Crash recovery.** If the command is interrupted after the boundary commits but before rotation
 completes, both rotated roles remain `NOLOGIN`. Re-running the same command completes the rotation
 — `blackbread_maint` is not among the rotated roles, so it can always connect over the container
-socket. To release the boundary without rotating, run:
+socket. To release the boundary without rotating, run the serialized restore below: its blocking
+`pg_advisory_lock(727274)` waits for any reconciliation owner to release, so both `ALTER ROLE`
+statements run under the same serialization boundary; session end releases the lock automatically.
 
 ```bash
-docker compose exec database psql -U blackbread_maint -d blackbread \
-  -c "ALTER ROLE blackbread_migration LOGIN; ALTER ROLE blackbread_app LOGIN"
+docker compose exec -T database \
+  psql --no-psqlrc -v ON_ERROR_STOP=1 \
+  -U blackbread_maint -d blackbread <<'SQL'
+SELECT pg_advisory_lock(727274);
+ALTER ROLE blackbread_migration LOGIN;
+ALTER ROLE blackbread_app LOGIN;
+SELECT pg_advisory_unlock(727274);
+SQL
 ```
 
 The API exposes `GET /health/live` for process liveness and `GET /health/ready` for database and
