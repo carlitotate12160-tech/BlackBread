@@ -3,8 +3,7 @@
 These tests use disposable, loopback-only PostgreSQL containers (no mocks for
 authentication, the role catalog, or transactional rotation) and the actual
 canonical Compose file and reconciliation script. All credentials are synthetic
-per-run values or the removed repository defaults (which must fail); no real
-secret is used, printed, or asserted by value; removed defaults are never embedded here.
+per-run values; no real or repository-known secret is used, printed, or asserted.
 
 Proof map:
   A/B  canonical Compose validation fails closed on a missing or empty credential
@@ -26,6 +25,7 @@ import contextlib
 import os
 import secrets
 import subprocess
+import tempfile
 from collections.abc import Iterator, Mapping
 from pathlib import Path
 
@@ -227,15 +227,31 @@ def _compose_env(**overrides: str | None) -> dict[str, str]:
 
 
 def _compose_config(env: Mapping[str, str]):
-    return subprocess.run(
-        ["docker", "compose", "-f", str(COMPOSE), "config", "--quiet"],
-        cwd=ROOT,
-        env=dict(env),
-        check=False,
-        capture_output=True,
-        text=True,
-        timeout=CONTAINER_TIMEOUT,
-    )
+    # `docker compose config` auto-loads ROOT/.env; point --env-file at an empty file so the
+    # proof depends only on the supplied process environment, never on a developer's local .env.
+    with tempfile.NamedTemporaryFile("w", suffix=".env", delete=False) as empty_env:
+        empty_env_path = empty_env.name
+    try:
+        return subprocess.run(
+            [
+                "docker",
+                "compose",
+                "--env-file",
+                empty_env_path,
+                "-f",
+                str(COMPOSE),
+                "config",
+                "--quiet",
+            ],
+            cwd=ROOT,
+            env=dict(env),
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=CONTAINER_TIMEOUT,
+        )
+    finally:
+        os.unlink(empty_env_path)
 
 
 @pytest.mark.parametrize(
