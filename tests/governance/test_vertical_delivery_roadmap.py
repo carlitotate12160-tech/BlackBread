@@ -4,7 +4,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 
 def read_repo_file(path: str) -> str:
-    return (REPO_ROOT / path).read_text()
+    return (REPO_ROOT / path).read_text(encoding="utf-8")
 
 
 def test_vertical_delivery_decision_is_repository_authority():
