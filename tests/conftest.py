@@ -23,9 +23,6 @@ os.environ.setdefault(
     base64.urlsafe_b64encode(bytes(range(32))).decode("ascii"),
 )
 
-from blackbread.models.core import Client, Engagement
-from blackbread.tenancy import TenantContext, bind_tenant_context
-
 ROOT = Path(__file__).parents[1]
 TEST_DATABASE_NAME = "blackbread_test"
 TEST_DATABASE_URL = os.environ.get(
@@ -41,6 +38,18 @@ TEST_RUNTIME_PASSWORD = os.environ.get(
     "BLACKBREAD_TEST_RUNTIME_PASSWORD",
     "blackbread_test_runtime",
 )
+
+# Settings.database_url is required with no default (no repository-known credential),
+# so importing blackbread.app -- which builds the ASGI app at module load -- needs a
+# value. Bootstrap it here from the loopback test database URL before any BlackBread
+# module is imported, so test collection never depends on a production fallback. This
+# is a test-only value; production supplies BLACKBREAD_DATABASE_URL from deployment.
+os.environ.setdefault("BLACKBREAD_DATABASE_URL", TEST_DATABASE_URL)
+
+# These imports must follow the environment bootstrap above so importing BlackBread
+# modules never triggers Settings validation against a missing database URL.
+from blackbread.models.core import Client, Engagement  # noqa: E402
+from blackbread.tenancy import TenantContext, bind_tenant_context  # noqa: E402
 
 
 def _validated_test_url(value: str) -> URL:
