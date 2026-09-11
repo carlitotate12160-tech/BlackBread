@@ -14,6 +14,7 @@ def test_vertical_delivery_decision_is_repository_authority():
     product = read_repo_file("PRD.md")
 
     assert "Status:** ACCEPTED" in decision
+    assert "becomes repository authority only when merged" in decision
     assert "ADR-FINAL-004.md" in foundation
     assert "ADR-FINAL-004.md" in campaign
     assert "ADR-FINAL-004.md" in product
