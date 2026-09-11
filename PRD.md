@@ -3,7 +3,7 @@
 - **Product:** BlackBread
 - **Category:** Autonomous, threat-informed, external red-team / adversary-emulation platform
 - **Positioning:** An external red-team exploitation service that *works like an APT operator* — covert, patient, objective-driven, evidence-backed — while remaining strictly authorized, non-destructive, and agentless.
-- **Companion documents:** `ADR-FINAL-002.md` (foundation architecture), `ADR-FINAL-003.md` (campaign intelligence, verified terrain, bounded investigation), `.devin/rules/blackbread.md` (engineering guardrails), `.devin/skills/build-blackbread-agent/SKILL.md` (build guidance).
+- **Companion documents:** `ADR-FINAL-002.md` (foundation architecture), `ADR-FINAL-003.md` (campaign intelligence, verified terrain, bounded investigation), `ADR-FINAL-004.md` (vertical delivery, Policy minimalism, agent autonomy), `.devin/rules/blackbread.md` (engineering guardrails), `.devin/skills/build-blackbread-agent/SKILL.md` (build guidance).
 - **Status:** Accepted product baseline for M0–R1; implementation status is tracked by tests and release evidence, not this document.
 
 ---
@@ -11,9 +11,10 @@
 ## 0. Requirement Authority and Status
 
 `ADR-FINAL-002.md` governs foundation architecture and safety; `ADR-FINAL-003.md` governs campaign
-intelligence, verified terrain, and bounded investigation. This PRD defines product behavior and
-measurable release outcomes. Rules and skills may prescribe implementation technique but may not
-weaken either.
+intelligence, verified terrain, and bounded investigation; `ADR-FINAL-004.md` governs vertical
+delivery order, effect-based Policy minimalism, and agent-strategy autonomy. This PRD defines product
+behavior and measurable release outcomes. Rules and skills may prescribe implementation technique
+but may not weaken any accepted ADR.
 The machine-readable capability registry controls which tools an agent may propose; runtime policy
 controls whether an exact invocation may execute.
 
@@ -188,7 +189,7 @@ BlackBread borrows **discipline and TTPs** (not harm) from four groups: **APT41*
 
 ## 11. Milestones
 
-M0 skeleton → M1 trust spine → M2 capability gateway + OPSEC/egress + passive recon → M3 Scout + Target Identity Guard → M4 restricted/full Strike profiles + first-lane validation → M5 Report + first finding → M6 state/low-and-slow/backup. Releases R0–R5; Exploit (R3) is held until the pre-production safety range validates stability. Milestones are dependency gates, not labels: the release cannot advance with inherited P0/P1 or safety blockers. Detail in `ADR-FINAL-002.md` §35.
+M0 skeleton → M1 trust spine → M2 capability gateway + OPSEC/egress + passive recon → M3 Scout + Target Identity Guard → M4 restricted/full Strike profiles + first-lane validation → M5 Report + first finding → M6 state/low-and-slow/backup. Releases R0–R5; Exploit (R3) is held until the pre-production safety range validates stability. Milestones are dependency gates, not labels: the release cannot advance with inherited P0/P1 or safety blockers. `ADR-FINAL-004.md` changes delivery order inside these gates so each wave closes an executable producer/consumer loop; it does not skip a gate. Product gates remain detailed in `ADR-FINAL-002.md` §35.
 
 Before the first real-target R1 run, required CI checks must be branch-protected; the capability registry must be enforced on the live path; legal/SOW, UU ITE/UU PDP, cross-border processor, breach-data, retention/deletion, incident, responsible-disclosure, and shared-SaaS policies must be approved; ownership evidence and White Cell contacts must be sealed; and kill/dead-man, backup restore, cleanup, and deletion drills must pass.
 

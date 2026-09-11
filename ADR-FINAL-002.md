@@ -1,7 +1,7 @@
 # ADR-FINAL-002 — BlackBread: Agentless Autonomous External Red-Team / Adversary-Emulation Platform
 
 - **Status:** Accepted — 2026-08-27; supersedes all prior BlackBread architecture drafts
-- **Amended by:** `ADR-FINAL-003.md` — Campaign Intelligence, Verified Terrain, and Bounded Investigation (accepted 2026-09-04)
+- **Amended by:** `ADR-FINAL-003.md` — Campaign Intelligence, Verified Terrain, and Bounded Investigation (accepted 2026-09-04); `ADR-FINAL-004.md` — Vertical Delivery, Policy Minimalism, and Agent Autonomy (accepted 2026-09-11)
 - **Implementation status:** M1 trust-spine work in progress; the hardened ledger slice is implemented, but R0/M1 is not complete or production-eligible
 - **Decision class:** Foundational architecture
 - **Product type:** Authorized autonomous external red-team exploitation, operated with adversary-emulation (APT) tradecraft
@@ -31,7 +31,8 @@ evidence. A statement in a document never proves that a capability exists.
 When artifacts conflict, authority is resolved in this order:
 
 1. applicable law, the executed SOW, and the signed engagement manifest;
-2. accepted ADR decisions and hard safety invariants in this document and in `ADR-FINAL-003.md`;
+2. accepted ADR decisions and hard safety invariants in this document, `ADR-FINAL-003.md`, and
+   `ADR-FINAL-004.md`;
 3. `PRD.md` requirements and release acceptance criteria;
 4. `.devin/rules/blackbread.md` engineering enforcement rules;
 5. machine-readable capability registry and schemas;
@@ -752,6 +753,10 @@ Evidence-backed attack-path intelligence learned from conclusive real-world outc
 ---
 
 ## 35. Build Plan
+
+`ADR-FINAL-004.md` amends implementation ordering inside these milestone gates. It requires balanced
+vertical waves and an effect-based Policy boundary; it does not weaken or bypass any milestone or
+release exit criterion below.
 
 **Milestones (MVP path to first finding):**
 - **M0 — Skeleton:** Python 3.12, Docker Compose (arm64), PostgreSQL, FastAPI, Pydantic, SQLAlchemy/Alembic, pytest, ruff/mypy, encrypted artifacts. Exit: compose up + migrations + healthcheck.
