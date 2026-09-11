@@ -90,9 +90,11 @@ local-only maintenance identity (`blackbread_maint`, LOGIN over the trusted cont
 no stored password, so it can never authenticate over TCP), then takes a cluster-wide maintenance
 boundary: it commits `NOLOGIN` on both rotated roles before checking `pg_stat_activity`, so no new
 session can be established for either role with any credential — old or new — while the boundary
-holds. An advisory lock serializes concurrent runs; an active
-`blackbread_migration`/`blackbread_app` client session refuses the rotation and the boundary is
-released with nothing changed. The script is a LF shell script; run it on the Linux deployment
+holds. One advisory lock serializes both reconciliation and restoration: a run that cannot acquire
+it exits without touching either role, so a competing run can never restore `LOGIN` inside another
+owner's committed boundary. An active `blackbread_migration`/`blackbread_app` client session
+refuses the rotation and `LOGIN` is restored inside the same session — still under boundary
+ownership — with nothing rotated. The script is a LF shell script; run it on the Linux deployment
 target:
 
 ```bash

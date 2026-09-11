@@ -17,6 +17,10 @@ Proof map:
        the roles — a re-run completes the rotation
   M    the maintenance identity is local-socket-only: LOGIN but with no usable
        TCP password
+  N    competing-run restore isolation: while a session owns the advisory lock
+       with the committed NOLOGIN boundary active, the actual script run as a
+       competing process must refuse and NEVER restore LOGIN; restoration only
+       happens under serialized ownership
 
 All credentials are synthetic per-run values; no real or repository-known secret
 is used, printed, or asserted.
@@ -288,6 +292,76 @@ async def test_rerun_completes_rotation_after_interrupted_boundary() -> None:
         assert result.returncode == 0
         assert await can_authenticate(port, "blackbread_migration", new_migration)
         assert await can_authenticate(port, "blackbread_app", new_runtime)
+
+
+async def test_competing_reconcile_never_restores_inside_owned_boundary() -> None:
+    """While the lock is owned, a competing reconcile can never restore LOGIN.
+
+    Deterministic barrier: session A holds the advisory lock with the committed
+    NOLOGIN boundary active (verified via pg_locks); process B is the actual
+    reconcile script. B's try-lock fails under A's ownership, so it must refuse
+    and exit WITHOUT mutating either rotated role — the committed boundary
+    stays intact. The owner then completes controlled restoration under its own
+    serialized ownership and releases; only then do the old credentials work.
+    """
+    new_migration = synthetic_password()
+    new_runtime = synthetic_password()
+    driver_password = synthetic_password()
+    with postgres_container(OLD_MIGRATION) as container_id:
+        port = host_port(container_id)
+        await wait_ready(port, OLD_MIGRATION)
+        init_runtime(container_id, OLD_RUNTIME)
+        # The maintenance identity must already exist so B's phase-0 probe
+        # passes and B provably reaches the lock acquisition.
+        psql(container_id, "CREATE ROLE blackbread_maint SUPERUSER LOGIN")
+        bootstrap = await connect(port, "blackbread_migration", OLD_MIGRATION)
+        try:
+            driver_ddl = await bootstrap.fetchval(
+                "SELECT format('CREATE ROLE boundary_driver SUPERUSER LOGIN "
+                "PASSWORD %L', $1::text)",
+                driver_password,
+            )
+            await bootstrap.execute(driver_ddl)
+        finally:
+            await bootstrap.close()
+
+        owner = await connect(port, "boundary_driver", driver_password)
+        try:
+            # A owns the serialized boundary: lock granted + committed NOLOGIN.
+            assert await owner.fetchval("SELECT pg_try_advisory_lock($1)", ADVISORY_LOCK_KEY)
+            await owner.execute("ALTER ROLE blackbread_migration NOLOGIN")
+            await owner.execute("ALTER ROLE blackbread_app NOLOGIN")
+            # Deterministic barrier: the advisory lock is granted to A's session.
+            held = await owner.fetchval(
+                "SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' "
+                "AND granted AND objid = $1",
+                ADVISORY_LOCK_KEY,
+            )
+            assert int(held) == 1
+
+            # Process B: the actual script, run to completion while A owns the
+            # boundary. subprocess.run returns only after B has fully exited.
+            result = reconcile(container_id, new_migration, new_runtime, check=False)
+            assert result.returncode != 0
+            assert "lock" in (result.stderr + result.stdout).lower()
+
+            # B exited and NEVER mutated: the committed boundary is still intact,
+            # so the old credentials still cannot open a session for either role.
+            assert not await can_authenticate(port, "blackbread_app", OLD_RUNTIME)
+            assert not await can_authenticate(port, "blackbread_migration", OLD_MIGRATION)
+
+            # Controlled restoration by the owner under its own serialized
+            # ownership, then release of the lock.
+            await owner.execute("ALTER ROLE blackbread_migration LOGIN")
+            await owner.execute("ALTER ROLE blackbread_app LOGIN")
+            await owner.execute("SELECT pg_advisory_unlock($1)", ADVISORY_LOCK_KEY)
+        finally:
+            await owner.close()
+
+        # Passwords were never rotated, and LOGIN is restored only after the
+        # serialized owner completed the restoration.
+        assert await can_authenticate(port, "blackbread_app", OLD_RUNTIME)
+        assert await can_authenticate(port, "blackbread_migration", OLD_MIGRATION)
 
 
 async def test_maintenance_identity_has_no_usable_tcp_password() -> None:
