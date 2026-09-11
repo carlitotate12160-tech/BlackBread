@@ -280,7 +280,7 @@ async def test_rerun_completes_rotation_after_interrupted_boundary() -> None:
         psql(
             container_id,
             "ALTER ROLE blackbread_migration NOLOGIN; ALTER ROLE blackbread_app NOLOGIN",
-            user=MAINT_ROLE,
+            role=MAINT_ROLE,
         )
         assert not await can_authenticate(port, "blackbread_app", original_runtime)
 

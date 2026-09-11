@@ -150,9 +150,9 @@ def reconcile(
     )
 
 
-def psql(container_id: str, sql: str, *, user: str = "blackbread_migration") -> str:
+def psql(container_id: str, sql: str, *, role: str = "blackbread_migration") -> str:
     """Run SQL as the given role over the trusted local socket; return one value."""
-    result = _run(["docker", "exec", container_id, *_PSQL, sql, "-U", user, "-d", "blackbread"])
+    result = _run(["docker", "exec", container_id, *_PSQL, sql, "-U", role, "-d", "blackbread"])
     return result.stdout.strip()
 
 
