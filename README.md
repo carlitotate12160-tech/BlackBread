@@ -48,12 +48,27 @@ The typed event catalog validates immutable ledger record shapes only. An
 Conductor admission, Policy Kernel enforcement, leases, and the kill switch remain blocked by
 `LEDGER-GAP-001` until their runtime paths are implemented and tested.
 
-Generate separate migration/runtime database credentials and an artifact encryption key before
-starting the stack:
+### Database credentials
+
+There is no repository-known database credential. `POSTGRES_MIGRATION_PASSWORD` and
+`BLACKBREAD_RUNTIME_DB_PASSWORD` are required and must be non-empty; Compose fails configuration
+before any container starts if either is missing or empty. Passwords must be printable, single-line
+secrets — generate them with the `secrets.token_urlsafe(...)` commands below and never commit them.
+They reach PostgreSQL verbatim, never via URL interpolation; proven reserved set: `: @ / ? # %`.
+
+Inside the stack, Compose passes the database coordinates to the `api` and `migrate` services as
+separate `BLACKBREAD_DB_*` settings (user, password, host, port, database); the application builds
+its SQLAlchemy URL from them via `URL.create`, so a password containing `: @ / ? # %` is preserved
+exactly. For a non-Compose run, set either `BLACKBREAD_DATABASE_URL` (a non-empty
+`postgresql+asyncpg` URL; the test/development alternative) or the five `BLACKBREAD_DB_*`
+components — setting both is ambiguous and rejected.
+
+**Fresh volume (first start, or a deliberately empty `postgres-data` volume).** The supplied
+credentials bootstrap the roles at initialization:
 
 ```bash
-export POSTGRES_MIGRATION_PASSWORD="replace-with-migration-secret"
-export BLACKBREAD_RUNTIME_DB_PASSWORD="replace-with-runtime-secret"
+export POSTGRES_MIGRATION_PASSWORD="$(python -c 'import secrets; print(secrets.token_urlsafe(24))')"
+export BLACKBREAD_RUNTIME_DB_PASSWORD="$(python -c 'import secrets; print(secrets.token_urlsafe(24))')"
 export BLACKBREAD_ARTIFACT_KEY="$(python -c 'import base64,secrets; print(base64.urlsafe_b64encode(secrets.token_bytes(32)).decode())')"
 docker compose up --build
 ```
@@ -63,7 +78,57 @@ The database initialization script creates `blackbread_app` as a non-owner membe
 uses `blackbread_app`, which receives only the table privileges required by the implemented slice.
 A constrained lock sentinel permits row locking without business-column UPDATE access, while a
 security-definer insert trigger advances an external count/hash anchor so tail truncation is
-detectable. Existing development volumes created before this split must be reinitialized deliberately.
+detectable.
+
+**Existing volume (rotate credentials without reinitializing).** A volume created before this change
+still holds the old passwords; editing the environment alone does not rotate them, because
+PostgreSQL only reads `POSTGRES_PASSWORD` and the init script at first initialization. Rotate them
+with one explicit, bounded command run inside the running database container. It changes only
+the `blackbread_migration` and `blackbread_app` passwords -- no role attributes, grants,
+memberships, recorder state, schema, migration revision, or data. The command first creates a
+local-only maintenance identity (`blackbread_maint`, LOGIN over the trusted container socket with
+no stored password, so it can never authenticate over TCP), then takes a cluster-wide maintenance
+boundary: it commits `NOLOGIN` on both rotated roles before checking `pg_stat_activity`, so no new
+session can be established for either role with any credential — old or new — while the boundary
+holds. One advisory lock serializes both reconciliation and restoration: a run that cannot acquire
+it exits without touching either role, so a competing run can never restore `LOGIN` inside another
+owner's committed boundary. An active `blackbread_migration`/`blackbread_app` client session
+refuses the rotation and `LOGIN` is restored inside the same session — still under boundary
+ownership — with nothing rotated. The script is a LF shell script; run it on the Linux deployment
+target:
+
+```bash
+export POSTGRES_MIGRATION_PASSWORD="$(python -c 'import secrets; print(secrets.token_urlsafe(24))')"
+export BLACKBREAD_RUNTIME_DB_PASSWORD="$(python -c 'import secrets; print(secrets.token_urlsafe(24))')"
+docker compose cp deploy/postgres/reconcile-credentials.sh database:/tmp/reconcile-credentials.sh
+docker compose exec -T \
+  -e POSTGRES_USER=blackbread_migration -e POSTGRES_DB=blackbread \
+  -e POSTGRES_MIGRATION_PASSWORD -e BLACKBREAD_RUNTIME_DB_PASSWORD \
+  database bash /tmp/reconcile-credentials.sh
+# Then restart the app/migration services so they reconnect with the new passwords:
+docker compose up -d --build
+```
+
+Re-running the command with the same credentials is idempotent. If an active session blocks it, stop
+the api/migrate services first, rotate, then bring them back up.
+
+**Crash recovery.** If the command is interrupted after the boundary commits but before rotation
+completes, both rotated roles remain `NOLOGIN`. Re-running the same command completes the rotation
+— `blackbread_maint` is not among the rotated roles, so it can always connect over the container
+socket. To release the boundary without rotating, run the serialized restore below: its blocking
+`pg_advisory_lock(727274)` waits for any reconciliation owner to release, so both `ALTER ROLE`
+statements run under the same serialization boundary; session end releases the lock automatically.
+
+```bash
+docker compose exec -T database \
+  psql --no-psqlrc -v ON_ERROR_STOP=1 \
+  -U blackbread_maint -d blackbread <<'SQL'
+SELECT pg_advisory_lock(727274);
+ALTER ROLE blackbread_migration LOGIN;
+ALTER ROLE blackbread_app LOGIN;
+SELECT pg_advisory_unlock(727274);
+SQL
+```
 
 The API exposes `GET /health/live` for process liveness and `GET /health/ready` for database and
 migration readiness. The API is available at `http://localhost:8000`.
