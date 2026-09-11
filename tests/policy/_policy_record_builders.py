@@ -17,10 +17,12 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from blackbread.conductor.contracts import ActionProposal
+from blackbread.ledger.hashing import compute_payload_hash
 from blackbread.policy.decision_v2 import PolicyDecisionV2
 from tests.conductor._builders import make_proposal
 
 _JSONB_COLUMNS = frozenset({"parameters", "precondition_refs"})
+GENESIS_HASH = "0" * 64
 
 PROPOSAL_COLUMNS = (
     "schema_name",
@@ -208,3 +210,88 @@ async def insert_decision(conn: AsyncConnection, row: dict[str, Any]) -> None:
     """Insert a decision_records row via parameterized raw SQL."""
     statement = text(_insert("decision_records", DECISION_COLUMNS))
     await conn.execute(statement, _params(DECISION_COLUMNS, row))
+
+
+# --- policy.decision.recorded v1 event fixtures (M1.4c2b0b) -----------------------------------
+
+_EVENT_JSONB = frozenset({"payload", "redaction_refs"})
+
+
+def _iso(value: datetime) -> str:
+    return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+
+def decision_event_payload(proposal: dict[str, Any], decision: dict[str, Any]) -> dict[str, Any]:
+    """Return the exact policy.decision.recorded v1 payload for a proposal/decision row pair."""
+    return {
+        "decision_schema_name": decision["schema_name"],
+        "decision_schema_version": decision["schema_version"],
+        "proposal_id": str(proposal["proposal_id"]),
+        "proposal_digest": proposal["proposal_digest"],
+        "idempotency_key": proposal["idempotency_key"],
+        "decision_id": str(decision["decision_id"]),
+        "decision_authority": decision["decision_authority"],
+        "outcome": decision["outcome"],
+        "reason_code": decision["reason_code"],
+        "decided_at": _iso(decision["decided_at"]),
+        "graph_version": {
+            "state_root_version": decision["graph_state_root_version"],
+            "projector_version": decision["graph_projector_version"],
+            "state_root": decision["graph_state_root"],
+            "ledger_event_count": decision["graph_ledger_event_count"],
+            "ledger_head_hash": decision["graph_ledger_head_hash"],
+        },
+        "runtime_gate_result_digest": decision["runtime_gate_result_digest"],
+        "decision_digest": decision["decision_digest"],
+    }
+
+
+def decision_event_row(
+    proposal: dict[str, Any],
+    decision: dict[str, Any],
+    *,
+    sequence: int = 1,
+    prev_event_hash: str = GENESIS_HASH,
+    **overrides: Any,
+) -> dict[str, Any]:
+    """Return a coherent agent_events row for a policy.decision.recorded v1 event.
+
+    ``policy_decision_id`` is intentionally omitted: the 0009 trigger derives it from causation.
+    """
+    payload = overrides.pop("payload", None)
+    if payload is None:
+        payload = decision_event_payload(proposal, decision)
+    row: dict[str, Any] = {
+        "id": uuid.uuid4(),
+        "engagement_id": decision["engagement_id"],
+        "tenant_id": decision["tenant_id"],
+        "sequence": sequence,
+        "schema_name": "policy.decision.recorded",
+        "schema_version": 1,
+        "producer": "policy-record-transaction.v1",
+        "correlation_id": proposal["proposal_id"],
+        "causation_id": decision["decision_id"],
+        "occurred_at": decision["decided_at"],
+        "recorded_at": decision["decided_at"],
+        "payload": payload,
+        "payload_hash": compute_payload_hash(payload),
+        "prev_event_hash": prev_event_hash,
+        "event_hash": uuid.uuid4().hex + uuid.uuid4().hex,
+        "sensitivity": "internal",
+        "redaction_refs": [],
+    }
+    row.update(overrides)
+    return row
+
+
+async def insert_agent_event(conn: AsyncConnection, row: dict[str, Any]) -> None:
+    """Insert an agent_events row via parameterized raw SQL (honouring extra override columns)."""
+    columns = tuple(row.keys())
+    placeholders = ", ".join(
+        f"CAST(:{c} AS jsonb)" if c in _EVENT_JSONB else f":{c}" for c in columns
+    )
+    statement = text(
+        f"INSERT INTO agent_events ({', '.join(columns)}) VALUES ({placeholders})"  # noqa: S608
+    )
+    params = {c: json.dumps(row[c]) if c in _EVENT_JSONB else row[c] for c in columns}
+    await conn.execute(statement, params)

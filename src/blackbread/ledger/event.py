@@ -130,3 +130,9 @@ class AgentEvent(Base):
         default=list,
         server_default=text("'[]'::jsonb"),
     )
+    # Database-derived policy-decision lineage (M1.4c2b0b). NULL for every ordinary ledger event;
+    # for a reserved ``policy.decision.recorded`` event the 0009 SECURITY INVOKER trigger derives it
+    # from ``causation_id``. The composite FK, partial-unique index, and lineage CHECK that enforce
+    # it live in migration 0009 (the database owns lineage integrity), and it is intentionally not
+    # part of the sealed event preimage, so appending it does not change the v1 event hash.
+    policy_decision_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)

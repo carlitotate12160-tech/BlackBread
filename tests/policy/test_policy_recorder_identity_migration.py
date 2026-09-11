@@ -1,10 +1,11 @@
 """M1.4c2b0a committed inert recorder-role identity and non-assumability proofs.
 
 Observes the ``blackbread_policy_recorder`` role produced by ``alembic upgrade head`` on the shared
-migrated test database (revision ``0008_m1_policy_recorder_identity``). Proves the exact inert
-``pg_authid`` shape, the absence of any grant, direct ``pg_shdepend`` dependency,
-``pg_auth_members`` membership, or ``pg_db_role_setting`` configuration, and that ordinary
-BlackBread login/runtime identities cannot ``SET ROLE`` to it.
+migrated test database (now revision ``0009_m1_policy_record_authority``). Proves the exact inert
+``pg_authid`` shape is preserved, the role has no ``pg_auth_members`` membership or
+``pg_db_role_setting`` configuration and no mutation authority over the record substrate, and that
+ordinary BlackBread login/runtime identities cannot ``SET ROLE`` to it. Its exact 0009 SELECT/INSERT
+grants are asserted in ``test_policy_record_authority_migration``.
 
 A temporary-mutation proof shows the non-assumability oracle is genuinely sensitive: granting
 recorder membership to the test runtime makes ``SET ROLE`` succeed. The grant is committed
@@ -36,7 +37,6 @@ TEST_LOGIN_ROLE = "blackbread_test_runtime"
 # 0007 revokes PUBLIC on these two tables, so a false ``has_table_privilege`` here reflects a direct
 # grant to the recorder rather than an ambient PUBLIC privilege the slice does not claim absent.
 REVOKED_PUBLIC_TABLES = ("action_proposals", "decision_records")
-TABLE_PRIVILEGES = ("SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER")
 
 _ATTRIBUTES = text(
     "SELECT oid, rolcanlogin, rolinherit, rolsuper, rolcreatedb, rolcreaterole, rolreplication, "
@@ -113,19 +113,15 @@ async def test_committed_recorder_role_has_exact_inert_shape(
     assert row["valid_null"] is True
 
 
-async def test_committed_recorder_role_has_no_dependency_membership_or_setting(
+async def test_committed_recorder_role_has_no_membership_or_setting(
     policy_admin_engine: AsyncEngine,
 ) -> None:
+    # At head (revision 0009) the recorder legitimately holds grant-derived shared dependencies
+    # (its exact SELECT/INSERT privileges are asserted in test_policy_record_authority_migration);
+    # non-assumability still requires zero membership edges and zero role-specific settings.
     oid = await _recorder_oid(policy_admin_engine)
     assert oid is not None
     async with policy_admin_engine.connect() as conn:
-        shdepend = await conn.scalar(
-            text(
-                "SELECT count(*) FROM pg_shdepend "
-                "WHERE refclassid = 'pg_authid'::regclass AND refobjid = :oid"
-            ),
-            {"oid": oid},
-        )
         members = await conn.scalar(
             text(
                 "SELECT count(*) FROM pg_auth_members "
@@ -137,17 +133,18 @@ async def test_committed_recorder_role_has_no_dependency_membership_or_setting(
             text("SELECT count(*) FROM pg_db_role_setting WHERE setrole = :oid"), {"oid": oid}
         )
 
-    assert shdepend == 0, "recorder must have zero direct cluster-wide shared dependencies"
     assert members == 0, "recorder must have no role membership edge in any direction"
     assert settings == 0, "recorder must have no role-specific configuration"
 
 
-async def test_committed_recorder_role_holds_no_direct_table_grant(
+async def test_committed_recorder_role_holds_no_write_authority(
     policy_admin_engine: AsyncEngine,
 ) -> None:
+    # 0009 grants the recorder SELECT on the record tables; it holds no mutation authority there.
+    write_privileges = ("INSERT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER")
     async with policy_admin_engine.connect() as conn:
         for table in REVOKED_PUBLIC_TABLES:
-            for privilege in TABLE_PRIVILEGES:
+            for privilege in write_privileges:
                 granted = await conn.scalar(
                     text("SELECT has_table_privilege(:r, :t, :p)"),
                     {"r": RECORDER_ROLE, "t": table, "p": privilege},
