@@ -224,13 +224,15 @@ async def _restore_shared_head() -> None:
 
 
 @pytest.fixture(scope="module")
-def suspend_shared_authority_head() -> Iterator[None]:
+def suspend_shared_authority_head(migrated_database: None) -> Iterator[None]:
     """Suspend the shared database's 0009 recorder grants for revision-0008 role proofs.
 
     Revoking the exact grants makes the cluster-global recorder dependency-free so a 0008-level test
     may drop/recreate it and assert the inert shape. Head is always restored in ``finally`` —
     including when a revoke partially commits under AUTOCOMMIT and then raises, so the shared
-    database is never left with the recorder's grants half-suspended.
+    database is never left with the recorder's grants half-suspended. The ``migrated_database``
+    dependency forces the shared schema to head first — without it, a run whose random order reaches
+    this module first revokes grants on tables that do not exist yet.
     """
     try:
         asyncio.run(run_admin(AUTHORITY_REVOKES))

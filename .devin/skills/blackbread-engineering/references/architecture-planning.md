@@ -125,4 +125,8 @@ An implementation-ready plan or prompt must contain:
 
 ## Finish planning
 
-Do not cycle through cosmetic plan revisions. After all correctness, safety, boundary, evidence, and budget blockers are resolved, declare the plan implementation-ready. Further architecture review requires new live drift, failed proof, reproduced defect, or a stated STOP/SPLIT condition.
+Do not cycle through cosmetic plan revisions. After all correctness, safety, boundary, evidence, and
+budget blockers are resolved, fill `design-seal-template.md` and declare `DESIGN_SEALED`. Derive a
+compact `execution-prompt-template.md` from that seal; do not copy the feasibility analysis or full
+authority text into it. Further architecture review requires new live drift, a changed source-manifest
+blob, failed proof, reproduced defect, `DESIGN_FAILURE`, or a stated STOP/SPLIT condition.
