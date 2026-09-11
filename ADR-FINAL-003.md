@@ -8,6 +8,9 @@
 
 **Amends:** `ADR-FINAL-002.md` §§6, 9, 10, 21, 24, 25, 28, 32, 35, and 36
 
+**Amended by:** `ADR-FINAL-004.md` — Vertical Delivery, Policy Minimalism, and Agent Autonomy
+(accepted 2026-09-11)
+
 **Retains:** every authorization, Policy Kernel, OPSEC, target-identity, capability,
 evidence-integrity, do-no-harm, agentless-execution, and release gate in `ADR-FINAL-002`
 
@@ -689,7 +692,8 @@ promote a `PLANNED` or `ON_HOLD` capability to executable eligibility.
 
 ## 16. Milestone and release placement
 
-This ADR does not alter the active M1.4 sequence and does not authorize target-facing behavior.
+This ADR did not alter the active M1.4 sequence when accepted. `ADR-FINAL-004.md` now governs the
+balanced vertical delivery order around that sequence. Neither ADR authorizes target-facing behavior.
 
 | Milestone / release | Required addition | State on ADR acceptance |
 |---|---|---|
