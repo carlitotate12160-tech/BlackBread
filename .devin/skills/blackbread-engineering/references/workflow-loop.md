@@ -7,10 +7,15 @@ architect, implementer, environment operator, reviewer, and release authority in
 
 ```text
 BASELINE_VERIFIED -> DESIGN_SEALED -> IMPLEMENTING -> LOCAL_GREEN
--> QUALIFIED -> PR_READY -> REVIEWED -> MERGEABLE
-                           REVIEWED -> CORRECTION_REQUIRED
-                           -> IMPLEMENTING -> LOCAL_GREEN -> QUALIFIED -> PR_READY -> REVIEWED
+-> QUALIFICATION_REQUIRED -> QUALIFIED -> PR_READY -> REVIEWED -> MERGEABLE
+QUALIFICATION_FAILED -> CORRECTION_REQUIRED -> IMPLEMENTING
+REVIEWED -> CORRECTION_REQUIRED -> IMPLEMENTING -> LOCAL_GREEN
 ```
+
+`LOCAL_GREEN` reaches `PR_READY` directly when the packet requires no delegated environment proof.
+`QUALIFICATION_FAILED` returns to `IMPLEMENTING` only through `CORRECTION_REQUIRED` after an
+explicit in-scope disposition; it never retries automatically — otherwise the run stops at
+`DESIGN_HOLD` or `SPLIT_REQUIRED`.
 
 Terminal stop states are `DESIGN_HOLD`, `SPLIT_REQUIRED`, and `NOT_MERGEABLE`. A stopped state needs
 new owner direction or new evidence; it must not trigger an automatic retry.
@@ -22,7 +27,7 @@ new owner direction or new evidence; it must not trigger an automatic retry.
 | Design controller | live baseline, relevant authority and code | design seal, implementation packet | write production code or hide unresolved feasibility |
 | Implementation owner | `AGENTS.md`, live drift checks, design seal, implementation packet, allowed code/tests | RED/GREEN change, local preflight, ready branch/PR or qualification request | redo accepted architecture, expand files, review itself into mergeability |
 | Qualification runner | exact commit and qualification runbook | environment-bound proof record | redesign, edit, commit, push, or substitute a different commit |
-| Review/seal owner | exact PR diff, relevant invariants, checks, reviewer output | finding dispositions, correction packet, final seal | silently patch or sample reviewers repeatedly |
+| Review/seal owner | exact PR diff, relevant invariants, checks, reviewer output | an exact-head disposition (fixed, deferred-with-authority, stale, or false-positive-with-evidence) for every surfaced AI/bot comment before `MERGEABLE`, one correction packet, final seal | silently patch or sample reviewers repeatedly |
 | Repository owner | final exact-head seal | squash-merge decision | bypass required gates |
 
 One person or model may perform several roles sequentially, but each role starts from the previous

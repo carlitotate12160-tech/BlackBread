@@ -9,6 +9,8 @@ MODE: IMPLEMENT | FIX
 SLICE:
 DESIGN_SEAL_ID:
 PROTECTED_BASE_SHA:
+CORRECTION_PACKET_ID: <required when MODE: FIX>
+REVIEWED_HEAD_SHA: <required when MODE: FIX>
 BRANCH:
 DELIVERY_PATH: NEW_SLICE | EXISTING_PR
 IMPLEMENTATION_OWNER:
@@ -18,7 +20,9 @@ IMPLEMENTATION_OWNER:
 
 Read `AGENTS.md`, `.github/agent-delivery.json`, engineering state, and the sealed source manifest.
 Verify live base/open-PR state and the working tree. Continue only when the base, selected slice,
-ruleset, gaps, and all recorded source blobs still match. Otherwise return `DESIGN_DRIFT` with the
+ruleset, gaps, and all recorded source blobs still match. For `MODE: FIX`, also verify
+`CORRECTION_PACKET_ID` and `REVIEWED_HEAD_SHA` match the emitted correction packet and its reviewed
+PR head before any edit. Otherwise return `DESIGN_DRIFT` with the
 single changed fact; do not re-plan inside the IDE.
 
 ## Outcome and boundaries
@@ -117,7 +121,7 @@ Return only the changed fact, violated assumption/invariant, evidence, and `DESI
 ## Required implementation return
 
 ```text
-STATE: LOCAL_GREEN | QUALIFICATION_REQUIRED | PR_READY | STOPPED
+STATE: LOCAL_GREEN | QUALIFICATION_REQUIRED | PR_READY | DESIGN_DRIFT | DESIGN_FAILURE | SPLIT_REQUIRED
 BASE_SHA:
 HEAD_SHA:
 CHANGED_FILES:
