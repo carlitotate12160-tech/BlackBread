@@ -23,13 +23,11 @@ def test_policy_authorizes_effects_without_selecting_agent_strategy():
     decision = read_repo_file("ADR-FINAL-004.md")
 
     assert "Policy outcome is invariant under strategy metadata" in decision
-    assert "hypothesis" in decision
-    assert "path" in decision
-    assert "technique" in decision
-    assert "tool order" in decision
-    assert "playbook" in decision
-    assert "concrete forbidden effect" in decision
-    assert "adjacent positive control" in decision
+    assert "SHALL NOT change admission" in decision
+    assert "Policy SHALL NOT require a static Scout-to-Strike-to-Exploit sequence" in decision
+    assert "or completion of a playbook" in decision
+    assert "a concrete forbidden effect" in decision
+    assert "an adjacent positive control" in decision
 
 
 def test_roadmap_requires_balanced_executable_vertical_slices():
@@ -42,9 +40,8 @@ def test_roadmap_requires_balanced_executable_vertical_slices():
     assert "AttackPathGraph" in decision
     assert "ControlAssessmentProjection" in decision
     assert "CampaignProjection" in decision
-    assert "Passive Scout" in decision
-    assert "restricted Strike" in decision
-    assert "Report" in decision
+    assert "the Passive Scout loop exist" in decision
+    assert "W5 — restricted Strike + Report" in decision
 
 
 def test_roadmap_does_not_claim_runtime_or_target_release():
