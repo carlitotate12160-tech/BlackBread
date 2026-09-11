@@ -248,6 +248,12 @@ class DecisionRecord(Base):
         UniqueConstraint(
             "tenant_id", "engagement_id", "decision_digest", name="uq_decision_records_digest"
         ),
+        # Composite candidate key the M1.4c2b0b policy-decision event FK references. ``decision_id``
+        # is already the primary key; this exposes the tenant/engagement-qualified identity so the
+        # event lineage FK binds tenant and engagement, not just the decision id.
+        UniqueConstraint(
+            "tenant_id", "engagement_id", "decision_id", name="uq_decision_records_identity"
+        ),
         ForeignKeyConstraint(
             ["engagement_id", "tenant_id"],
             ["engagements.id", "engagements.tenant_id"],

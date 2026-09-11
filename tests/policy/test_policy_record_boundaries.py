@@ -1,9 +1,10 @@
-"""Intentional non-wiring proofs for the M1.4c1 policy-record substrate.
+"""Intentional non-wiring proofs for the M1.4c1 substrate and M1.4c2b0b recorder authority.
 
 Combines source inspection (no production importer or reader, no exposed execution surface, no
-public PolicyDecisionV2 writer) with a behavioral runtime write-denial test. M1.4c2 owns the first
+public PolicyDecisionV2 writer, and no production assumption of the reserved recorder identity or
+the evaluation-facts producer) with a behavioral runtime write-denial test. M1.4c2b1 owns the first
 production writer that composes evaluate_policy() with persistence and ledger publication in one
-transaction.
+authenticated transaction; nothing in this slice reaches the recorder authority from production.
 """
 
 from __future__ import annotations
@@ -28,6 +29,8 @@ from tests.policy.conftest import seed_engagement
 
 PROD_ROOT = Path(__file__).parents[2] / "src" / "blackbread"
 MAPPING_FILE = PROD_ROOT / "models" / "policy_records.py"
+FACTS_FILE = PROD_ROOT / "policy" / "evaluation_facts.py"
+RECORDER_ROLE = "blackbread_policy_recorder"
 FORBIDDEN_SURFACE = {
     "authorize",
     "execute",
@@ -63,6 +66,22 @@ def test_no_production_module_reads_the_tables() -> None:
         if table in path.read_text(encoding="utf-8")
     ]
     assert offenders == [], f"production modules reference the tables: {offenders}"
+
+
+def test_no_production_module_assumes_the_recorder_or_facts_writer() -> None:
+    # M1.4c2b0b non-wiring: no production entry point may name the reserved recorder identity or
+    # import the evaluation-facts producer as a writer. The recorder is exercised only by tests and
+    # the future b1 transaction; evaluation_facts remains an island until M1.4c2b1 consumes it.
+    offenders = []
+    for path in _production_sources():
+        source = path.read_text(encoding="utf-8")
+        if RECORDER_ROLE in source:
+            offenders.append(f"{path.relative_to(PROD_ROOT)}:recorder")
+        if path != FACTS_FILE and (
+            "policy.evaluation_facts" in source or "import evaluation_facts" in source
+        ):
+            offenders.append(f"{path.relative_to(PROD_ROOT)}:evaluation_facts")
+    assert offenders == [], f"production assumes the recorder or facts writer: {offenders}"
 
 
 def test_mapping_is_not_re_exported_from_models_package() -> None:
