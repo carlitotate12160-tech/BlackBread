@@ -44,11 +44,16 @@ async def test_recorder_holds_select_on_records_and_insert_on_events(
     assert usage is True
 
 
-async def test_recorder_has_no_write_authority_over_records(
+async def test_recorder_write_authority_is_bounded_insert_only(
     policy_admin_engine: AsyncEngine,
 ) -> None:
+    # At b1 head the recorder holds SELECT and INSERT on the record tables (the routine inserts the
+    # immutable proposal and decision as the recorder) but never the mutation authority that would
+    # let it change or remove an append-only record.
     for table in ("action_proposals", "decision_records"):
-        for privilege in ("INSERT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER"):
+        assert await table_privilege(policy_admin_engine, RECORDER_ROLE, table, "SELECT")
+        assert await table_privilege(policy_admin_engine, RECORDER_ROLE, table, "INSERT")
+        for privilege in ("UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER"):
             granted = await table_privilege(policy_admin_engine, RECORDER_ROLE, table, privilege)
             assert granted is False, f"recorder must not hold {privilege} on {table}"
     # The reserved writer may append events but never read, update, delete, or truncate the ledger.
@@ -80,9 +85,11 @@ async def test_recorder_authority_is_minimal_across_other_tables(
     granted = {(str(row[0]), str(row[1])) for row in rows}
     assert granted == {
         ("action_proposals", "SELECT"),
+        ("action_proposals", "INSERT"),
         ("decision_records", "SELECT"),
+        ("decision_records", "INSERT"),
         ("agent_events", "INSERT"),
-    }, f"recorder privileges must be exactly the minimal set, got {sorted(granted)}"
+    }, f"recorder privileges must be exactly the b1 minimal set, got {sorted(granted)}"
     create = await _scalar(
         policy_admin_engine,
         "SELECT has_schema_privilege(:r, 'public', 'CREATE')",
