@@ -9,7 +9,8 @@
 **Amends:** `ADR-FINAL-002.md` §§6, 9, 10, 21, 24, 25, 28, 32, 35, and 36
 
 **Amended by:** `ADR-FINAL-004.md` — Vertical Delivery, Policy Minimalism, and Agent Autonomy
-(accepted 2026-09-11)
+(accepted 2026-09-11); `ADR-FINAL-005.md`, `ADR-FINAL-006.md`, and `ADR-FINAL-008.md` — campaign
+authority, access-context chaining, and bounded lateral movement (accepted 2026-09-12)
 
 **Retains:** every authorization, Policy Kernel, OPSEC, target-identity, capability,
 evidence-integrity, do-no-harm, agentless-execution, and release gate in `ADR-FINAL-002`

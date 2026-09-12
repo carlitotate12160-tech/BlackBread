@@ -361,3 +361,59 @@ has no live effect; it is retained only as rollback evidence:
   Strike -> Report campaign-coherence conformance record.
 - **Compensating control:** no target-facing release is eligible; M1/R0 may continue because the
   current deny-only trust spine cannot execute target actions.
+
+## CHAIN-GAP-001 — Campaign authority and access-context chaining are not implemented
+
+- **Status:** OPEN
+- **Severity:** P1 architecture
+- **Owner:** campaign-intelligence and trust-spine
+- **Target milestone:** after W3, before R3/R4 full-kill-chain execution
+- **Blocks:** R3/R4 and every Verified External-to-Objective product claim
+- **Discovered:** `ADR-FINAL-005` and `ADR-FINAL-006` acceptance, 2026-09-12.
+- **Description:** the current proposal and approval contracts have no campaign-authority reference,
+  source access context, execution route, or expected security transition. Approval remains bound to
+  one proposal rather than deriving exact per-effect decisions from a signed campaign ceiling.
+- **Required closure:** implement versioned campaign authority, access-context, execution-route, and
+  atomic proposal evolution through independently sealable slices without changing the v1 proposal
+  digest; prove stale, substituted, revoked, cross-tenant, and mixed-snapshot cases fail closed.
+- **Verification:** future campaign-authority and attack-transition contract/integration suites plus
+  an external-origin-to-objective range conformance record.
+- **Compensating control:** the full kill-chain capability remains non-executable; current work is
+  deny-only and has no target-effect consumer.
+
+## TARGET-RUNTIME-GAP-001 — Ephemeral target execution and bounded lateral movement are absent
+
+- **Status:** OPEN
+- **Severity:** P1 architecture
+- **Owner:** execution-plane and post-exploit-safety
+- **Target milestone:** R3 bootstrap qualification and R4 post-exploit
+- **Blocks:** R4 and any claim of NodeZero-depth post-compromise coverage
+- **Discovered:** `ADR-FINAL-007` and `ADR-FINAL-008` acceptance, 2026-09-12.
+- **Description:** no target runtime, target-runtime protocol, post-access execution route, dedicated
+  lateral-movement capability, or lateral-transition range exists. The current
+  `post_exploit.objective_read.v1` correctly prohibits lateral movement and cannot substitute for the
+  missing dedicated capability.
+- **Required closure:** separately qualify the target-runtime bootstrap/lifecycle and dedicated
+  internal-discovery, privilege-transition, lateral-access-proof, and objective-proof capabilities;
+  prove scope, identity, secret isolation, cancellation, OPSEC stop, evidence, and cleanup.
+- **Verification:** external-to-internal safety range with forced expiry, cancellation, duplicate,
+  wrong-route, wrong-target, `BURNED`, orphan, and partial-cleanup cases.
+- **Compensating control:** no post-access or lateral capability is client eligible.
+
+## N-DAY-GAP-001 — Rapid N-Day intelligence and qualification lane are not implemented
+
+- **Status:** OPEN
+- **Severity:** P2 product capability
+- **Owner:** vulnerability-intelligence
+- **Target milestone:** after the first Passive Scout loop; before any Rapid N-Day product claim
+- **Blocks:** Rapid N-Day service claims; does not block R0 or the initial Recon-only finding
+- **Discovered:** `ADR-FINAL-009` acceptance, 2026-09-12.
+- **Description:** current documents name vulnerability sources but no versioned advisory ingestion,
+  disclosure-time classification, conflict handling, 24-hour triage metric, accidental-novel finding
+  workflow, or qualification handoff is implemented.
+- **Required closure:** implement provenance-bound vendor/CVE/NVD/KEV/EPSS ingestion, deterministic
+  normalization and conflict preservation, terrain correlation, safe applicability-recipe creation,
+  and an isolated qualification handoff that cannot promote a capability.
+- **Verification:** fixture/replay tests for advisory updates and conflicts, source outage, stale EPSS,
+  KEV changes, false version matches, public-PoC rejection, and novel-candidate halt/disclosure.
+- **Compensating control:** no Rapid N-Day SLA or zero-day capability is claimed or executable.

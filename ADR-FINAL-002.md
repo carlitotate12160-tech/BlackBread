@@ -1,7 +1,7 @@
 # ADR-FINAL-002 — BlackBread: Agentless Autonomous External Red-Team / Adversary-Emulation Platform
 
 - **Status:** Accepted — 2026-08-27; supersedes all prior BlackBread architecture drafts
-- **Amended by:** `ADR-FINAL-003.md` — Campaign Intelligence, Verified Terrain, and Bounded Investigation (accepted 2026-09-04); `ADR-FINAL-004.md` — Vertical Delivery, Policy Minimalism, and Agent Autonomy (accepted 2026-09-11)
+- **Amended by:** `ADR-FINAL-003.md` — Campaign Intelligence, Verified Terrain, and Bounded Investigation (accepted 2026-09-04); `ADR-FINAL-004.md` — Vertical Delivery, Policy Minimalism, and Agent Autonomy (accepted 2026-09-11); `ADR-FINAL-005.md` through `ADR-FINAL-009.md` — external-to-objective autonomy, access-context chaining, ephemeral target runtime, bounded lateral movement, and Rapid N-Day response (accepted 2026-09-12)
 - **Implementation status:** M1 trust-spine work in progress; the hardened ledger slice is implemented, but R0/M1 is not complete or production-eligible
 - **Decision class:** Foundational architecture
 - **Product type:** Authorized autonomous external red-team exploitation, operated with adversary-emulation (APT) tradecraft
@@ -31,8 +31,8 @@ evidence. A statement in a document never proves that a capability exists.
 When artifacts conflict, authority is resolved in this order:
 
 1. applicable law, the executed SOW, and the signed engagement manifest;
-2. accepted ADR decisions and hard safety invariants in this document, `ADR-FINAL-003.md`, and
-   `ADR-FINAL-004.md`;
+2. accepted ADR decisions and hard safety invariants in this document and `ADR-FINAL-003.md`
+   through `ADR-FINAL-009.md`;
 3. `PRD.md` requirements and release acceptance criteria;
 4. `.devin/rules/blackbread.md` engineering enforcement rules;
 5. machine-readable capability registry and schemas;
@@ -956,3 +956,23 @@ architecture: `WorldSnapshotRef`, `CyberTerrainGraph`, `AttackPathGraph`,
 `ControlAssessmentProjection`, `CampaignProjection`, `CampaignBlackboard`, bounded
 `InvestigationTrajectory`, `InvestigationIntent` deduplication, and deterministic Conductor
 scheduling. See `ADR-FINAL-003.md` for full detail.
+
+## 44. Cross-Reference: ADR-FINAL-005 through ADR-FINAL-009
+
+The accepted external-to-objective decision set amends this foundation without weakening its
+authorization, do-no-harm, evidence, OPSEC-stop, tenant-isolation, or cleanup invariants:
+
+- `ADR-FINAL-005.md` defines the product north star and campaign authority ceiling.
+- `ADR-FINAL-006.md` defines access-context-bound atomic attack-path chaining.
+- `ADR-FINAL-007.md` permits a non-persistent ephemeral target executor under an exact WorkOrder.
+- `ADR-FINAL-008.md` permits dedicated, bounded lateral movement while retaining the prohibition on
+  unrestricted movement and semantic smuggling through `objective_read`.
+- `ADR-FINAL-009.md` rejects zero-day weaponization and defines Rapid N-Day intake, triage, safe
+  applicability, and capability qualification.
+
+For a full-kill-chain campaign, earlier references in this ADR to separate Exploit/Post-Exploit
+approval are satisfied by the signed `CampaignAuthorityEnvelope` only for effect classes expressly
+included in it. A new human approval is not required for every hop inside that ceiling; exact Policy,
+lease, and `WorkOrder` admission remains mandatory for every effect.
+
+All five amendments are `DECIDED` only and create no target-facing reachability by themselves.
