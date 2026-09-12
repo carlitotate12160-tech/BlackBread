@@ -49,8 +49,16 @@ async def test_readiness_rejects_outdated_migration() -> None:
 
 
 @pytest.mark.asyncio
-async def test_expected_head_is_record_authority_revision() -> None:
-    assert EXPECTED_SCHEMA_REVISION == "0009_m1_policy_record_authority"
+async def test_expected_head_is_record_transaction_revision() -> None:
+    assert EXPECTED_SCHEMA_REVISION == "0010_m1_policy_record_txn"
+
+
+@pytest.mark.asyncio
+async def test_readiness_rejects_prior_record_authority_head() -> None:
+    readiness = await check_readiness(_engine_with_revisions("0009_m1_policy_record_authority"))
+
+    assert readiness.ready is False
+    assert readiness.migrations == "0009_m1_policy_record_authority"
 
 
 @pytest.mark.asyncio

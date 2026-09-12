@@ -137,14 +137,20 @@ async def test_committed_recorder_role_has_no_membership_or_setting(
     assert settings == 0, "recorder must have no role-specific configuration"
 
 
-async def test_committed_recorder_role_holds_no_write_authority(
+async def test_committed_recorder_role_holds_bounded_write_authority(
     policy_admin_engine: AsyncEngine,
 ) -> None:
-    # 0009 grants the recorder SELECT on the record tables; it holds no mutation authority there.
-    write_privileges = ("INSERT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER")
+    # At b1 head the recorder holds SELECT and INSERT on the record tables (its routine inserts the
+    # immutable proposal and decision); it never holds the mutation authority that would let it
+    # change or remove an append-only record.
+    forbidden = ("UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER")
     async with policy_admin_engine.connect() as conn:
         for table in REVOKED_PUBLIC_TABLES:
-            for privilege in write_privileges:
+            assert await conn.scalar(
+                text("SELECT has_table_privilege(:r, :t, 'INSERT')"),
+                {"r": RECORDER_ROLE, "t": table},
+            ), f"recorder must hold INSERT on {table} at b1 head"
+            for privilege in forbidden:
                 granted = await conn.scalar(
                     text("SELECT has_table_privilege(:r, :t, :p)"),
                     {"r": RECORDER_ROLE, "t": table, "p": privilege},
