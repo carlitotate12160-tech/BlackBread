@@ -25,7 +25,11 @@ admission blockers are recorded with their owner, milestone, and release in
   and no bypass actors (`bypass_actors: []`, `current_user_can_bypass: "never"`).
 - **Verification:** captured live ruleset snapshot below, fetched from
   `https://api.github.com/repos/carlitotate12160-tech/BlackBread/rulesets/21644438`, matches the
-  machine contract.
+  machine contract. The deterministic verification path lives in
+  `src/blackbread/governance/github_merge_evidence.py` (read-only collector) and
+  `src/blackbread/governance/merge_readiness.py` (fail-closed evaluator), which bind the live
+  ruleset, check runs, code-scanning analyses/alerts, review threads, and pull-request identity
+  to `.github/agent-delivery.json` (schema v3) before any merge.
 - **Compensating control:** N/A.
 
 <details>

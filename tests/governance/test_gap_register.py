@@ -62,15 +62,26 @@ def test_gov_gap_001_required_status_checks_match_contract() -> None:
 
 
 def test_gov_gap_001_code_scanning_matches_contract() -> None:
-    snapshot, _, branch_protection, _ = _load_snapshot_and_contract()
+    snapshot, delivery, branch_protection, gap = _load_snapshot_and_contract()
     rules = _rules_by_type(snapshot)
-    code_scanning = rules["code_scanning"]["parameters"]["code_scanning_tools"][0]
-    assert code_scanning["tool"] == "CodeQL"
-    assert code_scanning["security_alerts_threshold"] == "high_or_higher"
-    assert code_scanning["alerts_threshold"] == "errors"
+    code_scanning = rules["code_scanning"]["parameters"]["code_scanning_tools"]
+    # Schema v3 mirrors the live code_scanning rule as a separate contract
+    # field; it must equal the verified live snapshot exactly.
+    assert code_scanning == delivery["required_code_scanning"]
+    assert delivery["required_code_scanning"] == [
+        {
+            "tool": "CodeQL",
+            "security_alerts_threshold": "high_or_higher",
+            "alerts_threshold": "errors",
+        }
+    ]
+    contract_text = (ROOT / ".github/agent-delivery.json").read_text(encoding="utf-8")
+    assert '"schema_version": 3' in contract_text
     assert "CodeQL" in branch_protection
     assert "high_or_higher" in branch_protection
     assert "errors" in branch_protection
+    assert "github_merge_evidence" in gap
+    assert "merge_readiness" in gap
 
 
 def test_gov_gap_001_pull_request_controls_match_contract() -> None:

@@ -152,11 +152,18 @@ def test_agent_delivery_authority_is_explicit_and_fail_closed() -> None:
             "ci-ok",
             "GitGuardian Security Checks",
         ],
+        "required_code_scanning": [
+            {
+                "tool": "CodeQL",
+                "security_alerts_threshold": "high_or_higher",
+                "alerts_threshold": "errors",
+            }
+        ],
         "allow_blocking_debt": False,
         "ruleset_id": 21644438,
     }
 
-    assert contract["schema_version"] == 2
+    assert contract["schema_version"] == 3
     assert delivery == expected
 
     required_checks = set(delivery["required_status_checks"])
@@ -209,6 +216,10 @@ def test_solo_developer_governance_documents_match_machine_contract() -> None:
     gaps = (ROOT / "GAP-REGISTER.md").read_text(encoding="utf-8")
 
     assert delivery["require_extra_approval_for_unattributed_changes"] is False
+    # The CodeQL code_scanning gate is a separate machine field, never a
+    # required_status_checks entry.
+    assert "CodeQL" not in delivery["required_status_checks"]
+    assert all("code_scanning" not in check for check in delivery["required_status_checks"])
     assert "require_extra_approval_for_unattributed_changes` is disabled" in delivery_rules
     assert "human Code Owner approval gate" not in branch_protection
     assert "kept in `evaluate` mode" not in branch_protection
