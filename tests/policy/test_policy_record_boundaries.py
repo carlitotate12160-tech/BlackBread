@@ -1,11 +1,11 @@
-"""Dormant-substrate non-wiring proofs for M1.4c2b1a.
+"""Single-importer boundary proofs for M1.4c2b1b.
 
-M1.4c2b1a adds the strict storage/routine-invocation module ``blackbread.policy.recording_store``
-and migration 0010, but ships them *dormant*: no production entry point imports the store, the store
-wires no evaluation, names no recorder identity, and exposes no execution authority. The composed
-public boundary (``recording.py``) that would call ``evaluate_persistence_facts`` and reach the
-recorder routine is exclusively M1.4c2b1b scope and does not exist in this slice. These source- and
-behaviour-level proofs pin that dormancy; ``ALLOW`` remains only a Policy outcome, never execution.
+M1.4c2b1a shipped the storage/routine-invocation module ``blackbread.policy.recording_store`` and
+migration 0010 dormant. M1.4c2b1b adds the composed public boundary ``blackbread.policy.recording``,
+which is the *only* production importer of the store and of the evaluation-facts producer and the
+only reachable path to the recorder routine. These source- and behaviour-level proofs pin that
+exact wiring: nothing else names the record tables, imports the store, or embeds the recorder
+identity, the store itself stays policy-free, and ``ALLOW`` remains only a Policy outcome.
 """
 
 from __future__ import annotations
@@ -34,6 +34,7 @@ PROD_ROOT = Path(__file__).parents[2] / "src" / "blackbread"
 MAPPING_FILE = PROD_ROOT / "models" / "policy_records.py"
 STORE_FILE = PROD_ROOT / "policy" / "recording_store.py"
 FACTS_FILE = PROD_ROOT / "policy" / "evaluation_facts.py"
+RECORDING_FILE = PROD_ROOT / "policy" / "recording.py"
 RECORDER_ROLE = "blackbread_policy_recorder"
 # The authorized readers of the durable record tables: the ORM mapping that defines them and the
 # dormant store that projects rows for the recorder routine. Nothing else may name them.
@@ -144,23 +145,22 @@ def test_import_guard_ignores_unrelated_imports_and_bare_strings() -> None:
     assert "blackbread.policy.recording_store" not in targets
 
 
-def test_recording_store_is_not_wired_into_any_entry_point() -> None:
-    # Dormant: no production module imports the store (absolute OR relative), so no code path can
-    # reach the recorder routine. The composed boundary that imports it is M1.4c2b1b. An AST walk --
-    # not a string scan -- is used so a relative ``from .recording_store import ...`` cannot slip
-    # past the check.
+def test_recording_store_is_wired_only_into_recording() -> None:
+    # The store is reachable from exactly one production entry point: the composed recording
+    # boundary. An AST walk -- not a string scan -- covers all five import forms, so a relative
+    # ``from .recording_store import ...`` cannot slip past the check.
     store_module = _module_dotted_path(STORE_FILE)
-    offenders = [
-        str(path.relative_to(PROD_ROOT))
+    importers = {
+        path.relative_to(PROD_ROOT)
         for path in _production_sources()
         if path != STORE_FILE and store_module in _imported_targets(path)
-    ]
-    assert offenders == [], f"production modules wire the dormant store: {offenders}"
+    }
+    assert importers == {Path("policy/recording.py")}
 
 
-def test_no_composed_recording_boundary_exists_yet() -> None:
-    # The evaluate-and-record boundary (recording.py) is M1.4c2b1b; it must be absent here.
-    assert not (PROD_ROOT / "policy" / "recording.py").exists()
+def test_composed_recording_boundary_exists() -> None:
+    # The evaluate-and-record boundary (recording.py) is delivered in M1.4c2b1b.
+    assert RECORDING_FILE.exists()
 
 
 def test_store_wires_no_evaluation_and_names_no_recorder_identity() -> None:
@@ -170,19 +170,20 @@ def test_store_wires_no_evaluation_and_names_no_recorder_identity() -> None:
     assert RECORDER_ROLE not in source, "the store must not embed the reserved recorder role"
 
 
-def test_no_production_module_assumes_the_recorder_or_facts_writer() -> None:
-    # No production entry point may name the reserved recorder identity or import the
-    # evaluation-facts producer as a writer. Both remain islands until M1.4c2b1b composes them.
+def test_recorder_identity_absent_and_facts_writer_only_in_recording() -> None:
+    # No production source may embed the reserved recorder identity (the routine remains the only
+    # writer). The evaluation-facts producer is imported by exactly the composed recording boundary
+    # (besides FACTS_FILE itself), never by any other entry point.
     offenders = []
     for path in _production_sources():
         source = path.read_text(encoding="utf-8")
         if RECORDER_ROLE in source:
             offenders.append(f"{path.relative_to(PROD_ROOT)}:recorder")
-        if path != FACTS_FILE and (
+        if path not in {FACTS_FILE, RECORDING_FILE} and (
             "policy.evaluation_facts" in source or "import evaluation_facts" in source
         ):
             offenders.append(f"{path.relative_to(PROD_ROOT)}:evaluation_facts")
-    assert offenders == [], f"production assumes the recorder or facts writer: {offenders}"
+    assert offenders == [], f"unexpected recorder/facts references: {offenders}"
 
 
 def test_mapping_is_not_re_exported_from_models_package() -> None:

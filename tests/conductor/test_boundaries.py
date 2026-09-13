@@ -254,12 +254,14 @@ def test_runtime_gate_contracts_are_intentionally_unwired_and_non_authoritative(
     assert "from blackbread.conductor import" not in runtime_source
     assert "conductor.intake" not in runtime_source
 
-    # Exact direct-importer set: runtime_contracts is consumed only by the
-    # runtime gate, the final evaluator, and the c2a evaluation-facts producer.
+    # Exact direct-importer set: runtime_contracts is consumed only by the runtime gate, the final
+    # evaluator, the c2a evaluation-facts producer, and the b1b composed recording boundary (which
+    # accepts a RuntimeGateSnapshot input).
     expected_runtime_contracts_importers = {
         Path("policy/runtime_gate.py"),
         Path("policy/evaluation.py"),
         Path("policy/evaluation_facts.py"),
+        Path("policy/recording.py"),
     }
     assert (
         _direct_importers("blackbread.policy.runtime_contracts")
@@ -434,18 +436,18 @@ def test_policy_evaluator_is_intentionally_unwired_and_non_authoritative() -> No
     decision_imports = _imported_modules(decision_v2_path)
     assert "blackbread.policy.runtime_result" in decision_imports
 
-    # No other production module imports evaluation or decision_v2 beyond the
-    # authorized c2a evaluation-facts producer (for both) and the evaluator
-    # itself (for decision_v2).
+    # evaluation stays consumed only by the c2a evaluation-facts producer. decision_v2 gains one
+    # authorized importer: the b1b composed recording boundary, which reconstructs and projects it.
     assert _direct_importers("blackbread.policy.evaluation") == {Path("policy/evaluation_facts.py")}
     assert _direct_importers("blackbread.policy.decision_v2") == {
         Path("policy/evaluation.py"),
         Path("policy/evaluation_facts.py"),
+        Path("policy/recording.py"),
     }
 
-    # The c2a evaluation-facts producer is itself an unwired leaf: no
-    # production module imports it.
-    assert _direct_importers("blackbread.policy.evaluation_facts") == set()
+    # The evaluation-facts producer is wired into exactly one production module: the composed
+    # recording boundary. Nothing else may import it.
+    assert _direct_importers("blackbread.policy.evaluation_facts") == {Path("policy/recording.py")}
 
     # PolicyDecisionV2 has no lease, WorkOrder, token, activation, or target-effect field.
     forbidden_decision_fields = {

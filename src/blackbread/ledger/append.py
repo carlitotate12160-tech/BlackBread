@@ -59,7 +59,15 @@ async def _last_event(session: AsyncSession, draft: EventDraft) -> AgentEvent | 
     ).scalar_one_or_none()
 
 
-def _build_event(draft: EventDraft, sequence: int, prev_event_hash: str) -> AgentEvent:
+def materialize_event(draft: EventDraft, sequence: int, prev_event_hash: str) -> AgentEvent:
+    """Build the hash-sealed :class:`AgentEvent` for ``draft`` at ``sequence``/``prev_event_hash``.
+
+    The event UUID and ``recorded_at`` stamp are generated internally and the hash is computed here
+    from the sealed preimage; no caller supplies an identity or hash. Reused by :func:`append_event`
+    (the ORM writer) and by the composed ``policy.recording`` transaction (which hands the event to
+    the recorder routine), so both write the identical preimage and the golden-hash/chain invariants
+    hold across both writers.
+    """
     payload = draft.materialize_payload()
     event = AgentEvent(
         id=uuid.uuid4(),
@@ -97,7 +105,7 @@ async def append_event(
     last = await _last_event(session, draft)
     sequence = 1 if last is None else last.sequence + 1
     prev_event_hash = GENESIS_PREV_HASH if last is None else last.event_hash
-    event = _build_event(draft, sequence, prev_event_hash)
+    event = materialize_event(draft, sequence, prev_event_hash)
     session.add(event)
     await session.flush()
     await session.refresh(engagement)
