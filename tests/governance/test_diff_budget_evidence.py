@@ -55,20 +55,16 @@ def _path_count(diff: list[PathStat], filename: str) -> int:
 def test_mixed_staged_unstaged_counts_once(tmp_path: Path) -> None:
     """A tracked file with both staged and unstaged edits appears once."""
     _init_repo(tmp_path)
-    # Commit the file on main so it exists in the merge-base
     module = tmp_path / "src" / "blackbread" / "mixed.py"
     module.parent.mkdir(parents=True)
     module.write_text("x = 1\n", encoding="utf-8")
     assert _git(["add", "."], tmp_path).returncode == 0
     assert _git(["commit", "-m", "add mixed"], tmp_path).returncode == 0
-    # Merge feature into main, then return to feature
     assert _git(["checkout", "main"], tmp_path).returncode == 0
     assert _git(["merge", "feature"], tmp_path).returncode == 0
     assert _git(["checkout", "feature"], tmp_path).returncode == 0
-    # Staged edit (+10 lines)
     module.write_text("x = 1\n" + "a = 1\n" * 10, encoding="utf-8")
     assert _git(["add", "."], tmp_path).returncode == 0
-    # Unstaged edit (+5 more lines)
     module.write_text("x = 1\n" + "a = 1\n" * 10 + "b = 2\n" * 5, encoding="utf-8")
     diff = collect_candidate_diff(tmp_path)
     assert _path_count(diff, "src/blackbread/mixed.py") == 1
@@ -103,22 +99,18 @@ def test_lifecycle_one_path_per_state(tmp_path: Path) -> None:
     _init_repo(tmp_path)
     module = tmp_path / "src" / "blackbread" / "life.py"
     module.parent.mkdir(parents=True)
-    # Untracked
     module.write_text("x = 1\n" * 10, encoding="utf-8")
     diff = collect_candidate_diff(tmp_path)
-    assert sum(1 for s in diff if s.path == "src/blackbread/life.py") == 1
-    # Staged
+    assert _path_count(diff, "src/blackbread/life.py") == 1
     assert _git(["add", "."], tmp_path).returncode == 0
     diff = collect_candidate_diff(tmp_path)
-    assert sum(1 for s in diff if s.path == "src/blackbread/life.py") == 1
-    # Committed
+    assert _path_count(diff, "src/blackbread/life.py") == 1
     assert _git(["commit", "-m", "add life"], tmp_path).returncode == 0
     diff = collect_candidate_diff(tmp_path)
-    assert sum(1 for s in diff if s.path == "src/blackbread/life.py") == 1
-    # Edited (unstaged)
+    assert _path_count(diff, "src/blackbread/life.py") == 1
     module.write_text("x = 1\n" * 10 + "y = 2\n" * 5, encoding="utf-8")
     diff = collect_candidate_diff(tmp_path)
-    assert sum(1 for s in diff if s.path == "src/blackbread/life.py") == 1
+    assert _path_count(diff, "src/blackbread/life.py") == 1
 
 
 def test_evidence_failure_blocks(tmp_path: Path) -> None:
@@ -134,13 +126,101 @@ def test_empty_candidate_returns_zero(tmp_path: Path) -> None:
     assert diff == []
 
 
-def test_filename_with_spaces(tmp_path: Path) -> None:
-    """An untracked file with spaces in its name is counted correctly."""
+# ---------------------------------------------------------------------------
+# F1: merge-base must be the actual merge-base SHA, not the branch tip
+# ---------------------------------------------------------------------------
+
+
+def test_merge_base_excludes_upstream_only_commit(tmp_path: Path) -> None:
+    """An upstream-only commit on main after branching must not enter the diff."""
     _init_repo(tmp_path)
-    module = tmp_path / "src" / "blackbread" / "has spaces.py"
-    module.parent.mkdir(parents=True)
+    # Feature work
+    feat = tmp_path / "src" / "blackbread" / "feature.py"
+    feat.parent.mkdir(parents=True)
+    feat.write_text("x = 1\n", encoding="utf-8")
+    assert _git(["add", "."], tmp_path).returncode == 0
+    assert _git(["commit", "-m", "feature work"], tmp_path).returncode == 0
+    # Advance main with an unrelated runtime commit
+    assert _git(["checkout", "main"], tmp_path).returncode == 0
+    upstream = tmp_path / "src" / "blackbread" / "upstream.py"
+    upstream.parent.mkdir(parents=True, exist_ok=True)
+    upstream.write_text("u = 1\n" * 50, encoding="utf-8")
+    assert _git(["add", "."], tmp_path).returncode == 0
+    assert _git(["commit", "-m", "upstream only"], tmp_path).returncode == 0
+    assert _git(["checkout", "feature"], tmp_path).returncode == 0
+    diff = collect_candidate_diff(tmp_path)
+    assert _stats(diff, "src/blackbread/upstream.py") is None
+    assert _stats(diff, "src/blackbread/feature.py") is not None
+
+
+# ---------------------------------------------------------------------------
+# F2: binary -/- entries must be retained with zero line counts
+# ---------------------------------------------------------------------------
+
+
+def test_binary_entry_retained(tmp_path: Path) -> None:
+    """A binary file change (-/- numstat) must appear with binary=True and zero counts."""
+    _init_repo(tmp_path)
+    (tmp_path / "src" / "blackbread").mkdir(parents=True)
+    binary_file = tmp_path / "src" / "blackbread" / "data.bin"
+    binary_file.write_bytes(b"\x00\x01\x02\x03")
+    assert _git(["add", "."], tmp_path).returncode == 0
+    assert _git(["commit", "-m", "add binary"], tmp_path).returncode == 0
+    assert _git(["checkout", "main"], tmp_path).returncode == 0
+    assert _git(["merge", "feature"], tmp_path).returncode == 0
+    assert _git(["checkout", "feature"], tmp_path).returncode == 0
+    binary_file.write_bytes(b"\x00\x01\x02\x03\x04\x05")
+    assert _git(["add", "."], tmp_path).returncode == 0
+    diff = collect_candidate_diff(tmp_path)
+    stat = _stats(diff, "src/blackbread/data.bin")
+    assert stat is not None
+    assert stat.binary is True
+    assert stat.insertions == 0
+    assert stat.deletions == 0
+
+
+# ---------------------------------------------------------------------------
+# F3: untracked paths with whitespace must be preserved byte-for-character
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "rel_path",
+    [
+        "src/blackbread/has spaces.py",
+        "src/blackbread/ leading.py",
+        "src/blackbread/trailing .py",
+    ],
+    ids=["internal_spaces", "leading_space", "trailing_space"],
+)
+def test_untracked_exact_path_preserved(tmp_path: Path, rel_path: str) -> None:
+    """An untracked file with whitespace in its name must appear with the exact path."""
+    _init_repo(tmp_path)
+    module = tmp_path / rel_path
+    module.parent.mkdir(parents=True, exist_ok=True)
     module.write_text("x = 1\n" * 20, encoding="utf-8")
     diff = collect_candidate_diff(tmp_path)
-    stat = _stats(diff, "src/blackbread/has spaces.py")
+    stat = _stats(diff, rel_path)
     assert stat is not None
     assert stat.insertions == 20
+
+
+# ---------------------------------------------------------------------------
+# F4: collect_candidate_diff() without cwd must use the current directory
+# ---------------------------------------------------------------------------
+
+
+def test_default_cwd_follows_chdir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Calling collect_candidate_diff() without cwd must evaluate Path.cwd() each time."""
+    p1 = tmp_path / "repo1"
+    p2 = tmp_path / "repo2"
+    for p in (p1, p2):
+        p.mkdir()
+        _init_repo(p)
+    monkeypatch.chdir(p1)
+    diff1 = collect_candidate_diff()
+    assert diff1 == []
+    monkeypatch.chdir(p2)
+    diff2 = collect_candidate_diff()
+    assert diff2 == []
+    # Both calls must succeed against their respective repos, proving no cache
