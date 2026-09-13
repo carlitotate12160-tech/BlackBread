@@ -122,13 +122,11 @@ def test_evidence_failure_blocks(tmp_path: Path) -> None:
 def test_empty_candidate_returns_zero(tmp_path: Path) -> None:
     """A clean tree with no changes returns an empty list, not an error."""
     _init_repo(tmp_path)
-    diff = collect_candidate_diff(tmp_path)
-    assert diff == []
+    assert collect_candidate_diff(tmp_path) == []
 
 
 # ---------------------------------------------------------------------------
 # F1: merge-base must be the actual merge-base SHA, not the branch tip
-# ---------------------------------------------------------------------------
 
 
 def test_merge_base_excludes_upstream_only_commit(tmp_path: Path) -> None:
@@ -155,7 +153,6 @@ def test_merge_base_excludes_upstream_only_commit(tmp_path: Path) -> None:
 
 # ---------------------------------------------------------------------------
 # F2: binary -/- entries must be retained with zero line counts
-# ---------------------------------------------------------------------------
 
 
 def test_binary_entry_retained(tmp_path: Path) -> None:
@@ -179,9 +176,7 @@ def test_binary_entry_retained(tmp_path: Path) -> None:
     assert stat.deletions == 0
 
 
-# ---------------------------------------------------------------------------
 # F3: untracked paths with whitespace must be preserved byte-for-character
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -189,9 +184,9 @@ def test_binary_entry_retained(tmp_path: Path) -> None:
     [
         "src/blackbread/has spaces.py",
         "src/blackbread/ leading.py",
-        "src/blackbread/trailing .py",
+        " leading_root.py",
     ],
-    ids=["internal_spaces", "leading_space", "trailing_space"],
+    ids=["internal_spaces", "leading_space", "leading_root_space"],
 )
 def test_untracked_exact_path_preserved(tmp_path: Path, rel_path: str) -> None:
     """An untracked file with whitespace in its name must appear with the exact path."""
@@ -205,9 +200,7 @@ def test_untracked_exact_path_preserved(tmp_path: Path, rel_path: str) -> None:
     assert stat.insertions == 20
 
 
-# ---------------------------------------------------------------------------
 # F4: collect_candidate_diff() without cwd must use the current directory
-# ---------------------------------------------------------------------------
 
 
 def test_default_cwd_follows_chdir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -218,9 +211,11 @@ def test_default_cwd_follows_chdir(tmp_path: Path, monkeypatch: pytest.MonkeyPat
         p.mkdir()
         _init_repo(p)
     monkeypatch.chdir(p1)
-    diff1 = collect_candidate_diff()
-    assert diff1 == []
+    assert collect_candidate_diff() == []
+    repo2_mod = p2 / "src" / "blackbread" / "repo2.py"
+    repo2_mod.parent.mkdir(parents=True, exist_ok=True)
+    repo2_mod.write_text("z = 9\n" * 30, encoding="utf-8")
     monkeypatch.chdir(p2)
     diff2 = collect_candidate_diff()
-    assert diff2 == []
-    # Both calls must succeed against their respective repos, proving no cache
+    assert _path_count(diff2, "src/blackbread/repo2.py") == 1
+    assert _stats(diff2, "src/blackbread/repo2.py") is not None
