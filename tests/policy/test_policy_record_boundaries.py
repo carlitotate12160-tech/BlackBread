@@ -83,26 +83,65 @@ def _module_dotted_path(path: Path) -> str:
     return ".".join(rel.parts)
 
 
-def _imported_targets(path: Path) -> set[str]:
-    """Absolute dotted modules an ``ast``-parsed source imports, resolving relative imports.
+def _resolve_imported_modules(source: str, module_dotted: str) -> set[str]:
+    """Absolute dotted modules ``source`` imports, given the importing module's own dotted path.
 
-    A string scan misses ``from .recording_store import invoke_record_routine`` and
-    ``from . import recording_store``; parsing the AST and resolving ``level`` catches every form.
+    A string scan misses ``from blackbread.policy import recording_store`` and its relative twins,
+    so imports are parsed with ``ast``. Absolute imports (``level == 0``) resolve from
+    ``node.module`` directly; relative imports (``level >= 1``) resolve from the importing module's
+    package. Pure and context-parameterized so the five import forms are covered deterministically.
     """
-    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-    package = _module_dotted_path(path).rsplit(".", 1)[0]
+    tree = ast.parse(source)
+    package = module_dotted.rsplit(".", 1)[0]
     targets: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             targets.update(alias.name for alias in node.names)
         elif isinstance(node, ast.ImportFrom):
-            base = package
-            for _ in range(max(node.level - 1, 0)):
-                base = base.rsplit(".", 1)[0] if "." in base else ""
-            root = f"{base}.{node.module}" if node.module else base
-            targets.add(root)
-            targets.update(f"{root}.{alias.name}".strip(".") for alias in node.names)
+            if node.level == 0:
+                base = node.module or ""
+            else:
+                base = package
+                for _ in range(node.level - 1):
+                    base = base.rsplit(".", 1)[0] if "." in base else ""
+                base = f"{base}.{node.module}" if node.module and base else node.module or base
+            if base:
+                targets.add(base)
+            targets.update(f"{base}.{alias.name}".strip(".") for alias in node.names)
     return {t for t in targets if t}
+
+
+def _imported_targets(path: Path) -> set[str]:
+    return _resolve_imported_modules(path.read_text(encoding="utf-8"), _module_dotted_path(path))
+
+
+# The five import forms that would wire the dormant store; the guard must detect all of them.
+_STORE_IMPORT_FORMS = (
+    ("abs_import", "import blackbread.policy.recording_store"),
+    ("abs_from_package", "from blackbread.policy import recording_store"),
+    ("abs_from_module", "from blackbread.policy.recording_store import invoke_record_routine"),
+    ("relative_from_package", "from . import recording_store"),
+    ("relative_from_module", "from .recording_store import invoke_record_routine"),
+)
+
+
+@pytest.mark.parametrize(
+    ("label", "source"), _STORE_IMPORT_FORMS, ids=[form[0] for form in _STORE_IMPORT_FORMS]
+)
+def test_import_guard_detects_every_store_import_form(label: str, source: str) -> None:
+    # The importing module is a sibling under blackbread.policy, so relative imports resolve there.
+    targets = _resolve_imported_modules(source, "blackbread.policy.recording")
+    assert "blackbread.policy.recording_store" in targets, f"{label} import form not detected"
+
+
+def test_import_guard_ignores_unrelated_imports_and_bare_strings() -> None:
+    source = (
+        "from blackbread.ledger.event import AgentEvent\n"
+        "import blackbread.policy.evaluation\n"
+        "note = 'blackbread.policy.recording_store named only inside a string literal'\n"
+    )
+    targets = _resolve_imported_modules(source, "blackbread.policy.recording")
+    assert "blackbread.policy.recording_store" not in targets
 
 
 def test_recording_store_is_not_wired_into_any_entry_point() -> None:
