@@ -364,11 +364,16 @@ def _resolve_base_ref(cwd: Path) -> str:
 
 
 def _get_candidate_diff_numstat(cwd: Path = ROOT) -> str:
-    """Return numstat for committed + staged + unstaged + untracked candidate changes."""
+    """Return numstat for committed + staged + unstaged + untracked candidate changes.
+
+    Four disjoint Git evidence sources so no change is double-counted:
+    ``base...HEAD`` (committed), ``--cached`` (staged: index vs HEAD),
+    no-args (unstaged: worktree vs index), and untracked non-ignored files.
+    """
     base_ref = _resolve_base_ref(cwd)
     parts = [
         _git_diff_numstat([f"{base_ref}...HEAD"], cwd),
-        _git_diff_numstat(["HEAD"], cwd),
+        _git_diff_numstat(["--cached"], cwd),
         _git_diff_numstat([], cwd),
         _git_untracked_numstat(cwd),
     ]
@@ -456,3 +461,21 @@ def test_diff_budget_fails_closed_on_missing_git(tmp_path: Path) -> None:
     """Missing Git evidence must fail the governance check, not pass silently."""
     with pytest.raises(RuntimeError):
         _get_candidate_diff_numstat(tmp_path)
+
+
+def test_diff_budget_unstaged_not_double_counted(tmp_path: Path) -> None:
+    """An unstaged edit to a tracked runtime file must be counted once, not twice."""
+    _init_git_repo(tmp_path)
+    # Commit the file on main baseline so it is not in the main...HEAD diff
+    module = tmp_path / "src" / "blackbread" / "tracked.py"
+    module.parent.mkdir(parents=True)
+    module.write_text("x = 1\n", encoding="utf-8")
+    assert _git(["add", "."], tmp_path).returncode == 0
+    assert _git(["commit", "-m", "add tracked"], tmp_path).returncode == 0
+    assert _git(["checkout", "main"], tmp_path).returncode == 0
+    assert _git(["merge", "feature"], tmp_path).returncode == 0
+    assert _git(["checkout", "feature"], tmp_path).returncode == 0
+    # Edit WITHOUT staging — must appear exactly once (unstaged only)
+    module.write_text("x = 1\n" + "y = 2\n" * 30, encoding="utf-8")
+    diff = _get_candidate_diff_numstat(tmp_path)
+    assert diff.count("tracked.py") == 1
