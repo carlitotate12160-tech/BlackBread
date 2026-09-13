@@ -13,6 +13,8 @@ import re
 import subprocess
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).parents[2]
 SRC = ROOT / "src" / "blackbread"
 TESTS = ROOT / "tests"
@@ -323,56 +325,65 @@ def test_retained_exception_and_suppression_gates_fail_on_prohibited() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _get_diff_numstat() -> str:
-    """Return `git diff --numstat` output, or raise on failure (fail-closed).
-
-    In CI (actions/checkout), `origin/main` may not exist as a remote ref.
-    Fall back to the merge-base of HEAD and main, or GITHUB_BASE_REF.
-    """
-    base_ref = "origin/main"
-    result = subprocess.run(
-        ["git", "diff", "--numstat", f"{base_ref}...HEAD"],
-        capture_output=True,
-        text=True,
-        cwd=ROOT,
-        timeout=10,
-        check=False,
+def _git(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
+    """Run a git command with standard capture; never raises."""
+    return subprocess.run(
+        ["git", *args], capture_output=True, text=True, cwd=cwd, timeout=10, check=False
     )
-    if result.returncode != 0:
-        # Try merge-base of HEAD and main branch
-        mb = subprocess.run(
-            ["git", "merge-base", "HEAD", "main"],
-            capture_output=True,
-            text=True,
-            cwd=ROOT,
-            timeout=10,
-            check=False,
-        )
-        if mb.returncode == 0 and mb.stdout.strip():
-            base_ref = mb.stdout.strip()
-            result = subprocess.run(
-                ["git", "diff", "--numstat", f"{base_ref}...HEAD"],
-                capture_output=True,
-                text=True,
-                cwd=ROOT,
-                timeout=10,
-                check=False,
-            )
-    if result.returncode != 0:
-        raise RuntimeError(
-            f"git diff --numstat failed (exit {result.returncode}): {result.stderr.strip()}"
-        )
-    return result.stdout
+
+
+def _git_diff_numstat(args: list[str], cwd: Path) -> str:
+    """Run ``git diff --numstat``; fail-closed on nonzero exit."""
+    r = _git(["diff", "--numstat", *args], cwd)
+    if r.returncode != 0:
+        raise RuntimeError(f"git diff --numstat {' '.join(args)} failed: {r.stderr.strip()}")
+    return r.stdout
+
+
+def _git_untracked_numstat(cwd: Path) -> str:
+    """Return numstat lines for untracked non-ignored files (all-insertion)."""
+    r = _git(["ls-files", "--others", "--exclude-standard"], cwd)
+    if r.returncode != 0:
+        raise RuntimeError(f"git ls-files failed: {r.stderr.strip()}")
+    out: list[str] = []
+    for raw_name in r.stdout.splitlines():
+        name = raw_name.strip()
+        if name and (cwd / name).is_file():
+            out.append(f"{sum(1 for _ in (cwd / name).open('rb'))}\t0\t{name}")
+    return "\n".join(out)
+
+
+def _resolve_base_ref(cwd: Path) -> str:
+    """Resolve the merge-base ref; fail-closed if unavailable."""
+    if _git(["rev-parse", "--verify", "origin/main"], cwd).returncode == 0:
+        return "origin/main"
+    mb = _git(["merge-base", "HEAD", "main"], cwd)
+    if mb.returncode == 0 and mb.stdout.strip():
+        return mb.stdout.strip()
+    raise RuntimeError("cannot resolve base ref: origin/main missing and merge-base failed")
+
+
+def _get_candidate_diff_numstat(cwd: Path = ROOT) -> str:
+    """Return numstat for committed + staged + unstaged + untracked candidate changes."""
+    base_ref = _resolve_base_ref(cwd)
+    parts = [
+        _git_diff_numstat([f"{base_ref}...HEAD"], cwd),
+        _git_diff_numstat(["HEAD"], cwd),
+        _git_diff_numstat([], cwd),
+        _git_untracked_numstat(cwd),
+    ]
+    return "\n".join(p for p in parts if p.strip())
 
 
 def test_diff_budget_runtime_code_under_limit() -> None:
     """PR runtime-code diff must stay under 400 lines and 10 files.
 
-    Uses `git diff --numstat` for authoritative insertion/deletion counts.
+    Uses ``git diff --numstat`` for authoritative insertion/deletion counts
+    across committed, staged, unstaged, and untracked candidate changes.
     Fails closed if git is unavailable or returns nonzero.
     """
     try:
-        diff = _get_diff_numstat()
+        diff = _get_candidate_diff_numstat()
     except (subprocess.SubprocessError, FileNotFoundError, RuntimeError) as exc:
         raise AssertionError(f"Cannot evaluate diff budget: {exc}") from exc
     runtime_files = 0
@@ -396,3 +407,52 @@ def test_diff_budget_runtime_code_under_limit() -> None:
     assert runtime_lines <= RUNTIME_CODE_MAX_LINES, (
         f"PR changes {runtime_lines} runtime lines (max {RUNTIME_CODE_MAX_LINES})"
     )
+
+
+# ---------------------------------------------------------------------------
+# Candidate-tree diff-budget regression proofs
+# ---------------------------------------------------------------------------
+
+
+def _init_git_repo(path: Path) -> None:
+    """Initialize a git repo with a committed baseline on ``main``."""
+    init_args = (
+        ["init", "-b", "main"],
+        ["config", "user.email", "t@t"],
+        ["config", "user.name", "t"],
+    )
+    for args in init_args:
+        assert _git(args, path).returncode == 0
+    (path / "README.md").write_text("baseline\n", encoding="utf-8")
+    for args in (["add", "."], ["commit", "-m", "baseline"], ["checkout", "-b", "feature"]):
+        assert _git(args, path).returncode == 0
+
+
+def test_diff_budget_counts_untracked_runtime_code(tmp_path: Path) -> None:
+    """Untracked runtime files must be counted in the candidate diff budget."""
+    _init_git_repo(tmp_path)
+    module = tmp_path / "src" / "blackbread" / "new_module.py"
+    module.parent.mkdir(parents=True)
+    module.write_text("x = 1\n" * 500, encoding="utf-8")
+    diff = _get_candidate_diff_numstat(tmp_path)
+    assert "src/blackbread/new_module.py" in diff
+    assert any(
+        int(line.split("\t")[0]) == 500 for line in diff.splitlines() if "new_module.py" in line
+    )
+
+
+def test_diff_budget_counts_staged_file_once(tmp_path: Path) -> None:
+    """A staged new file must be counted exactly once, not as untracked."""
+    _init_git_repo(tmp_path)
+    module = tmp_path / "src" / "blackbread" / "staged.py"
+    module.parent.mkdir(parents=True)
+    module.write_text("y = 2\n" * 300, encoding="utf-8")
+    assert _git(["add", "."], tmp_path).returncode == 0
+    diff = _get_candidate_diff_numstat(tmp_path)
+    assert diff.count("staged.py") == 1
+
+
+def test_diff_budget_fails_closed_on_missing_git(tmp_path: Path) -> None:
+    """Missing Git evidence must fail the governance check, not pass silently."""
+    with pytest.raises(RuntimeError):
+        _get_candidate_diff_numstat(tmp_path)
