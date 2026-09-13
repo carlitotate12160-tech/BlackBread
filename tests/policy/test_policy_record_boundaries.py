@@ -10,6 +10,7 @@ behaviour-level proofs pin that dormancy; ``ALLOW`` remains only a Policy outcom
 
 from __future__ import annotations
 
+import ast
 import uuid
 from pathlib import Path
 
@@ -76,17 +77,44 @@ def test_only_the_mapping_and_dormant_store_reference_the_tables() -> None:
     assert offenders == [], f"unexpected production modules reference the tables: {offenders}"
 
 
+def _module_dotted_path(path: Path) -> str:
+    """Dotted module path of a production source file (e.g. blackbread.policy.recording_store)."""
+    rel = path.relative_to(PROD_ROOT.parent).with_suffix("")
+    return ".".join(rel.parts)
+
+
+def _imported_targets(path: Path) -> set[str]:
+    """Absolute dotted modules an ``ast``-parsed source imports, resolving relative imports.
+
+    A string scan misses ``from .recording_store import invoke_record_routine`` and
+    ``from . import recording_store``; parsing the AST and resolving ``level`` catches every form.
+    """
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    package = _module_dotted_path(path).rsplit(".", 1)[0]
+    targets: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            targets.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            base = package
+            for _ in range(max(node.level - 1, 0)):
+                base = base.rsplit(".", 1)[0] if "." in base else ""
+            root = f"{base}.{node.module}" if node.module else base
+            targets.add(root)
+            targets.update(f"{root}.{alias.name}".strip(".") for alias in node.names)
+    return {t for t in targets if t}
+
+
 def test_recording_store_is_not_wired_into_any_entry_point() -> None:
-    # Dormant: no production module imports the store, so no code path can reach the recorder
-    # routine. The composed boundary that imports it is M1.4c2b1b.
+    # Dormant: no production module imports the store (absolute OR relative), so no code path can
+    # reach the recorder routine. The composed boundary that imports it is M1.4c2b1b. An AST walk --
+    # not a string scan -- is used so a relative ``from .recording_store import ...`` cannot slip
+    # past the check.
+    store_module = _module_dotted_path(STORE_FILE)
     offenders = [
         str(path.relative_to(PROD_ROOT))
         for path in _production_sources()
-        if path != STORE_FILE
-        and (
-            "policy.recording_store" in path.read_text(encoding="utf-8")
-            or "import recording_store" in path.read_text(encoding="utf-8")
-        )
+        if path != STORE_FILE and store_module in _imported_targets(path)
     ]
     assert offenders == [], f"production modules wire the dormant store: {offenders}"
 

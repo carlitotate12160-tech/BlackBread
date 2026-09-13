@@ -163,3 +163,35 @@ async def test_upgrade_rejects_unexpected_recorder_grant(
         assert not await _routine_present(lifecycle_admin_engine)
     finally:
         await run_admin(f"REVOKE UPDATE ON TABLE action_proposals FROM {RECORDER_ROLE}", url=url)
+
+
+async def test_upgrade_fails_closed_on_default_privilege_execute_grantee(
+    lifecycle_db: str, lifecycle_admin_engine: Any
+) -> None:
+    """A cluster ``ALTER DEFAULT PRIVILEGES`` EXECUTE grant to a named role would otherwise survive
+    the fixed PUBLIC/runtime revokes and let that login reach the SECURITY DEFINER routine.
+    The upgrade must abort fail-closed rather than activate the dormant routine for that grantee."""
+    reset_to(lifecycle_db, REV_0009)
+    url = lifecycle_url(lifecycle_db)
+    await run_admin(
+        (
+            "CREATE ROLE bb_probe_exec NOLOGIN",
+            "ALTER DEFAULT PRIVILEGES FOR ROLE CURRENT_USER IN SCHEMA public "
+            "GRANT EXECUTE ON FUNCTIONS TO bb_probe_exec",
+        ),
+        url=url,
+    )
+    try:
+        output = alembic_expecting_failure(lifecycle_db, "upgrade", REV_0010)
+        assert "bb_probe_exec" in output, "failure must name the surviving non-owner grantee"
+        assert await alembic_version(lifecycle_admin_engine) == REV_0009
+        assert not await _routine_present(lifecycle_admin_engine)
+    finally:
+        await run_admin(
+            (
+                "ALTER DEFAULT PRIVILEGES FOR ROLE CURRENT_USER IN SCHEMA public "
+                "REVOKE EXECUTE ON FUNCTIONS FROM bb_probe_exec",
+                "DROP ROLE IF EXISTS bb_probe_exec",
+            ),
+            url=url,
+        )

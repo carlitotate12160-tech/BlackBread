@@ -173,6 +173,11 @@ _MEMBERSHIPS = sa.text(
     "SELECT count(*) FROM pg_auth_members WHERE roleid = :oid OR member = :oid OR grantor = :oid"
 )
 _ROLE_SETTINGS = sa.text("SELECT count(*) FROM pg_db_role_setting WHERE setrole = :oid")
+_NON_OWNER_EXECUTE = sa.text(
+    "SELECT grantee FROM information_schema.routine_privileges "
+    "WHERE routine_schema = 'public' AND routine_name = :n "
+    "AND privilege_type = 'EXECUTE' AND grantee <> :owner"
+)
 _GRANT_SET = sa.text(
     "SELECT table_name, privilege_type FROM information_schema.role_table_grants "
     "WHERE grantee = :r AND table_schema = 'public' "
@@ -226,6 +231,27 @@ def _require_revision_0009_baseline() -> None:
         )
 
 
+def _require_no_non_owner_execute() -> None:
+    """Fail closed if any non-owner role holds EXECUTE on the routine.
+
+    ``CREATE FUNCTION`` grants EXECUTE to PUBLIC by default, and a cluster-level ``ALTER DEFAULT
+    PRIVILEGES`` may have pre-granted EXECUTE to a named role that the fixed PUBLIC/runtime revokes
+    do not remove. The dormant substrate must be reachable by no login role, so any surviving
+    non-owner EXECUTE grantee aborts the migration rather than silently activating the
+    ``SECURITY DEFINER`` routine for an unreviewed identity (CWE-732).
+    """
+    bind = op.get_bind()
+    grantees = sorted(
+        str(record[0])
+        for record in bind.execute(_NON_OWNER_EXECUTE, {"n": ROUTINE, "owner": RECORDER_ROLE}).all()
+    )
+    if grantees:
+        raise RuntimeError(
+            f"routine {ROUTINE} retains non-owner EXECUTE grantees {grantees}; the dormant "
+            "substrate must grant EXECUTE to no login role (revoke them before upgrading to 0010)"
+        )
+
+
 def upgrade() -> None:
     _require_revision_0009_baseline()
     op.create_unique_constraint(
@@ -239,6 +265,7 @@ def upgrade() -> None:
     op.execute(sa.text(OWN_ROUTINE))
     for statement in ROUTINE_PRIVILEGE_STATEMENTS:
         op.execute(sa.text(statement))
+    _require_no_non_owner_execute()
 
 
 def downgrade() -> None:
