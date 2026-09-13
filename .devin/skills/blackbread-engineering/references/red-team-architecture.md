@@ -2,8 +2,9 @@
 
 Use this lens for changes to agent roles, campaign reasoning, evidence, target identity, finding
 semantics, authorization meaning, control assessment, or target-effect classification. It is not a
-generic penetration-testing playbook. Read the relevant live sections of `ADR-FINAL-002.md`,
-`ADR-FINAL-003.md`, `PRD.md`, the gap register, and the capability registry before applying it.
+generic penetration-testing playbook. Read the relevant live foundation plus
+`ADR-FINAL-005.md` through `ADR-FINAL-009.md`, `PRD.md`, the gap register, and the capability
+registry before applying it to external-to-objective work.
 
 ## Contents
 
@@ -30,7 +31,8 @@ Evaluate every domain change against the mission chain:
 
 ```text
 external observation -> candidate primitive -> applicability validation
--> controlled proof -> access context -> separately approved impact objective
+-> controlled boundary proof -> AccessContext -> bounded internal transitions
+-> approved objective proof
 -> defensive-control assessment -> cleanup
 ```
 
@@ -46,13 +48,19 @@ Maintain five bounded cognition domains and no central Mission Brain:
 | Scout | Evidence-backed terrain and information gaps | Credential tester, exploit validator, or finding authority |
 | Strike | Minimum-risk applicability validation | Boundary-crossing Exploit through retry or escalation |
 | Exploit | One approved, verifiable boundary proof; remains ON HOLD until its release gate | General-purpose attack agent or persistence mechanism |
-| Post-Exploit | One separately approved impact objective | Open-ended access exploration or collection |
+| Post-Exploit | Objective-bound internal terrain reasoning and dedicated access-transition proposals | Unbounded movement, scope expansion, or open-ended collection |
 | Report | Independent evidence adjudication and client-legible claims | Execution authority or private truth rewriter |
 
 Agents may propose hypotheses, path assessments, information gaps, bounded intents, and typed action
 proposals. They cannot mutate canonical truth, approve scope, promote evidence, allocate budgets,
 issue locks or leases, command another agent, or execute. Cross-role work travels through typed events
 and deterministic readiness/reservation contracts. Agreement count is not an oracle.
+
+The signed `CampaignAuthorityEnvelope` is an authority ceiling, not execution permission. Agents may
+choose, backtrack, and compose moves inside it without per-hop human approval, while every exact
+effect still requires Policy, lease, and `WorkOrder` admission. Only bounded lateral movement is
+permitted through a dedicated source-to-destination capability and cannot be hidden inside a read
+action.
 
 ## World and claim semantics
 
@@ -83,7 +91,8 @@ axes:
 - T1 active read-only observations may validate terrain or low-risk preconditions.
 - T2 approved validation may establish applicability or control effect, not a new security context.
 - T3 boundary or impact proof requires fresh identity inside a current lease, an eligible capability,
-  current policy/OPSEC facts, approval, cleanup, and the applicable release gate.
+  current policy/OPSEC facts, authority under the current campaign envelope or a new operator
+  escalation, cleanup, and the applicable release gate.
 
 A Strike success condition must not establish a new privilege, authentication, authorization, trust,
 execution, or isolation boundary. If success requires one, classify it as Exploit/T3 and create a new
@@ -116,6 +125,8 @@ Which oracle and independent evidence establish it?
 Can the change bypass Policy, OPSEC, lease, cleanup, or Report adjudication?
 Does a control observation preserve the underlying evidence separately?
 Can a candidate, hypothesis, or path become fact or execution merely by serialization?
+Is the move bound to one verified source AccessContext, destination, and expected transition?
+Does campaign authority remove strategy friction without becoming blanket execution permission?
 ```
 
 Reject designs that introduce a Mission Brain, strategic Conductor, mutable LLM blackboard, agent
@@ -123,8 +134,9 @@ commands, model voting as truth, terrain-to-exploitability shortcuts, WAF-blocke
 client-exception-as-bypass claims, Strike escalation until success, unbounded investigation fan-out,
 or an executable path from a probabilistic assessment.
 
-Proof must include the applicable ADR-FINAL-003 RED-first cases: view coherence, advisory isolation,
-promotion integrity, reservation deduplication, state-axis separation, path-value reversal, local
-disagreement, Strike/Exploit boundary, control distinction, Report independence, tenant isolation,
-and capability-state independence. Use only the subset touched by the slice and justify the rest as
-N/A rather than loading unrelated work.
+Proof must include the applicable ADR-FINAL-003 RED-first cases plus the transition, campaign
+authority, target-runtime, bounded-movement, and Rapid N-Day cases introduced by the relevant
+external-to-objective amendment. Preserve view coherence, advisory isolation, promotion integrity,
+reservation deduplication, state-axis separation, path-value reversal, local disagreement,
+Strike/Exploit boundary, control distinction, Report independence, tenant isolation, and
+capability-state independence. Use only the subset touched by the slice and justify the rest as N/A.

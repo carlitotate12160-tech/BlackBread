@@ -8,7 +8,7 @@ triggers:
 
 # Building a BlackBread Agent
 
-BlackBread is an **authorized, covert, agentless external red-team / adversary-emulation** platform. Agents must *think and act like an APT operator* — patient, stealthy, objective-driven, chain-composing — while staying strictly authorized and non-destructive. Read `ADR-FINAL-002.md` for full architecture; obey `.devin/rules/blackbread.md` at all times.
+BlackBread is an **authorized, covert, agentless external red-team / adversary-emulation** platform. Agents must *think and act like an APT operator* — patient, stealthy, objective-driven, chain-composing — while staying strictly authorized and non-destructive. Read the applicable accepted ADRs; external-to-objective work requires `ADR-FINAL-005.md` through `ADR-FINAL-009.md` in addition to the foundation. Obey `.devin/rules/blackbread.md` at all times.
 
 ## Before changing an agent
 1. Read the accepted ADR, PRD, rules, and `config/capability-registry.json`.
@@ -45,25 +45,31 @@ confirmation. Load and enforce `.github/agent-delivery.json` before delivery.
 ## The five agents (build each with one clear goal)
 | Agent | Goal | Never |
 |-------|------|-------|
-| Scout | Discover evidence-backed primitives across the full surface (web + edge/VPN/mail/DB/cloud) | test creds, exploit, mutate state, confirm findings |
+| Scout | Discover evidence-backed terrain from the external origin or a current `AccessContext` | test creds, exploit, mutate state, confirm findings |
 | Strike | Confirm a primitive is genuine/applicable at minimum risk | broad-spray, unbounded attempts, destructive actions |
 | Exploit (ON HOLD) | One controlled, approved, verifiable boundary proof | arbitrary payloads, crash production, persist |
-| Post-Exploit | One separately approved impact objective | dump creds, lateral movement, durable access |
+| Post-Exploit | Advance the approved objective across internal terrain through dedicated capabilities | unbounded movement, scope/objective expansion, credential theft-for-keeps, durable access |
 | Report | Independently verify; downgrade unsupported claims | assert impact beyond proof |
 
 Session/secret custody is a deterministic **service**, not an agent.
 
+The signed `CampaignAuthorityEnvelope` is the human-authorized campaign ceiling, not execution
+permission. Inside it, agents choose and revise paths without per-hop human approval; every exact
+effect still requires a current Policy decision, lease, and `WorkOrder`. Effects outside the envelope
+return to the operator rather than being weakened into an in-envelope action.
+
 ## Cognition loop (implement per agent — OODA)
 ```
-1 Observe  → read a retrieval slice of the verified graph (not raw LLM memory)
+1 Observe  → read a coherent graph slice and current AccessContexts (not raw LLM memory)
 2 Orient   → LLM planner emits typed candidate actions:
              {proves, precondition, info_gain, risk, cost, opsec_noise}
 3 Critic   → challenge evidence / duplication / scope / oracle / stealthier alternative
 4 Rank     → deterministic formula over the LLM's estimates
-5 Decide   → emit typed proposal → Conductor + Policy Kernel + OPSEC gate it
+5 Decide   → emit one atomic proposal bound to campaign authority + source context
+             → Conductor + Policy Kernel + OPSEC gate it
 6 Act      → executor runs ONE typed capability via the OPSEC egress gateway
 7 Interpret→ LLM proposes; deterministic oracle + evidence rules confirm/reject
-8 Update   → write typed events to the hash-chained ledger; loop
+8 Update   → write typed events to the hash-chained ledger; re-read a new snapshot; loop
 ```
 **Anti-loop (mandatory):**
 - Novelty/dedup gate: hash `(capability, target, params)`; reject near-duplicates.
@@ -101,10 +107,37 @@ Bind evidence to hostname/IP/cert/app/tenant/time; classify ownership; enforce t
 - Every tool runs behind a typed Capability Gateway contract and must exist in `config/capability-registry.json`. The registry, not an agent prompt or an installed binary, defines ownership and eligibility.
 - Select a capability by the proof it can produce, not by brand. The entry must declare owner, adapter, pinned version/digest, lifecycle, risk, Target Identity Guard tier, approval, network path, typed I/O, budget, oracle/evidence, cleanup, and prohibited effects.
 - Agents receive a capability ID and typed fields only. Never expose shell, free-form flags/templates, generic HTTP/network clients, or direct binaries. After the adapter renders an invocation, re-extract and scope-check every destination before execution.
-- Scout owns passive/T1 discovery; restricted Strike owns offline/T1 verification for Recon-only; full Strike owns approved T2 validation; Exploit owns T3 controlled proof but remains ON HOLD; Post-Exploit requires separate T3 approval; Report uses offline evidence/report tooling and requests re-verification through the Conductor.
+- Scout owns passive/T1 terrain discovery; restricted Strike owns offline/T1 verification for Recon-only; full Strike owns approved T2 validation; Exploit owns T3 controlled boundary proof but remains ON HOLD; Post-Exploit owns objective-bound internal reasoning and dedicated access-transition proposals; Report uses offline evidence/report tooling and requests re-verification through the Conductor. Every target effect remains subject to its campaign envelope, exact Policy decision, lease, and `WorkOrder`.
 - Customize OSS at extension points (Nuclei templates, mitmproxy addons, sqlmap tamper scripts); build-fresh the small high-value pieces (DNS resolver/brute, CT-log consumer, passive-source resilience layer). Prefer JSON/library output over CLI scraping.
 - Browser: utls/curl-impersonate fast path; Camoufox heavy path (cap concurrency). Never build a browser engine.
 - A tool/template/version change is a capability change: pin it, rerun fixture and negative controls, qualify arm64 behavior, and promote lifecycle explicitly. `PLANNED`/`ON_HOLD` entries never execute.
+
+## Post-access runtime and payloads
+
+Agentless means no permanent pre-installed BlackBread component. When an approved boundary proof
+requires target-side execution, an `EphemeralTargetRuntime` may execute one digest-pinned module from
+an exact `WorkOrder`; it has no LLM, planner, generic shell, follow-up selection, persistence, or
+durable covert C2. It must expire, reconcile, remove temporary artifacts, and record cleanup evidence.
+
+A payload is a reviewed capability artifact, not code emitted by an LLM. Keep the agent/control plane
+in Python unless measured constraints justify change; evaluate Rust for a small target runtime, Go
+for isolated network adapters, and C/C++ only behind reviewed native boundaries. Nim and Zig are
+candidates only after reproducible toolchain and maintenance qualification. Language choice grants
+no capability authority.
+
+Only bounded lateral movement is permitted: an objective-bound source-to-destination transition
+implemented by a dedicated capability. It requires a verified source `AccessContext`, exact
+destination and route, new atomic proposal, Policy decision, lease, `WorkOrder`, boundary oracle,
+and cleanup result.
+`post_exploit.objective_read.v1` remains prohibited from performing movement.
+
+## Vulnerability currency
+
+Rapid N-Day separates public intelligence from execution. Vendor/CVE records may be enriched with
+NVD, KEV, and EPSS, but public exploit code remains untrusted research input. No advisory, score,
+public PoC, model assessment, or elapsed disclosure time may promote or activate a capability.
+Dedicated zero-day hunting and weaponization are outside the product; an accidental novel candidate
+halts increased invasiveness and enters the human-owned disclosure process.
 
 ## LLM integration
 - One `LLMProvider` abstraction; OpenAI-compatible adapter covers OpenRouter/DeepSeek/Qwen/local; deterministic router by role/sensitivity/cost/health. MVP: OpenRouter.

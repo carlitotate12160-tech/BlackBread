@@ -96,9 +96,10 @@ independently sealable trust boundary, split before producing an execution promp
 lens for ordinary governance, documentation, or status work.
 
 The lenses are procedural interpretations, never cached architecture authority. Re-read the live
-`ADR-FINAL-002.md`, `ADR-FINAL-003.md`, `PRD.md`, rules, gap register, and capability registry named
-by the selected lens. A lens may strengthen the proof required for an accepted decision; it may not
-invent a capability, change a milestone, or weaken live authority.
+foundation and every amendment relevant to the selected responsibility. External-to-objective work
+requires `ADR-FINAL-005.md` through `ADR-FINAL-009.md` in addition to the applicable foundation ADR,
+`PRD.md`, rules, gap register, and capability registry. A lens may strengthen the proof required for
+an accepted decision; it may not invent a capability, change a milestone, or weaken live authority.
 
 ## Require design feasibility before execution
 

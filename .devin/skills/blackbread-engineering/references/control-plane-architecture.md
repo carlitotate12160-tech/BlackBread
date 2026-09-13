@@ -3,6 +3,8 @@
 Use this lens for Policy Kernel, Conductor, OPSEC, approvals, budgets, locks, execution leases,
 scheduling, cancellation, halt, cleanup coordination, resume, or replay. Read the live accepted ADR,
 PRD, rules, gap register, current policy/conductor implementation, and relevant persistence authority.
+For campaign-bounded chaining, include `ADR-FINAL-005.md`, `ADR-FINAL-006.md`, and
+`ADR-FINAL-008.md`.
 
 ## Contents
 
@@ -17,7 +19,8 @@ PRD, rules, gap register, current policy/conductor implementation, and relevant 
 Preserve this staged authority path:
 
 ```text
-ActionProposal -> Policy evaluation -> durable decision record
+CampaignAuthorityEnvelope + source AccessContext + atomic ActionProposal
+-> Policy evaluation -> durable decision record
 -> execution lease -> WorkOrder -> Capability Gateway -> exact invocation
 -> typed outcome/evidence -> canonical ledger -> deterministic projections
 ```
@@ -29,6 +32,11 @@ stages when accepting two independently supplied facts would permit substitution
 No intermediate policy result, reservation, approval, graph path, scheduler choice, runtime-gate
 pass, or serialized decision authorizes execution. Target effect becomes eligible only through the
 current lease and WorkOrder path defined by the live milestone contract.
+
+The campaign envelope is the human-authorized ceiling for objectives, effects, routes, and budgets;
+it is not a lease or blanket allow. Policy evaluates every exact effect against that ceiling. A new
+human decision is needed when a proposal exceeds the envelope, not merely because the agent chose a
+new hop inside it.
 
 ## Component authority
 
@@ -47,13 +55,16 @@ ranking in a readiness score, scheduling priority, retry policy, budget rule, or
 ## State and authorization invariants
 
 For every component, declare durable state, ephemeral state, caller-supplied facts, transaction owner,
-and mutation authority. Require tenant and engagement binding throughout. Bind proposal, exact target,
+and mutation authority. Require tenant and engagement binding throughout. Bind campaign authority,
+objective, source `AccessContext`, expected transition, execution route, proposal, exact target,
 rendered destinations, capability version/supply chain, identity tier, approvals, budgets, locks,
 policy/runtime facts, decision, lease, WorkOrder, and cleanup obligation as required by the stage.
 
 Maintain these negative invariants:
 
 - `ALLOW` is a policy outcome, not execution permission.
+- A `CampaignAuthorityEnvelope` is an authority ceiling, not execution permission or a bearer token.
+- An `AccessContext` is evidence of current reachability and principal, not approval or a lease.
 - Approval is not a lease; a reservation is not a lock; a lock is not a lease.
 - A verified graph path cannot activate a capability or bypass policy.
 - A lease cannot broaden the decision, target, capability, parameters, network path, budget, or expiry.
@@ -101,6 +112,7 @@ Before acceptance, answer:
 Can a caller supply a decision/runtime/admission artifact separately from the facts that produced it?
 Can any path issue a WorkOrder without the current lease?
 Can scheduler, graph, model confidence, or OPSEC state select offensive strategy?
+Can campaign authority or an AccessContext be replayed as if either were execution permission?
 What mutable facts can change between decision and execution, and where are they revalidated?
 What happens on cancellation after each durable write or external effect?
 Can replay duplicate authority or target effects?

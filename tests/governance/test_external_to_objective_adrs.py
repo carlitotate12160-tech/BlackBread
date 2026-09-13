@@ -109,3 +109,75 @@ def test_authority_cross_references_and_blocking_gaps_are_explicit() -> None:
     assert "TARGET-RUNTIME-GAP-001" in gaps
     assert "N-DAY-GAP-001" in gaps
     assert "full kill-chain capability remains non-executable" in gaps
+
+
+def test_derived_guidance_routes_to_the_external_to_objective_authority() -> None:
+    required_authority = {
+        "README.md": (5, 9),
+        ".devin/skills/blackbread-engineering/SKILL.md": (5, 9),
+        ".devin/skills/build-blackbread-agent/SKILL.md": (5, 9),
+        ".devin/skills/blackbread-engineering/references/red-team-architecture.md": (5, 9),
+        ".devin/skills/blackbread-engineering/references/control-plane-architecture.md": (5, 6, 8),
+        ".devin/skills/blackbread-engineering/references/trust-boundary-provenance.md": (
+            5,
+            6,
+            9,
+        ),
+        ".devin/skills/blackbread-engineering/references/execution-plane-architecture.md": (
+            5,
+            7,
+            8,
+            9,
+        ),
+    }
+
+    for path, numbers in required_authority.items():
+        guidance = read_repo_file(path)
+        for number in numbers:
+            assert f"ADR-FINAL-{number:03d}.md" in guidance
+
+
+def test_agent_and_architecture_guidance_reflects_the_amended_semantics() -> None:
+    agent = read_repo_file(".devin/skills/build-blackbread-agent/SKILL.md")
+    red_team = read_repo_file(
+        ".devin/skills/blackbread-engineering/references/red-team-architecture.md"
+    )
+    control_plane = read_repo_file(
+        ".devin/skills/blackbread-engineering/references/control-plane-architecture.md"
+    )
+    provenance = read_repo_file(
+        ".devin/skills/blackbread-engineering/references/trust-boundary-provenance.md"
+    )
+    execution_plane = read_repo_file(
+        ".devin/skills/blackbread-engineering/references/execution-plane-architecture.md"
+    )
+
+    assert "CampaignAuthorityEnvelope" in agent
+    assert "bounded lateral movement" in agent
+    assert "EphemeralTargetRuntime" in agent
+    assert "Rapid N-Day" in agent
+
+    assert "CampaignAuthorityEnvelope" in red_team
+    assert "bounded lateral movement" in red_team
+    assert "CampaignAuthorityEnvelope" in control_plane
+    assert "AccessContext" in control_plane
+    assert "CampaignAuthorityEnvelope" in provenance
+    assert "AccessContext" in provenance
+    assert "EphemeralTargetRuntime" in execution_plane
+    assert "dedicated lateral-movement capability" in execution_plane
+    assert "reviewed capability artifact" in execution_plane
+
+
+def test_derived_guidance_does_not_restore_superseded_post_exploit_rules() -> None:
+    agent = read_repo_file(".devin/skills/build-blackbread-agent/SKILL.md")
+    red_team = read_repo_file(
+        ".devin/skills/blackbread-engineering/references/red-team-architecture.md"
+    )
+    execution_plane = read_repo_file(
+        ".devin/skills/blackbread-engineering/references/execution-plane-architecture.md"
+    )
+
+    assert "Post-Exploit | One separately approved impact objective" not in agent
+    assert "Post-Exploit requires separate T3 approval" not in agent
+    assert "Post-Exploit | One separately approved impact objective" not in red_team
+    assert "Post-access actions require their separately approved authority" not in execution_plane
