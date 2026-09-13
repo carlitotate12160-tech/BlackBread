@@ -133,18 +133,20 @@ class ProposalMatches:
 
 @dataclass(frozen=True, slots=True)
 class DurableCompletion:
-    """The committed decision row plus event identity for a proposal, with exact multiplicities.
+    """The committed decision row plus the complete durable policy event, with exact multiplicities.
 
-    ``decision`` is the raw durable ``decision_records`` row, not a domain decision: the policy
-    layer owns ``PolicyDecisionV2`` reconstruction and digest re-verification (M1.4c2b1b).
+    ``decision`` is the raw durable ``decision_records`` row; ``event`` is the full committed
+    ``AgentEvent`` (present only when exactly one exists) and ``predecessor_hash`` is the immediate
+    predecessor's ``event_hash`` (``None`` at sequence 1). The policy layer owns decision
+    reconstruction and full event re-verification (M1.4c2b1b), so the store returns the whole event
+    rather than a receipt-shaped identity subset a later replay could not re-verify.
     """
 
     decision: Mapping[str, Any] | None
     decision_count: int
     event_count: int
-    event_id: uuid.UUID | None
-    event_sequence: int | None
-    event_hash: str | None
+    event: AgentEvent | None
+    predecessor_hash: str | None
 
 
 async def lock_engagement(session: AsyncSession, tenant_id: str, engagement_id: uuid.UUID) -> bool:
@@ -216,18 +218,20 @@ async def load_durable_completion(
     )
     decision = dict(decision_rows[0]) if len(decision_rows) == 1 else None
     if decision is None:
-        return DurableCompletion(None, len(decision_rows), 0, None, None, None)
+        return DurableCompletion(None, len(decision_rows), 0, None, None)
     return await _attach_event(session, decision, len(decision_rows))
 
 
 async def _attach_event(
     session: AsyncSession, decision: Mapping[str, Any], decision_count: int
 ) -> DurableCompletion:
-    events = (
+    # Load the whole event, not a receipt-shaped subset, so replay can re-verify payload, hashes,
+    # lineage, and the direct predecessor link (append-time triggers do not re-run on replay).
+    rows = (
         (
             await session.execute(
                 text(
-                    "SELECT id, sequence, event_hash FROM agent_events "
+                    "SELECT * FROM agent_events "
                     "WHERE tenant_id = :t AND engagement_id = :e "
                     "AND schema_name = :s AND causation_id = :c"
                 ),
@@ -242,12 +246,26 @@ async def _attach_event(
         .mappings()
         .all()
     )
-    if len(events) != 1:
-        return DurableCompletion(decision, decision_count, len(events), None, None, None)
-    row = events[0]
+    if len(rows) != 1:
+        return DurableCompletion(decision, decision_count, len(rows), None, None)
+    event = AgentEvent(**dict(rows[0]))
     return DurableCompletion(
-        decision, decision_count, 1, row["id"], row["sequence"], row["event_hash"]
+        decision, decision_count, 1, event, await _predecessor_hash(session, event)
     )
+
+
+async def _predecessor_hash(session: AsyncSession, event: AgentEvent) -> str | None:
+    """Return the immediate predecessor's event hash within the tenant ledger, or None at seq 1."""
+    if event.sequence <= 1:
+        return None
+    predecessor = await session.scalar(
+        text(
+            "SELECT event_hash FROM agent_events "
+            "WHERE tenant_id = :t AND engagement_id = :e AND sequence = :s"
+        ),
+        {"t": event.tenant_id, "e": event.engagement_id, "s": event.sequence - 1},
+    )
+    return str(predecessor) if predecessor is not None else None
 
 
 def _proposal_values(proposal: ActionProposal) -> dict[str, Any]:

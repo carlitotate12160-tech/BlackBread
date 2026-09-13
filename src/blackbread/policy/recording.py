@@ -23,7 +23,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from blackbread.conductor.contracts import ActionProposal
 from blackbread.ledger.append import materialize_event
-from blackbread.ledger.hashing import GENESIS_PREV_HASH
+from blackbread.ledger.draft import EventDraft
+from blackbread.ledger.errors import LedgerValidationError
+from blackbread.ledger.event import AgentEvent
+from blackbread.ledger.hashing import (
+    GENESIS_PREV_HASH,
+    HASH_ALGORITHM,
+    HASH_VERSION,
+    compute_event_hash,
+    compute_payload_hash,
+)
 from blackbread.policy.admission_contracts import (
     CapabilityAdmissionSnapshot,
     DestinationManifest,
@@ -31,7 +40,10 @@ from blackbread.policy.admission_contracts import (
     TargetIdentitySnapshot,
 )
 from blackbread.policy.decision_v2 import PolicyDecisionV2
-from blackbread.policy.evaluation_facts import evaluate_persistence_facts
+from blackbread.policy.evaluation_facts import (
+    EvaluationPersistenceFacts,
+    evaluate_persistence_facts,
+)
 from blackbread.policy.recording_store import (
     DurableCompletion,
     PolicyDecisionRecord,
@@ -49,6 +61,11 @@ from blackbread.tenancy import TenantContext, bind_tenant_context
 # resulting session's single transaction. It never accepts a live session, so no partial or foreign
 # transaction can leak in.
 type RecorderSessionFactory = Callable[[], AsyncSession]
+
+
+def _names(spec: str) -> tuple[str, ...]:
+    """Split a space-delimited field spec into a name tuple, as ``recording_store`` does."""
+    return tuple(spec.split())
 
 
 class PolicyRecordingConflictError(Exception):
@@ -188,41 +205,93 @@ async def _record_new(  # noqa: PLR0913
 
 
 async def _replay(session: AsyncSession, proposal: ActionProposal) -> PolicyRecordReceipt:
-    """Reconstruct and validate the durable receipt for an already-completed proposal."""
+    """Reconstruct the decision and fully re-verify the durable event before returning a receipt.
+
+    Append-time triggers do not re-run on replay, so the whole durable event is re-verified
+    event-locally (semantics, payload, hashes, direct predecessor) — never with the engagement-wide
+    chain verifier, so unrelated later corruption cannot reject an otherwise-valid policy receipt.
+    """
     completion = await load_durable_completion(
         session, proposal.tenant_id, proposal.engagement_id, proposal.proposal_id
     )
-    row, event_id, event_sequence, event_hash = _require_complete_triple(completion)
-    decision = _reconstruct_decision(row)
-    _require_decision_matches(decision, proposal)
+    decision = _require_reconstructed_decision(completion, proposal)
+    if completion.event_count != 1 or completion.event is None:
+        raise PolicyRecordingIntegrityError("durable policy event multiplicity is not exactly one")
+    event = completion.event
+    draft = EvaluationPersistenceFacts(proposal=proposal, decision=decision).draft
+    _verify_event_semantics(event, draft, decision)
+    _verify_event_integrity(event, completion.predecessor_hash)
     return PolicyRecordReceipt(
         decision=decision,
-        event_id=event_id,
-        event_sequence=event_sequence,
-        event_hash=event_hash,
+        event_id=event.id,
+        event_sequence=event.sequence,
+        event_hash=event.event_hash,
         replayed=True,
     )
 
 
-def _require_complete_triple(
-    completion: DurableCompletion,
-) -> tuple[Mapping[str, Any], UUID, int, str]:
-    """Fail closed unless exactly one decision and one lineage-complete event are durable."""
+def _require_reconstructed_decision(
+    completion: DurableCompletion, proposal: ActionProposal
+) -> PolicyDecisionV2:
+    """Fail closed unless exactly one decision is durable and it reconstructs to the retry."""
     if completion.decision is None or completion.decision_count != 1:
         raise PolicyRecordingIntegrityError("durable decision multiplicity is not exactly one")
-    if (
-        completion.event_count != 1
-        or completion.event_id is None
-        or completion.event_sequence is None
-        or completion.event_hash is None
-    ):
-        raise PolicyRecordingIntegrityError("durable policy event identity is incomplete")
-    return (
-        completion.decision,
-        completion.event_id,
-        completion.event_sequence,
-        completion.event_hash,
-    )
+    decision = _reconstruct_decision(completion.decision)
+    _require_decision_matches(decision, proposal)
+    return decision
+
+
+# Envelope fields shared by name between the durable AgentEvent and the re-projected EventDraft; a
+# durable event must reproduce every one before a replay receipt is trusted.
+_EVENT_ENVELOPE_FIELDS = _names(
+    "tenant_id engagement_id schema_name schema_version producer "
+    "correlation_id causation_id occurred_at sensitivity"
+)
+
+
+def _verify_event_semantics(
+    event: AgentEvent, draft: EventDraft, decision: PolicyDecisionV2
+) -> None:
+    """Fail closed unless the durable event's envelope, payload, and lineage match the decision.
+
+    ``draft`` is the deterministic projection of the already-validated (proposal, decision) — a pure
+    re-projection, never a re-evaluation.
+    """
+    envelope_ok = all(getattr(event, f) == getattr(draft, f) for f in _EVENT_ENVELOPE_FIELDS)
+    if not envelope_ok or tuple(event.redaction_refs) != tuple(draft.redaction_refs):
+        raise PolicyRecordingIntegrityError("durable policy event envelope does not match")
+    if event.payload != draft.materialize_payload():
+        raise PolicyRecordingIntegrityError("durable policy event payload does not match")
+    if event.policy_decision_id != decision.decision_id:
+        raise PolicyRecordingIntegrityError("durable policy event lineage does not match")
+
+
+def _verify_event_integrity(event: AgentEvent, predecessor_hash: str | None) -> None:
+    """Fail closed unless the payload/event hashes and predecessor link recompute locally."""
+    if event.hash_algorithm != HASH_ALGORITHM or event.hash_version != HASH_VERSION:
+        raise PolicyRecordingIntegrityError("durable policy event uses an unsupported hash scheme")
+    try:
+        payload_ok = compute_payload_hash(event.payload) == event.payload_hash
+        event_ok = compute_event_hash(event) == event.event_hash
+    except LedgerValidationError as exc:
+        raise PolicyRecordingIntegrityError("durable policy event is not canonical") from exc
+    if not payload_ok:
+        raise PolicyRecordingIntegrityError("durable policy event payload hash is inconsistent")
+    if not event_ok:
+        raise PolicyRecordingIntegrityError("durable policy event hash is inconsistent")
+    _verify_predecessor(event, predecessor_hash)
+
+
+def _verify_predecessor(event: AgentEvent, predecessor_hash: str | None) -> None:
+    """Fail closed unless the direct predecessor link is consistent (genesis at sequence 1)."""
+    if event.sequence == 1:
+        if event.prev_event_hash != GENESIS_PREV_HASH or predecessor_hash is not None:
+            raise PolicyRecordingIntegrityError(
+                "durable genesis policy event predecessor is invalid"
+            )
+        return
+    if predecessor_hash is None or predecessor_hash != event.prev_event_hash:
+        raise PolicyRecordingIntegrityError("durable policy event predecessor link is broken")
 
 
 def _require_decision_matches(decision: PolicyDecisionV2, proposal: ActionProposal) -> None:
@@ -238,27 +307,12 @@ def _require_decision_matches(decision: PolicyDecisionV2, proposal: ActionPropos
 # Single source for the flat decision column set shared by reconstruction and projection: the scalar
 # ``PolicyDecisionV2`` fields plus the ``graph_version`` subfields the store persists as
 # ``graph_<subfield>``, so the two directions can never silently disagree on the column set.
-_DECISION_SCALAR_FIELDS = (
-    "schema_name",
-    "schema_version",
-    "decision_id",
-    "tenant_id",
-    "engagement_id",
-    "proposal_id",
-    "proposal_digest",
-    "decision_authority",
-    "outcome",
-    "reason_code",
-    "decided_at",
-    "runtime_gate_result_digest",
-    "decision_digest",
+_DECISION_SCALAR_FIELDS = _names(
+    "schema_name schema_version decision_id tenant_id engagement_id proposal_id proposal_digest "
+    "decision_authority outcome reason_code decided_at runtime_gate_result_digest decision_digest"
 )
-_GRAPH_SUBFIELDS = (
-    "state_root_version",
-    "projector_version",
-    "state_root",
-    "ledger_event_count",
-    "ledger_head_hash",
+_GRAPH_SUBFIELDS = _names(
+    "state_root_version projector_version state_root ledger_event_count ledger_head_hash"
 )
 
 
