@@ -408,14 +408,16 @@ async def test_store_reports_durable_completion_states(
         assert complete.decision is not None
         assert complete.decision["decision_id"] == d_row["decision_id"]
         assert (complete.decision_count, complete.event_count) == (1, 1)
-        assert complete.event_id == event_id and complete.event_sequence == 1
-        assert complete.event_hash is not None
+        assert complete.event is not None
+        assert complete.event.id == event_id
+        assert complete.event.sequence == 1
+        assert complete.event.event_hash is not None
 
         half = await recording_store.load_durable_completion(
             session, tenant, engagement_id, partial["proposal_id"]
         )
         assert half.decision is not None
-        assert (half.decision_count, half.event_count, half.event_id) == (1, 0, None)
+        assert (half.decision_count, half.event_count, half.event) == (1, 0, None)
 
         missing = await recording_store.load_durable_completion(
             session, tenant, engagement_id, uuid.uuid4()
