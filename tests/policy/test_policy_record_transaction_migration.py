@@ -468,8 +468,11 @@ async def test_routine_owner_identity_is_load_bearing(
     p_row = proposal_row(proposal)
     d_row = decision_row(p_row)
     await seed_engagement(policy_admin_engine, tenant, proposal.engagement_id)
+    # Swap the owner to the connected admin role (CURRENT_USER), which is a non-recorder in every
+    # environment -- the loopback superuser locally, the migration role in CI -- so this proof does
+    # not depend on a specific admin role name.
     async with policy_admin_engine.begin() as conn:
-        await conn.execute(text(f"ALTER FUNCTION {ROUTINE_SIGNATURE} OWNER TO postgres"))
+        await conn.execute(text(f"ALTER FUNCTION {ROUTINE_SIGNATURE} OWNER TO CURRENT_USER"))
     try:
         # With the routine owned by a non-recorder, the SECURITY DEFINER identity is no longer the
         # reserved writer, so the 0009 lineage trigger rejects the policy event and the whole
