@@ -10,8 +10,9 @@ from __future__ import annotations
 
 import ast
 import re
-import subprocess
 from pathlib import Path
+
+from tests.governance.diff_budget_evidence import collect_candidate_diff
 
 ROOT = Path(__file__).parents[2]
 SRC = ROOT / "src" / "blackbread"
@@ -323,72 +324,23 @@ def test_retained_exception_and_suppression_gates_fail_on_prohibited() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _get_diff_numstat() -> str:
-    """Return `git diff --numstat` output, or raise on failure (fail-closed).
-
-    In CI (actions/checkout), `origin/main` may not exist as a remote ref.
-    Fall back to the merge-base of HEAD and main, or GITHUB_BASE_REF.
-    """
-    base_ref = "origin/main"
-    result = subprocess.run(
-        ["git", "diff", "--numstat", f"{base_ref}...HEAD"],
-        capture_output=True,
-        text=True,
-        cwd=ROOT,
-        timeout=10,
-        check=False,
-    )
-    if result.returncode != 0:
-        # Try merge-base of HEAD and main branch
-        mb = subprocess.run(
-            ["git", "merge-base", "HEAD", "main"],
-            capture_output=True,
-            text=True,
-            cwd=ROOT,
-            timeout=10,
-            check=False,
-        )
-        if mb.returncode == 0 and mb.stdout.strip():
-            base_ref = mb.stdout.strip()
-            result = subprocess.run(
-                ["git", "diff", "--numstat", f"{base_ref}...HEAD"],
-                capture_output=True,
-                text=True,
-                cwd=ROOT,
-                timeout=10,
-                check=False,
-            )
-    if result.returncode != 0:
-        raise RuntimeError(
-            f"git diff --numstat failed (exit {result.returncode}): {result.stderr.strip()}"
-        )
-    return result.stdout
-
-
 def test_diff_budget_runtime_code_under_limit() -> None:
     """PR runtime-code diff must stay under 400 lines and 10 files.
 
-    Uses `git diff --numstat` for authoritative insertion/deletion counts.
-    Fails closed if git is unavailable or returns nonzero.
+    Delegates candidate-tree evidence collection to ``diff_budget_evidence``
+    so committed, staged, unstaged, and untracked changes are counted once
+    against the merge base.  Fails closed if Git evidence is unavailable.
     """
     try:
-        diff = _get_diff_numstat()
-    except (subprocess.SubprocessError, FileNotFoundError, RuntimeError) as exc:
+        stats = collect_candidate_diff(ROOT)
+    except (RuntimeError, FileNotFoundError) as exc:
         raise AssertionError(f"Cannot evaluate diff budget: {exc}") from exc
     runtime_files = 0
     runtime_lines = 0
-    for line in diff.strip().splitlines():
-        if not line.strip():
+    for stat in stats:
+        if not _is_runtime_path(stat.path):
             continue
-        parts = line.split("\t")
-        if len(parts) < 3:
-            raise AssertionError(f"Malformed numstat line: {line!r}")
-        insertions_str, deletions_str, filename = parts[0], parts[1], parts[2]
-        if insertions_str == "-" or deletions_str == "-":
-            continue
-        if not _is_runtime_path(filename):
-            continue
-        runtime_lines += int(insertions_str) + int(deletions_str)
+        runtime_lines += stat.insertions + stat.deletions
         runtime_files += 1
     assert runtime_files <= RUNTIME_CODE_MAX_FILES, (
         f"PR touches {runtime_files} runtime files (max {RUNTIME_CODE_MAX_FILES})"
