@@ -272,11 +272,16 @@ def test_binding_and_draft_are_frozen_snapshots_not_authentication() -> None:
     assert constructed.draft == result.draft
 
 
-def test_intentional_non_wiring_until_m1_4c2b() -> None:
+def test_wired_only_into_recording_and_stays_pure() -> None:
+    # M1.4c2b1b wires the facts producer into the composed transaction boundary and nothing else:
+    # policy/recording.py is the single authorized importer of evaluation_facts.
     module_path = Path(evaluation_facts.__file__).resolve()
-    for path in PRODUCTION_ROOT.rglob("*.py"):
-        if path.resolve() != module_path:
-            assert "evaluation_facts" not in path.read_text(encoding="utf-8"), str(path)
+    importers = {
+        path.relative_to(PRODUCTION_ROOT)
+        for path in PRODUCTION_ROOT.rglob("*.py")
+        if path.resolve() != module_path and "evaluation_facts" in path.read_text(encoding="utf-8")
+    }
+    assert importers == {Path("policy/recording.py")}
     tree = ast.parse(module_path.read_text(encoding="utf-8"))
     allowed = {
         "__future__",

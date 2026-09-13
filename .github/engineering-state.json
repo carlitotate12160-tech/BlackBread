@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "state_revision": 10,
-  "last_released_slice": "M1.4c2b1a",
-  "selected_next_slice": "M1.4c2b1b"
+  "state_revision": 11,
+  "last_released_slice": "M1.4c2b1b",
+  "selected_next_slice": "M1.4d"
 }

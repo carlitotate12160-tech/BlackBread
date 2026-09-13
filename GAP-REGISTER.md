@@ -213,8 +213,15 @@ has no live effect; it is retained only as rollback evidence:
 - **Current evidence:** the tenant-bound, hash-versioned PostgreSQL ledger supports serialized append,
   replay verification, immutable envelope hashing, and database-level UPDATE/DELETE/TRUNCATE denial.
   PR #35 added durable, deterministic `ScopeRoot` projection from the ledger, frozen NetworkX rebuild,
-  and state-root v1. Conductor, Policy Kernel v1, execution leases, dual kill-switch, and the full
-  authenticated trust-spine runtime are not yet integrated.
+  and state-root v1. M1.4c2b1b composes the first evaluate-and-record transaction
+  (`blackbread.policy.recording.record_policy_decision`): under one recorder-owned transaction it
+  binds the tenant, locks the engagement, evaluates a new proposal exactly once, materializes the
+  ledger event, and drives the `SECURITY DEFINER` routine so the proposal, decision, and
+  `policy.decision.recorded` event commit atomically, with an exact retry reconstructing the durable
+  receipt without reevaluation and the runtime login unable to persist a forged ALLOW. This proves
+  composed evaluation/persistence only. The Conductor caller, production activation identity (the
+  runtime EXECUTE grant), execution leases, WorkOrder, dual kill-switch/kill path, and end-to-end R0
+  integration remain absent and unintegrated.
 - **Required closure:** wire every trust-spine publisher through the ledger; implement projector/rebuild,
   deterministic Conductor and Policy Kernel paths, lease and kill-switch enforcement, and database-role
   tenant isolation; prove replay and negative scope/lease paths end to end.
