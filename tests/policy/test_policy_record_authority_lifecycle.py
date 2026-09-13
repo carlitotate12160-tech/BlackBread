@@ -1,11 +1,15 @@
-"""M1.4c2b0b migration 0009 upgrade/downgrade/re-upgrade lifecycle and moved role-dependency proofs.
+"""M1.4c2b0b/0010 authority lifecycle proofs, on the private throwaway lifecycle database.
 
-Runs against the private throwaway lifecycle database; the cluster-global recorder role's shared
-0009 grants are suspended for the module (see ``suspend_shared_authority_head``) so revision-0008
-dependency proofs observe a dependency-free role. Proves the ``0008 -> 0009 -> 0008 -> 0009`` round
-trip, exact grant/object installation and revocation, the data-present downgrade refusal, and the
-fail-closed rejection of a recorder that already owns objects, holds grants, or has a membership
-when 0008 (re)establishes its inert identity.
+The cluster-global recorder role's shared 0009 grants and 0010 dependencies are suspended for the
+module (see ``suspend_shared_authority_head``) so revision-0008 dependency proofs observe a
+dependency-free role. Proves the ``0008 -> 0009 -> 0008 -> 0009`` round trip, exact grant/object
+installation and revocation, the data-present downgrade refusal, and the fail-closed rejection of a
+recorder that already owns objects, holds grants, or has a membership when 0008 re-establishes its
+inert identity. The 0010 section proves the dormant substrate's authority lifecycle: routine,
+bounded INSERT grants, and dormant EXECUTE denial are released exactly on downgrade (rows
+persisting), the shared head restores to the exact 0010 shape, and suspension leaves no dependency
+that would block recorder cleanup. The pure migration round trip is owned by
+``test_policy_record_transaction_lifecycle``.
 """
 
 from __future__ import annotations
@@ -18,10 +22,18 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from tests.policy._policy_record_authority_support import (
+    AUTHORITY_GRANTS,
+    AUTHORITY_GRANTS_0010,
+    AUTHORITY_REVOKES,
+    AUTHORITY_REVOKES_0010,
     RECORDER_ROLE,
     REV_0007,
     REV_0008,
     REV_0009,
+    REV_0010,
+    ROUTINE,
+    ROUTINE_SIGNATURE,
+    RUNTIME_ROLE,
     alembic_expecting_failure,
     alembic_version,
     clear_policy_rows_before_base_downgrade,  # noqa: F401 -- session cleanup autouse fixture
@@ -29,6 +41,7 @@ from tests.policy._policy_record_authority_support import (
     ensure_clean_recorder,
     lifecycle_url,
     open_recorder_txn,
+    recorder_oid,
     reset_to,
     run_admin,
     run_alembic_step,
@@ -356,3 +369,128 @@ async def test_upgrade_rejects_dependency_in_second_database(
             f"WHERE datname = '{other_db}' AND pid <> pg_backend_pid()"
         )
         await run_admin(f"DROP DATABASE IF EXISTS {other_db}")
+
+
+# --- 0010 shared authority head: routine lifecycle, dormant denial, and shared restore ---------
+
+ROUTINE_ARG_NAMES = ("p", "d", "e")
+RECORD_TABLES_0010 = ("action_proposals", "decision_records")
+
+
+_EXEC = "SELECT has_function_privilege(:r, oid, 'EXECUTE') FROM pg_proc WHERE proname = :n"
+# Non-owner routine-privilege rows: the dormant invariant is that no non-owner grantee (PUBLIC or
+# the runtime activation identity) holds any privilege; PostgreSQL keeps only the owner self-grant.
+_NON_OWNER_GRANTS = (
+    "SELECT count(*) FROM information_schema.routine_privileges "
+    "WHERE routine_schema = 'public' AND routine_name = :n AND grantee <> :owner"
+)
+
+
+async def _routine_shape(engine: AsyncEngine) -> dict[str, Any] | None:
+    async with engine.connect() as conn:
+        result = await conn.execute(
+            text(
+                "SELECT pg_get_userbyid(proowner) AS owner, prosecdef, proconfig, "
+                "proargnames FROM pg_proc WHERE proname = :n"
+            ),
+            {"n": ROUTINE},
+        )
+        row = result.mappings().one_or_none()
+    return None if row is None else dict(row)
+
+
+async def _exact_0010_signature(engine: AsyncEngine) -> bool:
+    async with engine.connect() as conn:
+        return bool(
+            await conn.scalar(
+                text("SELECT to_regprocedure(:sig) IS NOT NULL"), {"sig": ROUTINE_SIGNATURE}
+            )
+        )
+
+
+async def _routine_denial(engine: AsyncEngine) -> tuple[bool, bool, int]:
+    """Return (PUBLIC may execute, runtime may execute, non-owner routine-privilege rows)."""
+    async with engine.connect() as conn:
+        public_exec = bool(await conn.scalar(text(_EXEC), {"r": "public", "n": ROUTINE}))
+        runtime_exec = bool(await conn.scalar(text(_EXEC), {"r": RUNTIME_ROLE, "n": ROUTINE}))
+        granted = int(
+            await conn.scalar(text(_NON_OWNER_GRANTS), {"n": ROUTINE, "owner": RECORDER_ROLE}) or 0
+        )
+    return public_exec, runtime_exec, granted
+
+
+async def _uniqueness_present(engine: AsyncEngine) -> bool:
+    async with engine.connect() as conn:
+        return bool(
+            await conn.scalar(
+                text(
+                    "SELECT EXISTS (SELECT 1 FROM pg_constraint "
+                    "WHERE conname = 'uq_decision_records_proposal')"
+                )
+            )
+        )
+
+
+async def test_0010_downgrade_releases_authority_then_0009_refuses_durable_rows(
+    lifecycle_db: str, lifecycle_admin_engine: AsyncEngine
+) -> None:
+    """With durable rows and a policy event at 0010, the 0010 downgrade removes the routine, INSERT
+    grants, and uniqueness while the rows persist; the 0009 leg then refuses while they exist."""
+    reset_to(lifecycle_db, REV_0009)
+    run_alembic_step(lifecycle_db, "upgrade", REV_0010)
+    tenant_id, proposal, decision = await _seed_proposal_decision(lifecycle_admin_engine)
+    row = decision_event_row(proposal, decision)
+    async with lifecycle_admin_engine.connect() as conn:
+        transaction = await conn.begin()
+        await open_recorder_txn(conn, tenant_id)
+        await insert_agent_event(conn, row)
+        await transaction.commit()
+    try:
+        run_alembic_step(lifecycle_db, "downgrade", REV_0009)
+        assert await alembic_version(lifecycle_admin_engine) == REV_0009
+        assert await _routine_shape(lifecycle_admin_engine) is None
+        assert not await _uniqueness_present(lifecycle_admin_engine)
+        for table in RECORD_TABLES_0010:
+            assert not await table_privilege(lifecycle_admin_engine, RECORDER_ROLE, table, "INSERT")
+        output = alembic_expecting_failure(lifecycle_db, "downgrade", REV_0008)
+        assert "in use" in output
+        assert await alembic_version(lifecycle_admin_engine) == REV_0009
+    finally:
+        await truncate_policy_rows(lifecycle_url(lifecycle_db))
+
+
+async def test_restore_vocabulary_reconstructs_the_exact_shared_0010_head(
+    policy_admin_engine: AsyncEngine,
+) -> None:
+    """Suspension leaves the recorder with no shared-database dependency (so a revision-0008 proof
+    may drop/recreate it); re-applying the 0009 + 0010 authority statements then rebuilds the exact
+    released head (routine, bounded INSERT grants, dormant EXECUTE denial, b1 uniqueness); the test
+    re-suspends in ``finally``."""
+    oid = await recorder_oid(policy_admin_engine)
+    async with policy_admin_engine.connect() as conn:
+        shared = await conn.scalar(
+            text(
+                "SELECT count(*) FROM pg_shdepend WHERE refclassid = 'pg_authid'::regclass "
+                "AND refobjid = :o AND dbid = (SELECT oid FROM pg_database "
+                "WHERE datname = current_database())"
+            ),
+            {"o": oid},
+        )
+    assert int(shared or 0) == 0, "suspension must leave no shared-database recorder dependency"
+    try:
+        await run_admin(AUTHORITY_GRANTS)
+        await run_admin(AUTHORITY_GRANTS_0010)
+        shape = await _routine_shape(policy_admin_engine)
+        assert shape is not None and shape["owner"] == RECORDER_ROLE
+        assert shape["prosecdef"] is True
+        assert shape["proconfig"] == ["search_path=pg_catalog, public"]
+        assert tuple(shape["proargnames"]) == ROUTINE_ARG_NAMES
+        assert await _exact_0010_signature(policy_admin_engine)
+        for table in RECORD_TABLES_0010:
+            assert await table_privilege(policy_admin_engine, RECORDER_ROLE, table, "INSERT")
+            assert await table_privilege(policy_admin_engine, RECORDER_ROLE, table, "SELECT")
+        assert await _routine_denial(policy_admin_engine) == (False, False, 0)
+        assert await _uniqueness_present(policy_admin_engine)
+    finally:
+        await run_admin(AUTHORITY_REVOKES_0010)
+        await run_admin(AUTHORITY_REVOKES)

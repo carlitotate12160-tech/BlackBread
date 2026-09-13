@@ -1,12 +1,12 @@
 """Shared catalog, grant, and lifecycle helpers for the M1.4c2b0b recorder-authority tests.
 
-The ``blackbread_policy_recorder`` role is cluster-global, so the 0009 grants it holds on the shared
-migrated test database make it *not* dependency-free everywhere. Revision-0008 identity/lifecycle
-proofs (which drop and recreate the role and assert a dependency-free shape) therefore run only
-while those shared grants are suspended, and this module owns that suspend/restore. It never mutates
-the
-shared or Oracle production schema irreversibly: it revokes exactly the 0009 grants and re-applies
-them (restoring head) in ``finally``.
+The ``blackbread_policy_recorder`` role is cluster-global, so the grants it holds and the routine it
+owns on the shared migrated test database (now at revision-0010 head) make it *not* dependency-free
+everywhere. Revision-0008 identity/lifecycle proofs (which drop and recreate the role and assert a
+dependency-free shape) therefore run only while those shared dependencies are suspended, and this
+module owns that suspend/restore. It never mutates the shared or Oracle production schema
+irreversibly: it drops the 0010 routine and revokes exactly the 0010 INSERT and 0009 grants, and
+re-applies them (restoring head) in ``finally``.
 """
 
 from __future__ import annotations
@@ -32,6 +32,7 @@ RUNTIME_ROLE = "blackbread_runtime"
 REV_0007 = "0007_m1_policy_records"
 REV_0008 = "0008_m1_policy_recorder_identity"
 REV_0009 = "0009_m1_policy_record_authority"
+REV_0010 = "0010_m1_policy_record_txn"
 TENANT_GUC = "blackbread.tenant_id"
 POLICY_EVENT_SCHEMA = "policy.decision.recorded"
 LINEAGE_TRIGGER = "agent_events_validate_policy_decision"
@@ -51,18 +52,36 @@ _APPEND_ONLY_TRIGGERS = (
 )
 
 
-def _migration_module() -> Any:
-    """Import migration 0009 by path so tests reuse its exact grant/revoke statements."""
-    path = ROOT / "migrations" / "versions" / "0009_m1_policy_record_authority.py"
-    spec = importlib.util.spec_from_file_location("_m0009_authority", path)
+def _migration_module(filename: str, name: str) -> Any:
+    """Import a migration by path so tests reuse its exact grant/revoke/routine statements."""
+    path = ROOT / "migrations" / "versions" / filename
+    spec = importlib.util.spec_from_file_location(name, path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
 
 
-AUTHORITY_GRANTS: tuple[str, ...] = _migration_module()._GRANTS
-AUTHORITY_REVOKES: tuple[str, ...] = _migration_module()._REVOKES
+_M0009 = _migration_module("0009_m1_policy_record_authority.py", "_m0009_authority")
+_M0010 = _migration_module("0010_m1_policy_record_transaction.py", "_m0010_transaction")
+
+AUTHORITY_GRANTS: tuple[str, ...] = _M0009._GRANTS
+AUTHORITY_REVOKES: tuple[str, ...] = _M0009._REVOKES
+
+# Revision-0010 recorder dependencies (INSERT grants, the recorder-owned routine, and its dormant
+# privilege statements — PUBLIC/revoked EXECUTE only; no login role holds EXECUTE at this head).
+# Restoring head re-applies these after the 0009 grants; suspending head removes them (drop the
+# routine first so the ownership dependency is gone) before the 0009 grants are revoked, so the
+# cluster-global recorder becomes dependency-free so a revision-0008 proof may drop/recreate it.
+AUTHORITY_GRANTS_0010: tuple[str, ...] = (
+    *_M0010.INSERT_GRANTS,
+    _M0010.CREATE_ROUTINE,
+    _M0010.OWN_ROUTINE,
+    *_M0010.ROUTINE_PRIVILEGE_STATEMENTS,
+)
+AUTHORITY_REVOKES_0010: tuple[str, ...] = (_M0010.DROP_ROUTINE, *_M0010.INSERT_REVOKES)
+ROUTINE = _M0010.ROUTINE
+ROUTINE_SIGNATURE = _M0010.ROUTINE_SIGNATURE
 
 
 def _autocommit(url: str = TEST_MIGRATION_DATABASE_URL) -> AsyncEngine:
@@ -218,9 +237,10 @@ async def truncate_policy_rows(url: str = TEST_MIGRATION_DATABASE_URL) -> None:
 
 
 async def _restore_shared_head() -> None:
-    """Restore the shared recorder to exact 0009 head: clean inert role plus its exact grants."""
+    """Restore the shared recorder to 0010 head: clean role, 0009 grants, then the 0010 routine."""
     await ensure_clean_recorder()
     await run_admin(AUTHORITY_GRANTS)
+    await run_admin(AUTHORITY_GRANTS_0010)
 
 
 @pytest.fixture(scope="module")
@@ -235,6 +255,7 @@ def suspend_shared_authority_head(migrated_database: None) -> Iterator[None]:
     this module first revokes grants on tables that do not exist yet.
     """
     try:
+        asyncio.run(run_admin(AUTHORITY_REVOKES_0010))
         asyncio.run(run_admin(AUTHORITY_REVOKES))
         yield
     finally:

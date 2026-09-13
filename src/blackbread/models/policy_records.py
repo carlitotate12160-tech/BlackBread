@@ -248,6 +248,11 @@ class DecisionRecord(Base):
         UniqueConstraint(
             "tenant_id", "engagement_id", "decision_digest", name="uq_decision_records_digest"
         ),
+        # One decision per proposal (M1.4c2b1a). Mirrors migration 0010's database uniqueness so the
+        # mapping and the live schema agree that a proposal is decided at most once.
+        UniqueConstraint(
+            "tenant_id", "engagement_id", "proposal_id", name="uq_decision_records_proposal"
+        ),
         # Composite candidate key the M1.4c2b0b policy-decision event FK references. ``decision_id``
         # is already the primary key; this exposes the tenant/engagement-qualified identity so the
         # event lineage FK binds tenant and engagement, not just the decision id.

@@ -79,12 +79,18 @@ async def test_all_released_outcome_reason_pairs_are_accepted(
     policy_admin_engine: AsyncEngine,
 ) -> None:
     tenant, engagement_id = await _fresh(policy_admin_engine)
-    proposal = await _commit_proposal(
-        policy_admin_engine, tenant_id=tenant, engagement_id=engagement_id
-    )
     pairs: list[tuple[str, str | None]] = [("ALLOW", None)]
     pairs += [(outcome, reason) for reason, outcome in FINAL_OUTCOME_BY_REASON.items()]
-    for outcome, reason in pairs:
+    # One decision per proposal (migration 0010 b1 uniqueness): give each pair its own proposal so
+    # the coverage of every released outcome/reason pair does not depend on multiple decisions for
+    # one proposal.
+    for index, (outcome, reason) in enumerate(pairs):
+        proposal = await _commit_proposal(
+            policy_admin_engine,
+            tenant_id=tenant,
+            engagement_id=engagement_id,
+            idempotency_key=f"idem-pair-{index}",
+        )
         async with policy_admin_engine.begin() as conn:
             await insert_decision(
                 conn, decision_row(proposal, build_outcome=outcome, build_reason=reason)
