@@ -381,7 +381,7 @@ has no live effect; it is retained only as rollback evidence:
 - **Compensating control:** the full kill-chain capability remains non-executable; current work is
   deny-only and has no target-effect consumer.
 
-## TARGET-RUNTIME-GAP-001 — Ephemeral target execution and bounded lateral movement are absent
+## TARGET-RUNTIME-GAP-001 — Adaptive qualification, ephemeral target execution, and bounded lateral movement are absent
 
 - **Status:** OPEN
 - **Severity:** P1 architecture
@@ -389,15 +389,19 @@ has no live effect; it is retained only as rollback evidence:
 - **Target milestone:** R3 bootstrap qualification and R4 post-exploit
 - **Blocks:** R4 and any claim of NodeZero-depth post-compromise coverage
 - **Discovered:** `ADR-FINAL-007` and `ADR-FINAL-008` acceptance, 2026-09-12.
-- **Description:** no target runtime, target-runtime protocol, post-access execution route, dedicated
-  lateral-movement capability, or lateral-transition range exists. The current
+- **Description:** no candidate contracts, Capability Forge, independent promotion authority,
+  campaign-local artifact admission, target runtime, target-runtime protocol, post-access execution
+  route, dedicated lateral-movement capability, or lateral-transition range exists. The current
   `post_exploit.objective_read.v1` correctly prohibits lateral movement and cannot substitute for the
   missing dedicated capability.
-- **Required closure:** separately qualify the target-runtime bootstrap/lifecycle and dedicated
+- **Required closure:** implement and separately qualify the off-target candidate/Forge/promotion
+  lane, artifact and execution validity clocks, target-runtime bootstrap/lifecycle, and dedicated
   internal-discovery, privilege-transition, lateral-access-proof, and objective-proof capabilities;
-  prove scope, identity, secret isolation, cancellation, OPSEC stop, evidence, and cleanup.
+  prove author/reviewer separation, provenance, effect closure, scope, identity, secret isolation,
+  stale pre-dispatch denial, cancellation, OPSEC stop, evidence, and cleanup.
 - **Verification:** external-to-internal safety range with forced expiry, cancellation, duplicate,
-  wrong-route, wrong-target, `BURNED`, orphan, and partial-cleanup cases.
+  wrong-route, wrong-target, candidate self-promotion, artifact substitution, model refusal,
+  `BURNED`, orphan, and partial-cleanup cases.
 - **Compensating control:** no post-access or lateral capability is client eligible.
 
 ## N-DAY-GAP-001 — Rapid N-Day intelligence and qualification lane are not implemented
@@ -413,7 +417,8 @@ has no live effect; it is retained only as rollback evidence:
   workflow, or qualification handoff is implemented.
 - **Required closure:** implement provenance-bound vendor/CVE/NVD/KEV/EPSS ingestion, deterministic
   normalization and conflict preservation, terrain correlation, safe applicability-recipe creation,
-  and an isolated qualification handoff that cannot promote a capability.
+  and an isolated handoff to the ADR-FINAL-007 candidate-synthesis lane that cannot itself promote a
+  capability.
 - **Verification:** fixture/replay tests for advisory updates and conflicts, source outage, stale EPSS,
   KEV changes, false version matches, public-PoC rejection, and novel-candidate halt/disclosure.
 - **Compensating control:** no Rapid N-Day SLA or zero-day capability is claimed or executable.

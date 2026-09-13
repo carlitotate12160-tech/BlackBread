@@ -45,6 +45,7 @@ new hop inside it.
 | Policy Kernel | Deterministic decision over the exact proposal/rendered semantics and current verified facts | Offensive strategy, tool improvisation, persistence, scheduling, or execution |
 | Conductor | Readiness, dependencies, fair non-strategic scheduling, reservations, budgets, locks, leases, cancellation, and cleanup coordination | Hypothesis creation, technique selection, offensive path value, impact inference, or evidence promotion |
 | OPSEC service | Deterministic heat, pacing limits, target-health signals, hard stop, and recovery eligibility | Strategy, scope expansion, or LLM-overridable danger decisions |
+| Capability Forge/promotion authority | Off-target candidate verification, isolated build, range evidence, and immutable artifact promotion | Target reachability, campaign strategy, self-review, registry mutation, lease, or execution |
 | Lease authority | Time-bounded, objective/capability/target-bound execution permission | Broad engagement permission, reusable token, or policy replacement |
 | Executor | One exact bounded invocation from an admitted WorkOrder | Follow-up selection, parameter expansion, scope changes, retries without a new decision, or truth promotion |
 | Ledger/projections | Canonical event history and deterministic views | Treating every event as verified target truth or inventing missing decisions |
@@ -69,6 +70,8 @@ Maintain these negative invariants:
 - A verified graph path cannot activate a capability or bypass policy.
 - A lease cannot broaden the decision, target, capability, parameters, network path, budget, or expiry.
 - A WorkOrder cannot exist without a current valid lease and exact decision lineage.
+- A generated candidate, successful build, Forge signature, or promotion record is not a Policy
+  decision, lease, WorkOrder, or execution permission.
 - Revoked, expired, stale, missing, contradictory, cross-tenant, or cross-engagement facts fail closed.
 - No component may infer authenticity from a digest or a model's `decision_authority` field.
 - No final decision may bypass the exact rendered-destination validation owned by the execution path.
@@ -95,6 +98,12 @@ Preserve the stop semantics:
   deterministically reconcile in-flight state according to the accepted mode.
 - Resume revalidates mutable authority and target identity; elapsed time does not make stale facts true.
 - Low-and-slow sleep is deferred scheduling, not a sleeping worker holding hidden authority.
+
+Keep `artifact_qualified_until`, `AccessContext.expires_at`, `lease_expires_at`,
+`workorder_start_before`, `execution_deadline`, and `cleanup_deadline` distinct. At dispatch, require
+every prerequisite to be current and sufficient for worst-case runtime plus cleanup reserve. A stale
+artifact returns to requalification or replanning; the Conductor cannot select replacement source,
+promote a candidate, or extend an execution window.
 
 Replay must reconstruct the same decisions and projections from the verified ledger prefix without
 duplicating budget reservation, lock ownership, lease, WorkOrder, target effect, or cleanup. External

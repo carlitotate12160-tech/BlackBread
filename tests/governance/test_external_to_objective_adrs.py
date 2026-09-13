@@ -64,6 +64,31 @@ def test_target_runtime_is_ephemeral_and_not_a_hidden_mission_brain() -> None:
     assert "evaluate Rust as the preferred default" in decision
 
 
+def test_adaptive_payload_synthesis_is_candidate_only_until_independent_promotion() -> None:
+    decision = read_repo_file("ADR-FINAL-007.md")
+
+    assert "CandidateProofRecipe" in decision
+    assert "CandidateCapabilitySource" in decision
+    assert "Capability Forge" in decision
+    assert "untrusted, non-executable, and non-authorizing" in decision
+    assert "cannot be its sole reviewer or promoter" in decision
+    assert "campaign-local" in decision
+    assert "MODEL_REFUSAL" in decision
+    assert "jailbreak" in decision
+
+
+def test_payload_validity_and_execution_authority_have_separate_deadlines() -> None:
+    decision = read_repo_file("ADR-FINAL-007.md")
+
+    assert "artifact_qualified_until" in decision
+    assert "lease_expires_at" in decision
+    assert "workorder_start_before" in decision
+    assert "execution_deadline" in decision
+    assert "cleanup_deadline" in decision
+    assert "worst-case runtime plus cleanup reserve" in decision
+    assert "does not compile or mutate a module" in decision
+
+
 def test_lateral_movement_is_dedicated_bounded_and_not_smuggled() -> None:
     decision = read_repo_file("ADR-FINAL-008.md")
     registry = json.loads(read_repo_file("config/capability-registry.json"))
@@ -91,6 +116,7 @@ def test_zero_day_is_a_non_goal_and_rapid_n_day_cannot_self_promote() -> None:
     assert "public exploit code is untrusted research input" in decision
     assert "cannot activate a capability" in decision
     assert "NOVEL_VULNERABILITY_CANDIDATE" in decision
+    assert "adaptive candidate-synthesis lane in `ADR-FINAL-007.md`" in decision
 
 
 def test_authority_cross_references_and_blocking_gaps_are_explicit() -> None:
@@ -166,6 +192,24 @@ def test_agent_and_architecture_guidance_reflects_the_amended_semantics() -> Non
     assert "EphemeralTargetRuntime" in execution_plane
     assert "dedicated lateral-movement capability" in execution_plane
     assert "reviewed capability artifact" in execution_plane
+    assert "CandidateCapabilitySource" in agent
+    assert "Capability Forge" in execution_plane
+    assert "LLM-generated candidate != eligible capability" in provenance
+    assert "candidate synthesis" in red_team
+    assert "workorder_start_before" in control_plane
+
+
+def test_derived_guidance_does_not_ban_candidate_synthesis_or_allow_direct_execution() -> None:
+    product = read_repo_file("PRD.md")
+    rules = read_repo_file(".devin/rules/blackbread.md")
+    agent = read_repo_file(".devin/skills/build-blackbread-agent/SKILL.md")
+
+    for guidance in (product, rules, agent):
+        assert "No arbitrary LLM-generated payloads" not in guidance
+
+    assert "adaptive payload candidates" in product
+    assert "unqualified LLM-generated candidate" in rules
+    assert "never reaches a target directly" in agent
 
 
 def test_derived_guidance_does_not_restore_superseded_post_exploit_rules() -> None:

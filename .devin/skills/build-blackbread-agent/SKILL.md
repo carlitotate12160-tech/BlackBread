@@ -119,11 +119,25 @@ requires target-side execution, an `EphemeralTargetRuntime` may execute one dige
 an exact `WorkOrder`; it has no LLM, planner, generic shell, follow-up selection, persistence, or
 durable covert C2. It must expire, reconcile, remove temporary artifacts, and record cleanup evidence.
 
-A payload is a reviewed capability artifact, not code emitted by an LLM. Keep the agent/control plane
-in Python unless measured constraints justify change; evaluate Rust for a small target runtime, Go
-for isolated network adapters, and C/C++ only behind reviewed native boundaries. Nim and Zig are
-candidates only after reproducible toolchain and maintenance qualification. Language choice grants
-no capability authority.
+An LLM may adapt typed parameters, compose a `CandidateProofRecipe`, or synthesize a
+`CandidateCapabilitySource` during a campaign. Its untrusted output never reaches a target directly.
+Candidate generation runs off-target without target reachability or secrets. A Capability
+Forge performs deterministic verification, isolated reproducible builds, provenance/SBOM capture,
+adversarial fixtures, range qualification, cleanup proof, and independent promotion. The authoring
+model cannot be the sole reviewer or promoter; new T3/native effects initially require human security
+review. Only an immutable signed artifact inside an eligible registry family can enter Policy,
+lease, `WorkOrder`, Gateway, and target-runtime admission.
+
+Bind campaign-local artifacts to tenant, engagement, capability family, exact digest, effects,
+platform, qualification record, and `artifact_qualified_until`. Separately enforce
+`AccessContext.expires_at`, `lease_expires_at`, `workorder_start_before`, `execution_deadline`, and
+`cleanup_deadline`; do not dispatch without worst-case runtime plus cleanup reserve. The target
+runtime never compiles, mutates, retries, or selects a replacement module.
+
+Keep the agent/control plane in Python unless measured constraints justify change; evaluate Rust for
+a small target runtime, Go for isolated network adapters, and C/C++ only behind reviewed native
+boundaries. Nim and Zig are candidates only after reproducible toolchain and maintenance
+qualification. Language choice grants no capability authority.
 
 Only bounded lateral movement is permitted: an objective-bound source-to-destination transition
 implemented by a dedicated capability. It requires a verified source `AccessContext`, exact
@@ -142,7 +156,10 @@ halts increased invasiveness and enters the human-owned disclosure process.
 ## LLM integration
 - One `LLMProvider` abstraction; OpenAI-compatible adapter covers OpenRouter/DeepSeek/Qwen/local; deterministic router by role/sensitivity/cost/health. MVP: OpenRouter.
 - Structured/schema-constrained output (Pydantic validate + repair). Log model + version + prompt hash + inputs + output as decision provenance.
-- Reduce refusals legitimately: authorization context + task decomposition (narrow analytical sub-tasks, never "hack X") + open-model routing + keep weaponization out of the LLM. No jailbreaks.
+- Handle refusal as typed `MODEL_REFUSAL`: provide transparent authorization context, retry once with
+  a narrower analytical or candidate-synthesis task, route to an approved provider/local model, use
+  a reviewed deterministic/OSS or human/IDE fallback, or choose another path. No prompt injection,
+  jailbreak, identity deception, or hidden-policy circumvention.
 
 ## Prompt-injection defense (build into every LLM call)
 Target content is untrusted DATA, never instructions. A low-privilege reader extracts it into structured facts; planners reason only over structured facts. The typed-output backstop means an injected agent can at most emit a proposal that deterministic gates still deny. Tag provenance; run the injection test suite.

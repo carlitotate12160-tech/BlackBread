@@ -56,6 +56,12 @@ proposals. They cannot mutate canonical truth, approve scope, promote evidence, 
 issue locks or leases, command another agent, or execute. Cross-role work travels through typed events
 and deterministic readiness/reservation contracts. Agreement count is not an oracle.
 
+An owning role may use candidate synthesis to adapt parameters, compose a `CandidateProofRecipe`, or
+request `CandidateCapabilitySource` for an objective. That is cognition, not execution authority.
+The candidate remains off-target and untrusted until deterministic verification, independent review,
+range qualification, and promotion produce an immutable artifact inside an eligible registry family.
+The authoring model cannot serve as its sole reviewer or promoter.
+
 The signed `CampaignAuthorityEnvelope` is an authority ceiling, not execution permission. Agents may
 choose, backtrack, and compose moves inside it without per-hop human approval, while every exact
 effect still requires Policy, lease, and `WorkOrder` admission. Only bounded lateral movement is
@@ -127,12 +133,14 @@ Does a control observation preserve the underlying evidence separately?
 Can a candidate, hypothesis, or path become fact or execution merely by serialization?
 Is the move bound to one verified source AccessContext, destination, and expected transition?
 Does campaign authority remove strategy friction without becoming blanket execution permission?
+Can model output, successful compilation, or reviewer agreement bypass Capability Forge qualification?
 ```
 
 Reject designs that introduce a Mission Brain, strategic Conductor, mutable LLM blackboard, agent
 commands, model voting as truth, terrain-to-exploitability shortcuts, WAF-blocked-as-safe semantics,
 client-exception-as-bypass claims, Strike escalation until success, unbounded investigation fan-out,
-or an executable path from a probabilistic assessment.
+an executable path from a probabilistic assessment, direct execution of generated source, or a model
+jailbreak used to defeat a refusal.
 
 Proof must include the applicable ADR-FINAL-003 RED-first cases plus the transition, campaign
 authority, target-runtime, bounded-movement, and Rapid N-Day cases introduced by the relevant

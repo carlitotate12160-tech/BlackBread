@@ -51,7 +51,8 @@ authoritative feed/advisory
 -> safe applicability recipe
 -> evidence-backed applicability result
 -> reviewed ProofRecipe candidate
--> capability qualification lifecycle
+-> ADR-FINAL-007 adaptive candidate synthesis when no eligible artifact exists
+-> Capability Forge and capability qualification lifecycle
 -> exact target proposal, Policy, lease, WorkOrder
 ```
 
@@ -60,9 +61,12 @@ Secondary write-ups and public proof-of-concept repositories may inform review b
 authoritative affected-version or mitigation record.
 
 For this policy, public exploit code is untrusted research input. Ingestion SHALL NOT import it into
-the live registry, render it into an action, or expose it directly to an agent. Static analysis,
+the live registry, render it into an action, or expose it directly to a target-facing agent. The
+adaptive candidate-synthesis lane in `ADR-FINAL-007.md` may use provenance-bound public research and
+authoritative advisory facts only inside its isolated off-target trust domain. Static analysis,
 licensing, provenance, fixture behavior, negative controls, target effects, cleanup, supply-chain
-identity, platform support, and range results remain mandatory before capability promotion.
+identity, platform support, independent review, and range results remain mandatory before capability
+promotion.
 
 No advisory, CVE, KEV entry, EPSS score, model assessment, observed version, public PoC, graph path,
 or elapsed disclosure time can activate a capability.
@@ -93,7 +97,8 @@ unproven, and notify the operator/White Cell under the engagement disclosure pro
 Further root-cause research, vendor coordination, disclosure timing, CVE assignment, or exploit
 development requires a separate human-owned research and responsible-disclosure authority outside
 the client campaign. The candidate SHALL NOT be reused across clients, added to the capability
-registry, or sent into adaptive payload generation automatically.
+registry, or sent into adaptive candidate synthesis. This prohibition applies to novel/unpublished
+behavior; it does not prevent the Rapid N-Day handoff for an authoritative `PUBLIC_N_DAY`.
 
 ## 5. Evidence, prioritization, and sources
 

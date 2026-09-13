@@ -78,6 +78,8 @@ REQUIRED_PRD_REQUIREMENT_IDS = {
     "CAP-005",
     "CAP-006",
     "CAP-007",
+    "CAP-008",
+    "CAP-009",
     "EXP-001",
     "REP-001",
     "REP-002",

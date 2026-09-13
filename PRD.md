@@ -3,7 +3,7 @@
 - **Product:** BlackBread
 - **Category:** Autonomous, threat-informed, external red-team / adversary-emulation platform
 - **Positioning:** An external red-team exploitation service that *works like an APT operator* — covert, patient, objective-driven, evidence-backed — while remaining strictly authorized, non-destructive, and agentless.
-- **Companion documents:** `ADR-FINAL-002.md` (foundation), `ADR-FINAL-003.md` (campaign intelligence), `ADR-FINAL-004.md` (vertical delivery and Policy minimalism), `ADR-FINAL-005.md` (campaign authority), `ADR-FINAL-006.md` (access-context chaining), `ADR-FINAL-007.md` (ephemeral target runtime), `ADR-FINAL-008.md` (bounded lateral movement), `ADR-FINAL-009.md` (Rapid N-Day response), `.devin/rules/blackbread.md` (engineering guardrails), `.devin/skills/build-blackbread-agent/SKILL.md` (build guidance).
+- **Companion documents:** `ADR-FINAL-002.md` (foundation), `ADR-FINAL-003.md` (campaign intelligence), `ADR-FINAL-004.md` (vertical delivery and Policy minimalism), `ADR-FINAL-005.md` (campaign authority), `ADR-FINAL-006.md` (access-context chaining), `ADR-FINAL-007.md` (ephemeral target runtime and adaptive capability synthesis), `ADR-FINAL-008.md` (bounded lateral movement), `ADR-FINAL-009.md` (Rapid N-Day response), `.devin/rules/blackbread.md` (engineering guardrails), `.devin/skills/build-blackbread-agent/SKILL.md` (build guidance).
 - **Status:** Accepted product baseline for M0–R1; implementation status is tracked by tests and release evidence, not this document.
 
 ---
@@ -65,7 +65,9 @@ definition of BlackBread.
 ### 3.2 Non-Goals (explicit, for MVP and by design)
 - No malware, real persistence, covert C2, destructive actions, or anti-forensics.
 - No human-vector attacks (phishing/social engineering) — deferred behind a separate consent/SOW framework.
-- No exploit development against clients; no arbitrary LLM-generated payloads.
+- No client-target zero-day exploit research and no direct execution of LLM output. LLMs may create
+  adaptive payload candidates only in the isolated off-target synthesis lane defined by
+  `ADR-FINAL-007.md`; unqualified candidates are non-executable.
 - No dedicated zero-day hunting or weaponization. Accidental novel candidates stop escalation and enter a separate human-owned disclosure process.
 - No memory-corruption RCE of production edge appliances until the safety range validates stability (R3+).
 - No source-IP rotation in MVP (single controlled egress).
@@ -124,14 +126,26 @@ Tier is selected in the client portal and gates capability families and which ag
 ### 6.4a Capability and tool governance
 - `CAP-001 [DECIDED]` Every executable capability is present in `config/capability-registry.json`; absence means deny.
 - `CAP-002 [DECIDED]` Every entry declares one owning agent, typed adapter, pinned tool/image identity, lifecycle state, risk class, target-identity tier, approval, network path, budget, evidence/oracle, cleanup, and prohibited effects.
-- `CAP-003 [DECIDED]` Agents receive capability IDs and typed fields only—never arbitrary shell, tool flags, templates, URLs, callbacks, or raw binaries.
+- `CAP-003 [DECIDED]` Target-facing proposals contain capability IDs and typed fields only—never
+  arbitrary shell, tool flags, templates, URLs, callbacks, source, or raw binaries. Candidate source
+  is confined to the off-target Capability Forge contract and is not an action proposal.
 - `CAP-004 [DECIDED]` Tool/template/version changes repeat admission review, fixture/negative-control testing, ARM64 qualification, and digest promotion.
 - `CAP-005 [DECIDED]` `PLANNED` and `ON_HOLD` inventory is non-executable. From M2, CI and runtime must load the same registry and default-deny drift.
 - `CAP-006 [DECIDED]` Tool output is untrusted evidence. It cannot directly create graph truth or a confirmed/payable finding.
 - `CAP-007 [DECIDED]` Scout owns passive/read-only discovery; restricted Strike owns offline/T1 verification in Recon-only; full Strike owns approved T2 validation; Exploit and Post-Exploit remain gated; Report uses offline evidence tooling and requests re-verification through the Conductor.
+- `CAP-008 [DECIDED]` Adaptive synthesis produces an untrusted `CandidateProofRecipe` or
+  `CandidateCapabilitySource`. Deterministic verification, isolated reproducible build, independent
+  review, range qualification, immutable signing, and lifecycle promotion are required before any
+  artifact can become eligible.
+- `CAP-009 [DECIDED]` A campaign-local artifact is bound to tenant, engagement, registered capability
+  family, exact digest, declared effects, platform, provenance, and `artifact_qualified_until`; it
+  cannot widen family semantics or mutate the registry. Dispatch additionally requires current
+  source context, Policy, lease, WorkOrder, execution deadline, and cleanup reserve.
 
 ### 6.5 Controlled exploit (gated, R3+)
-- `EXP-001 [DECIDED]` Reviewed capability library only; least-invasive proof; safe oracles preferred over RCE; on hold until the pre-production safety range validates stability.
+- `EXP-001 [DECIDED]` Reviewed and promoted capability artifacts only, including qualified adaptive
+  campaign-local instances of an eligible registry family; least-invasive proof; safe oracles
+  preferred over RCE; on hold until the pre-production safety range validates stability.
 
 Full-kill-chain execution follows `ADR-FINAL-005.md` through `ADR-FINAL-008.md`: one signed campaign
 authority ceiling, atomic effect proposals, evidence-derived access contexts, an optional ephemeral
@@ -176,7 +190,7 @@ target executor, and dedicated bounded lateral movement. `objective_read` cannot
 
 ## 8. Architecture Summary
 
-Five autonomous agents (Scout, Strike, Exploit, Post-Exploit, Report) + deterministic Conductor + Policy Kernel + OPSEC service + Session/Secret Broker service. Canonical state is a hash-chained PostgreSQL event ledger; world state is a temporal evidence-backed attack graph. LLMs reason and plan; deterministic systems execute, enforce safety, and hold memory. Full-kill-chain mode may add an ephemeral target executor that cannot reason or select work. Full detail is in `ADR-FINAL-002.md` through `ADR-FINAL-009.md`.
+Five autonomous agents (Scout, Strike, Exploit, Post-Exploit, Report) + deterministic Conductor + Policy Kernel + OPSEC service + Session/Secret Broker service. Canonical state is a hash-chained PostgreSQL event ledger; world state is a temporal evidence-backed attack graph. LLMs reason, plan, and may synthesize untrusted capability candidates off-target; deterministic systems execute, enforce safety, and hold memory. A separate Capability Forge verifies and qualifies candidates without target reachability. Full-kill-chain mode may add an ephemeral target executor that cannot reason, compile, mutate a module, or select work. Full detail is in `ADR-FINAL-002.md` through `ADR-FINAL-009.md`.
 
 ---
 
@@ -214,7 +228,7 @@ Before the first real-target R1 run, required CI checks must be branch-protected
 | Blue-team escalation / legal exposure (covert) | Attested authorization, White Cell deconfliction, sealed manifest, kill switch, dead-man halt |
 | Wrong-target / shared-infra action | Target Identity Guard tiers, origin verification, deep scope validation, TOCTOU re-validation |
 | Prompt injection from target content | Data/instruction separation, reader/planner split, typed-output backstop, injection test suite |
-| LLM refusal of security tasks | Authorization context, task decomposition, open-model routing, weaponization kept out of the LLM |
+| LLM refusal of authorized security tasks | Typed `MODEL_REFUSAL`, one transparent authorized reframe, approved-model routing, reviewed deterministic/OSS or human/IDE fallback; never jailbreak |
 | External-source flakiness | Resilience layer, caching, free-source floor, build-own resolver/CT |
 | Getting detected / IP burned (single egress) | Stealth pacing, de-signaturing, flank-not-push; report detection as a client win |
 | Platform itself compromised (high-value target) | Per-engagement ephemeral secrets, isolation, egress firewall, dual-control, hardening |

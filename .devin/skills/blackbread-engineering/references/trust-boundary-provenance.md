@@ -54,6 +54,8 @@ policy outcome != execution permission
 ledger presence != verified target fact
 CampaignAuthorityEnvelope != lease or WorkOrder
 AccessContext != approval or execution permission
+LLM-generated candidate != eligible capability
+successful build or artifact hash != qualification or promotion
 ```
 
 ## Construction and substitution attacks
@@ -72,6 +74,9 @@ Before accepting a wrapper, binding, result, decision, snapshot, or token-like o
 - stale but structurally valid replay;
 - cross-tenant and cross-engagement substitution;
 - alternate producer creating the same shape;
+- candidate author or collaborating model acting as its reviewer/promoter;
+- campaign-local artifact substitution across family, digest, effects, platform, tenant, engagement,
+  qualification window, or authoring-input lineage;
 - direct invocation of the next persistence, lease, WorkOrder, Gateway, API, or executor consumer.
 
 If anyone who can replace the payload can also create the proof, the proof is not producer
@@ -110,6 +115,13 @@ registry or manifest producer authenticity.
 Vendor/CVE/NVD/KEV/EPSS records and public PoCs are provenance-bearing intelligence, not target
 evidence or capability authority. Preserve source, retrieval time, disclosure/update lineage, and
 conflicts; no Rapid N-Day record may self-promote into the registry or an executable proposal.
+
+Adaptive synthesis provenance begins before build. Preserve the candidate kind, authoring model and
+version, prompt hash, structured input snapshot, source/advisory lineage, deterministic verifier
+result, build environment and dependencies, independent reviewer identity and decision, range oracle
+results, promotion authority, registered capability family, artifact digest/signature, tenant and
+engagement binding, and `artifact_qualified_until`. A Capability Forge signature authenticates its
+build statement only; it does not by itself prove safe effects, promotion, or execution authority.
 
 ## Required proof and rejected claims
 
