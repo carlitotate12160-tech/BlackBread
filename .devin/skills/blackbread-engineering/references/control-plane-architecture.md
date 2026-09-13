@@ -3,6 +3,8 @@
 Use this lens for Policy Kernel, Conductor, OPSEC, approvals, budgets, locks, execution leases,
 scheduling, cancellation, halt, cleanup coordination, resume, or replay. Read the live accepted ADR,
 PRD, rules, gap register, current policy/conductor implementation, and relevant persistence authority.
+For campaign-bounded chaining, include `ADR-FINAL-005.md`, `ADR-FINAL-006.md`, and
+`ADR-FINAL-008.md`.
 
 ## Contents
 
@@ -17,7 +19,8 @@ PRD, rules, gap register, current policy/conductor implementation, and relevant 
 Preserve this staged authority path:
 
 ```text
-ActionProposal -> Policy evaluation -> durable decision record
+CampaignAuthorityEnvelope + source AccessContext + atomic ActionProposal
+-> Policy evaluation -> durable decision record
 -> execution lease -> WorkOrder -> Capability Gateway -> exact invocation
 -> typed outcome/evidence -> canonical ledger -> deterministic projections
 ```
@@ -30,6 +33,11 @@ No intermediate policy result, reservation, approval, graph path, scheduler choi
 pass, or serialized decision authorizes execution. Target effect becomes eligible only through the
 current lease and WorkOrder path defined by the live milestone contract.
 
+The campaign envelope is the human-authorized ceiling for objectives, effects, routes, and budgets;
+it is not a lease or blanket allow. Policy evaluates every exact effect against that ceiling. A new
+human decision is needed when a proposal exceeds the envelope, not merely because the agent chose a
+new hop inside it.
+
 ## Component authority
 
 | Component | Owns | Forbidden authority |
@@ -37,6 +45,7 @@ current lease and WorkOrder path defined by the live milestone contract.
 | Policy Kernel | Deterministic decision over the exact proposal/rendered semantics and current verified facts | Offensive strategy, tool improvisation, persistence, scheduling, or execution |
 | Conductor | Readiness, dependencies, fair non-strategic scheduling, reservations, budgets, locks, leases, cancellation, and cleanup coordination | Hypothesis creation, technique selection, offensive path value, impact inference, or evidence promotion |
 | OPSEC service | Deterministic heat, pacing limits, target-health signals, hard stop, and recovery eligibility | Strategy, scope expansion, or LLM-overridable danger decisions |
+| Capability Forge/promotion authority | Off-target candidate verification, isolated build, range evidence, and immutable artifact promotion | Target reachability, campaign strategy, self-review, registry mutation, lease, or execution |
 | Lease authority | Time-bounded, objective/capability/target-bound execution permission | Broad engagement permission, reusable token, or policy replacement |
 | Executor | One exact bounded invocation from an admitted WorkOrder | Follow-up selection, parameter expansion, scope changes, retries without a new decision, or truth promotion |
 | Ledger/projections | Canonical event history and deterministic views | Treating every event as verified target truth or inventing missing decisions |
@@ -47,17 +56,22 @@ ranking in a readiness score, scheduling priority, retry policy, budget rule, or
 ## State and authorization invariants
 
 For every component, declare durable state, ephemeral state, caller-supplied facts, transaction owner,
-and mutation authority. Require tenant and engagement binding throughout. Bind proposal, exact target,
+and mutation authority. Require tenant and engagement binding throughout. Bind campaign authority,
+objective, source `AccessContext`, expected transition, execution route, proposal, exact target,
 rendered destinations, capability version/supply chain, identity tier, approvals, budgets, locks,
 policy/runtime facts, decision, lease, WorkOrder, and cleanup obligation as required by the stage.
 
 Maintain these negative invariants:
 
 - `ALLOW` is a policy outcome, not execution permission.
+- A `CampaignAuthorityEnvelope` is an authority ceiling, not execution permission or a bearer token.
+- An `AccessContext` is evidence of current reachability and principal, not approval or a lease.
 - Approval is not a lease; a reservation is not a lock; a lock is not a lease.
 - A verified graph path cannot activate a capability or bypass policy.
 - A lease cannot broaden the decision, target, capability, parameters, network path, budget, or expiry.
 - A WorkOrder cannot exist without a current valid lease and exact decision lineage.
+- A generated candidate, successful build, Forge signature, or promotion record is not a Policy
+  decision, lease, WorkOrder, or execution permission.
 - Revoked, expired, stale, missing, contradictory, cross-tenant, or cross-engagement facts fail closed.
 - No component may infer authenticity from a digest or a model's `decision_authority` field.
 - No final decision may bypass the exact rendered-destination validation owned by the execution path.
@@ -85,6 +99,12 @@ Preserve the stop semantics:
 - Resume revalidates mutable authority and target identity; elapsed time does not make stale facts true.
 - Low-and-slow sleep is deferred scheduling, not a sleeping worker holding hidden authority.
 
+Keep `artifact_qualified_until`, `AccessContext.expires_at`, `lease_expires_at`,
+`workorder_start_before`, `execution_deadline`, and `cleanup_deadline` distinct. At dispatch, require
+every prerequisite to be current and sufficient for worst-case runtime plus cleanup reserve. A stale
+artifact returns to requalification or replanning; the Conductor cannot select replacement source,
+promote a candidate, or extend an execution window.
+
 Replay must reconstruct the same decisions and projections from the verified ledger prefix without
 duplicating budget reservation, lock ownership, lease, WorkOrder, target effect, or cleanup. External
 effects require idempotency and reconciliation; deterministic replay must not re-execute them.
@@ -101,6 +121,7 @@ Before acceptance, answer:
 Can a caller supply a decision/runtime/admission artifact separately from the facts that produced it?
 Can any path issue a WorkOrder without the current lease?
 Can scheduler, graph, model confidence, or OPSEC state select offensive strategy?
+Can campaign authority or an AccessContext be replayed as if either were execution permission?
 What mutable facts can change between decision and execution, and where are they revalidated?
 What happens on cancellation after each durable write or external effect?
 Can replay duplicate authority or target effects?

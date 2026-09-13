@@ -3,7 +3,8 @@
 Use this lens for digests, result/decision models, serialization, cross-stage handoffs, persistence,
 ledger events, provenance, tenant isolation, RLS, producer identity, registry/manifest authenticity,
 or replay. This lens exists to prevent a typed or digest-bound object from being mistaken for proof
-of who produced it or what it may authorize.
+of who produced it or what it may authorize. External-to-objective provenance additionally follows
+`ADR-FINAL-005.md`, `ADR-FINAL-006.md`, and the intelligence separation in `ADR-FINAL-009.md`.
 
 ## Contents
 
@@ -51,6 +52,10 @@ valid deserialization != trusted provenance
 same IDs != same semantic object
 policy outcome != execution permission
 ledger presence != verified target fact
+CampaignAuthorityEnvelope != lease or WorkOrder
+AccessContext != approval or execution permission
+LLM-generated candidate != eligible capability
+successful build or artifact hash != qualification or promotion
 ```
 
 ## Construction and substitution attacks
@@ -63,10 +68,15 @@ Before accepting a wrapper, binding, result, decision, snapshot, or token-like o
 - payload modification followed by digest recomputation;
 - nested object replacement while preserving outer identifiers;
 - same tenant/engagement/proposal/capability IDs with different security-relevant semantics;
+- campaign-envelope substitution, revoked-envelope replay, and objective or route widening;
+- AccessContext substitution across principals, destinations, snapshots, or transition evidence;
 - strong upstream result paired with weaker downstream facts;
 - stale but structurally valid replay;
 - cross-tenant and cross-engagement substitution;
 - alternate producer creating the same shape;
+- candidate author or collaborating model acting as its reviewer/promoter;
+- campaign-local artifact substitution across family, digest, effects, platform, tenant, engagement,
+  qualification window, or authoring-input lineage;
 - direct invocation of the next persistence, lease, WorkOrder, Gateway, API, or executor consumer.
 
 If anyone who can replace the payload can also create the proof, the proof is not producer
@@ -86,10 +96,11 @@ because its fields and digest validate. Compose evaluation with persistence behi
 boundary or verify a separately accepted producer credential.
 
 Bind durable records to tenant, engagement, proposal digest, graph/world snapshot or ledger prefix,
-policy/runtime facts, capability version and supply-chain identity, target identity, decision time,
-outcome/reason, and predecessor/supersession data required by the live contract. Use database
-constraints and RLS as enforcement, not filtering as proof. Test with the bypass-capable role and
-verify that invalid rows cannot exist, not merely that a tenant query hides them.
+campaign authority and revocation lineage, source AccessContext, objective and expected transition,
+execution route, policy/runtime facts, capability version and supply-chain identity, target identity,
+decision time, outcome/reason, and predecessor/supersession data required by the live contract. Use
+database constraints and RLS as enforcement, not filtering as proof. Test with the bypass-capable
+role and verify that invalid rows cannot exist, not merely that a tenant query hides them.
 
 Replay begins only from a verified chain and committed snapshot. Recompute deterministic projections
 from the exact prefix and explicit `as_of`; reject mixed anchors, unsupported versions, forks,
@@ -100,6 +111,17 @@ Manifest, capability-registry, platform-key, and external attestation authentici
 authority, algorithm/version, rotation/revocation behavior, signed preimage, freshness, and failure
 mode. If the current slice merely receives typed snapshots, state that limitation and do not claim
 registry or manifest producer authenticity.
+
+Vendor/CVE/NVD/KEV/EPSS records and public PoCs are provenance-bearing intelligence, not target
+evidence or capability authority. Preserve source, retrieval time, disclosure/update lineage, and
+conflicts; no Rapid N-Day record may self-promote into the registry or an executable proposal.
+
+Adaptive synthesis provenance begins before build. Preserve the candidate kind, authoring model and
+version, prompt hash, structured input snapshot, source/advisory lineage, deterministic verifier
+result, build environment and dependencies, independent reviewer identity and decision, range oracle
+results, promotion authority, registered capability family, artifact digest/signature, tenant and
+engagement binding, and `artifact_qualified_until`. A Capability Forge signature authenticates its
+build statement only; it does not by itself prove safe effects, promotion, or execution authority.
 
 ## Required proof and rejected claims
 

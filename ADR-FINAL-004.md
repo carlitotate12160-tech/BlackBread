@@ -8,6 +8,9 @@
 
 **Amends:** `ADR-FINAL-002.md` §§0, 7, 21, 28, 35, and 36; `ADR-FINAL-003.md` §§2, 13, 16, and 18
 
+**Amended by:** `ADR-FINAL-005.md` — External-to-Objective Product and Campaign Authority Envelope
+(accepted 2026-09-12)
+
 **Retains:** every law, SOW, signed-manifest, scope, target-identity, capability-lifecycle, OPSEC,
 do-no-harm, tenant-isolation, evidence-integrity, cleanup, and release gate in the amended ADRs
 

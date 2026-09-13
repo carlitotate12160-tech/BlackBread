@@ -4,6 +4,8 @@ Use this lens for the Capability Gateway, capability registry enforcement, adapt
 rendering, destination revalidation, target/control-plane egress, isolated workers, target health,
 session/secret custody, supply-chain qualification, platform qualification, or cleanup execution.
 Read the live ADR, PRD, rules, registry/schema, target-identity contract, and release gate first.
+For external-to-objective execution, include `ADR-FINAL-005.md`, `ADR-FINAL-007.md`,
+`ADR-FINAL-008.md`, and `ADR-FINAL-009.md`.
 
 ## Contents
 
@@ -18,7 +20,8 @@ Read the live ADR, PRD, rules, registry/schema, target-identity contract, and re
 Preserve one target-effect path:
 
 ```text
-current Policy decision + current execution lease + exact WorkOrder
+current campaign authority + source AccessContext + current Policy decision
++ current execution lease + exact WorkOrder
 -> Capability Gateway admission -> typed adapter rendering
 -> destination re-extraction and scope/identity check
 -> OPSEC/target-health gate -> isolated ephemeral worker
@@ -36,9 +39,28 @@ typed adapter, pinned supply-chain identity, risk class, target tier, approval c
 typed input/output, budgets, oracle/evidence contract, cleanup, and prohibited effects. `PLANNED` and
 `ON_HOLD` are denied. A validated path cannot activate a capability.
 
+Lateral movement uses a dedicated lateral-movement capability for one declared source-to-destination
+transition. Discovery, credential validation, objective read, browser navigation, cleanup, and a
+generic runtime task cannot inherit or hide that effect. Public exploit code and Rapid N-Day
+intelligence are untrusted inputs to qualification and cannot self-promote a capability.
+
 Agents receive stable capability IDs and typed fields only. Never expose raw shell, free-form command
 flags/templates, generic HTTP/network clients, direct binaries, or a mechanism that can select an
 unregistered destination. Tool output and target content remain untrusted data.
+
+Adaptive candidate synthesis is allowed only off-target. An LLM may emit typed parameter adaptation,
+a declarative `CandidateProofRecipe`, or `CandidateCapabilitySource`; each is untrusted,
+non-executable, and non-authorizing. A Capability Forge with no target reachability or target secrets
+owns deterministic verification, isolated reproducible build, provenance/SBOM capture, adversarial
+fixtures, range execution, and cleanup/effect oracles. The authoring model cannot be the sole reviewer
+or promoter.
+
+An executable payload is a reviewed capability artifact: qualified, promoted, immutable, and bound
+to candidate/model/input lineage, independent review, source/build provenance, toolchain,
+OS/architecture, digest, signature, SBOM, declared effects, limits, evidence, cleanup, qualification,
+tenant/engagement eligibility, and validity. A campaign-local artifact must remain inside one
+eligible registry family's semantics; new effects or families require a reviewed registry change.
+Language choice never grants authority or bypasses the execution chain.
 
 After the adapter renders the exact invocation, re-extract and validate every destination and effect,
 including redirects, callbacks, DNS resolution, proxy targets, URLs/hosts/IPs in headers or bodies,
@@ -63,7 +85,22 @@ design threats, not exceptional accidents.
 The Session/Secret Broker is a deterministic service, never an agent. Use opaque vault references;
 do not place raw secrets in prompts, events, graph state, logs, exceptions, artifacts, or WorkOrders.
 Bind session use to tenant, engagement, target identity, objective, capability, lease, expiry, and
-cleanup. Post-access actions require their separately approved authority.
+cleanup. Post-access actions require current campaign authority; effects outside its ceiling require
+new operator escalation, while every in-envelope effect still requires exact Policy, lease, and
+`WorkOrder` admission.
+
+An `EphemeralTargetRuntime` may exist only after an approved boundary proof and through the same exact
+target-effect path. It executes one digest-pinned task and contains no LLM, planner, generic shell,
+follow-up selection, persistence, reusable access, or durable covert C2. Its task channel is
+engagement/effect/expiry-bound, and cleanup must remove temporary state and produce reconciliation
+evidence. It never compiles, mutates, or replaces its admitted module. Do not confuse it with the
+off-target ephemeral isolation worker or Capability Forge.
+
+Keep artifact and authority clocks independent: `artifact_qualified_until`,
+`AccessContext.expires_at`, `lease_expires_at`, `workorder_start_before`, `execution_deadline`, and
+`cleanup_deadline`. Deny dispatch when any prerequisite is stale or when remaining authority cannot
+cover worst-case runtime plus cleanup reserve. Expiry before dispatch causes requalification or
+replanning; it never authorizes runtime substitution.
 
 ## Target effect, health, and cleanup
 
@@ -97,6 +134,12 @@ remains unavailable until its pre-production safety-range gate proves do-no-harm
 Require negative and integration proofs for:
 
 - unlisted, wrong-owner, wrong-lifecycle, unpinned, wrong-tier, wrong-network-path capabilities;
+- lateral movement smuggled through another capability or without an exact source AccessContext;
+- target-runtime task broadening, follow-up selection, expiry bypass, orphaning, or cleanup failure;
+- public advisory, PoC, model output, successful build, or reviewer-model agreement self-promoting an
+  executable payload;
+- candidate author acting as sole reviewer/promoter, campaign-local effect widening, stale artifact
+  dispatch, mid-path artifact substitution, and Capability Forge access to target routes or secrets;
 - raw shell/flags, parameter smuggling, command injection, path traversal, SSRF, and destination
   substitution after rendering;
 - redirect/DNS/origin/tenant changes and mixed target/control-plane egress;

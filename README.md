@@ -1,9 +1,14 @@
 # BlackBread
 
-BlackBread is an authorized, agentless external red-team orchestration platform. The repository
-contains the M0 foundation and an in-progress M1 trust-spine ledger slice described in
-`ADR-FINAL-002.md`. `ADR-FINAL-003.md` adds the campaign-intelligence architecture (verified terrain,
-coherent multi-view snapshots, bounded investigation). R0/M1 is not complete or production-eligible.
+BlackBread is an authorized, covert, agentless external red-team / adversary-emulation platform. Its
+product north star is a verified attack path from the declared external origin to an approved
+business objective, with evidence for every boundary transition, control outcome, and cleanup.
+
+`ADR-FINAL-002.md` through `ADR-FINAL-004.md` define the foundation, campaign intelligence, and
+delivery model. `ADR-FINAL-005.md` through `ADR-FINAL-009.md` define campaign-bounded autonomy,
+access-context chaining, an optional ephemeral target runtime, bounded lateral movement, and Rapid
+N-Day response. R0/M1 is not complete or production-eligible, and no target-facing capability is
+currently eligible.
 
 ## Implemented slices
 
@@ -37,11 +42,11 @@ export BLACKBREAD_TEST_RUNTIME_PASSWORD="blackbread_test_runtime"
 uv run pytest tests/ledger
 ```
 
-`ADR-FINAL-002.md` is the accepted foundation architecture; `ADR-FINAL-003.md` is the accepted
-amendment for campaign intelligence, verified terrain, and bounded investigation. Planned
-capabilities remain default-denied in `config/capability-registry.json`. `LEDGER-GAP-001` blocks
-R0; `CAMPAIGN-GAP-001` blocks R1. Both gaps block every target-facing release until closure
-evidence is complete.
+`ADR-FINAL-002.md` through `ADR-FINAL-009.md` are the accepted architecture set. The later decisions
+are `DECIDED` only: they do not activate a target runtime, lateral movement, exploit execution, or a
+Rapid N-Day service. Planned capabilities remain default-denied in
+`config/capability-registry.json`; the blocking gaps in `GAP-REGISTER.md` remain authoritative until
+their required closure evidence exists.
 
 The typed event catalog validates immutable ledger record shapes only. An
 `engagement.attested` record does not itself authorize execution: signature verification,
