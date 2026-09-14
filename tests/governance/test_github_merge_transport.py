@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import http.client
 import json
 import urllib.error
 import urllib.request
@@ -146,8 +147,8 @@ def test_graphql_query_omits_variables_when_absent() -> None:
         "query { viewer { login } }",
         "query GetPr($n: Int!) { pullRequest(number: $n) { title } }",
         "query { a } fragment F on User { login }",
-        "# mutation in a comment\nquery { x }",
         'query { f(arg: "mutation { x }") }',
+        'query { f(arg: "a#b") }',
         "query { mutation }",
         "query A { a } query B { b }",
     ],
@@ -173,6 +174,11 @@ def test_graphql_accepts_explicit_query_documents(document: str) -> None:
         "query Unbalanced { x ",
         "query Headless",
         "fragment F on User { login }",
+        "# mutation in a comment\nquery { x }",
+        "query { a } # tail\rmutation { b }",
+        "query { a }\r\n",
+        'query { f(arg: """triple""") }',
+        "query { a } # comment only",
     ],
 )
 def test_graphql_rejects_documents_without_network(document: str) -> None:
@@ -332,3 +338,101 @@ def test_urllib_transport_satisfies_protocol() -> None:
     transport: GitHubReadTransport = _transport(_OpenerSpy())
     result = transport.rest_get("/x")
     assert isinstance(result, TransportResult)
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        http.client.IncompleteRead(b"partial"),
+        http.client.BadStatusLine("garbage"),
+        http.client.RemoteDisconnected("gone"),
+    ],
+)
+def test_http_protocol_failures_are_sanitized(error: Exception) -> None:
+    spy = _OpenerSpy(error=error)
+    with pytest.raises(TransportError) as excinfo:
+        _transport(spy).rest_get("/x")
+    assert excinfo.value.status is None
+    assert DUMMY_AUTH not in str(excinfo.value)
+
+
+class _ClosableFp:
+    def __init__(self) -> None:
+        self.closed = False
+
+    def close(self) -> None:
+        self.closed = True
+
+
+def test_http_error_response_is_closed() -> None:
+    fp = _ClosableFp()
+    error = urllib.error.HTTPError("https://api.github.com/x", 500, "err", {}, fp)
+    spy = _OpenerSpy(error=error)
+    with pytest.raises(TransportError) as excinfo:
+        _transport(spy).rest_get("/x")
+    assert excinfo.value.status == 500
+    assert fp.closed
+
+
+def test_http_error_without_fp_is_safe() -> None:
+    error = urllib.error.HTTPError("https://api.github.com/x", 503, "err", {}, None)
+    spy = _OpenerSpy(error=error)
+    with pytest.raises(TransportError) as excinfo:
+        _transport(spy).rest_get("/x")
+    assert excinfo.value.status == 503
+
+
+def test_http_error_close_failure_keeps_sanitized_error() -> None:
+    class _BadClose:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def close(self) -> None:
+            self.calls += 1
+            if self.calls == 1:
+                raise RuntimeError("close broke")
+
+    error = urllib.error.HTTPError("https://api.github.com/x", 503, "err", {}, _BadClose())
+    spy = _OpenerSpy(error=error)
+    with pytest.raises(TransportError) as excinfo:
+        _transport(spy).rest_get("/x")
+    assert excinfo.value.status == 503
+    assert "close broke" not in str(excinfo.value)
+
+
+@pytest.mark.parametrize(
+    "token",
+    ["abc\r\ndef", "abc\ndef", "abc def", "abc\txyz", "tökën"],
+)
+def test_control_bearing_token_rejected(token: str) -> None:
+    spy = _OpenerSpy()
+    with pytest.raises(TransportError) as excinfo:
+        UrllibGitHubReadTransport(token, opener=spy)
+    assert token not in str(excinfo.value)
+    assert spy.requests == []
+
+
+@pytest.mark.parametrize(
+    "link",
+    [
+        "not-a-link",
+        "<https://api.github.com/x",
+        "https://api.github.com/x; rel=next",
+        '<https://api.github.com/x>; rel="next"; ',
+        '<https://api.github.com/x>; rel="next", garbage',
+        "<https://api.github.com/x>; rel=",
+        "",
+        '<https://api.github.com/x>; rel="next", <https://api.github.com/y>; rel="next"',
+    ],
+)
+def test_malformed_or_duplicate_link_header_rejected(link: str) -> None:
+    spy = _OpenerSpy(_FakeResponse(body=b"[]", headers={"Link": link}))
+    with pytest.raises(TransportError):
+        _transport(spy).rest_get("/x")
+
+
+def test_terminal_page_without_next_link_still_accepted() -> None:
+    headers = {"Link": '<https://api.github.com/x?page=9>; rel="last"'}
+    spy = _OpenerSpy(_FakeResponse(body=b"[]", headers=headers))
+    result = _transport(spy).rest_get("/x")
+    assert result.next_url is None

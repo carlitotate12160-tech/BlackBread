@@ -12,6 +12,7 @@ token, a response body, a GraphQL document, or credential material.
 from __future__ import annotations
 
 import contextlib
+import http.client
 import json
 import re
 import urllib.error
@@ -32,6 +33,11 @@ _REDIRECT_MAX = 400
 _USER_AGENT = "blackbread-governance-read/1"
 _DEFINITION_KEYWORDS = frozenset({"query", "fragment"})
 _TOKEN_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*|[{}()]")
+_LINK_SEGMENT_RE = re.compile(
+    r"<(?P<url>[^<>]+)>(?P<params>(?:\s*;\s*[^\s;,=]+(?:\s*=\s*(?:\"[^\"]*\"|[^\s;,]+))?)*)"
+)
+_REL_RE = re.compile(r'rel\s*=\s*(?:"([^"]*)"|([^\s;,]+))', re.IGNORECASE)
+_VISIBLE_ASCII_RE = re.compile(r"[\x21-\x7e]+")
 
 Opener = Callable[[urllib.request.Request, float], Any]
 
@@ -105,9 +111,11 @@ class UrllibGitHubReadTransport:
     ) -> None:
         if not isinstance(token, str) or not token.strip():
             raise TransportError("blank token")
+        if _VISIBLE_ASCII_RE.fullmatch(token) is None:
+            raise TransportError("invalid token characters")
         if timeout <= 0:
             raise TransportError("non-positive timeout")
-        self._authorization = f"Bearer {token.strip()}"
+        self._authorization = f"Bearer {token}"
         self._timeout = timeout
         self._opener = opener if opener is not None else _build_opener()
 
@@ -155,8 +163,12 @@ class UrllibGitHubReadTransport:
             raise
         except urllib.error.HTTPError as exc:
             code = exc.code if isinstance(exc.code, int) else None
+            fp = getattr(exc, "fp", None)
+            if fp is not None:
+                with contextlib.suppress(Exception):
+                    fp.close()
             raise TransportError(_status_message(code), status=code) from None
-        except OSError:
+        except (OSError, http.client.HTTPException, ValueError):
             raise TransportError("network request failed") from None
         if len(raw) > _MAX_BODY_BYTES:
             raise TransportError("response exceeds byte bound")
@@ -230,46 +242,48 @@ def _require_api_origin(parsed: urllib.parse.SplitResult) -> None:
 
 
 def _validated_next_url(link_header: str | None) -> str | None:
-    next_url = _extract_next_link(link_header)
-    if next_url is None:
+    if link_header is None:
         return None
-    _require_api_origin(_split(next_url))
-    return next_url
-
-
-def _extract_next_link(header: str | None) -> str | None:
-    if not header:
-        return None
-    for part in header.split(","):
-        segments = [segment.strip() for segment in part.split(";")]
-        target = segments[0]
-        if not (target.startswith("<") and target.endswith(">")):
-            continue
-        if 'rel="next"' in segments[1:]:
-            return target[1:-1]
-    return None
+    next_urls: list[str] = []
+    for segment in link_header.split(","):
+        match = _LINK_SEGMENT_RE.fullmatch(segment.strip())
+        if match is None:
+            raise TransportError("malformed Link header")
+        rels = [
+            relation.lower()
+            for found in _REL_RE.finditer(match.group("params"))
+            for relation in (found.group(1) or found.group(2) or "").split()
+        ]
+        if "next" in rels:
+            _require_api_origin(_split(match.group("url")))
+            next_urls.append(match.group("url"))
+    if len(next_urls) > 1:
+        raise TransportError("duplicate next link relation")
+    return next_urls[0] if next_urls else None
 
 
 def _validate_query_document(document: str) -> None:
     if not isinstance(document, str) or not document.strip():
         raise TransportError("blank GraphQL document")
-    tokens = [match.group(0) for match in _TOKEN_RE.finditer(_strip_trivia(document))]
+    # Conservative lexical subset: carriage returns would end comments for a
+    # real GraphQL parser but not this scanner, so they are rejected outright
+    # together with block strings. Comments are rejected after ordinary
+    # string literals are stripped so a literal containing '#' still passes.
+    if "\r" in document or '"""' in document:
+        raise TransportError("unsupported GraphQL lexical form")
+    stripped = _strip_strings(document)
+    if "#" in stripped:
+        raise TransportError("unsupported GraphQL lexical form")
+    tokens = [match.group(0) for match in _TOKEN_RE.finditer(stripped)]
     _check_query_only(tokens)
 
 
-def _strip_trivia(document: str) -> str:
+def _strip_strings(document: str) -> str:
     out: list[str] = []
     index = 0
     length = len(document)
     while index < length:
-        if document[index] == "#":
-            newline = document.find("\n", index)
-            index = length if newline == -1 else newline
-        elif document.startswith('"""', index):
-            end = document.find('"""', index + 3)
-            out.append(" ")
-            index = length if end == -1 else end + 3
-        elif document[index] == '"':
+        if document[index] == '"':
             end = index + 1
             while end < length and document[end] != '"':
                 end += 2 if document[end] == "\\" else 1
