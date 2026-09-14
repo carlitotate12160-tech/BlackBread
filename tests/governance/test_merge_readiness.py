@@ -349,6 +349,38 @@ def test_unmodeled_ruleset_rules_do_not_block() -> None:
     assert decision.ready
 
 
+@pytest.mark.parametrize("field", ["head_sha", "base_sha", "base_ref"])
+def test_blank_identity_field_blocks(field: str) -> None:
+    identity = _identity(**{field: "  "})
+    codes = _codes(_evidence(pull_request_before=identity, pull_request_after=identity))
+    assert "BLANK_PR_FIELD" in codes
+
+
+def test_blank_base_ref_does_not_bypass_scope_validation() -> None:
+    identity = _identity(base_ref="")
+    codes = _codes(_evidence(pull_request_before=identity, pull_request_after=identity))
+    assert "RULESET_SCOPE_MISSING" in codes
+
+
+@pytest.mark.parametrize("number", [0, -3])
+def test_non_positive_pr_number_blocks(number: int) -> None:
+    identity = _identity(number=number)
+    codes = _codes(_evidence(pull_request_before=identity, pull_request_after=identity))
+    assert "INVALID_PR_NUMBER" in codes
+
+
+@pytest.mark.parametrize("state", ["archived", "reopened"])
+def test_unknown_alert_state_blocks(state: str) -> None:
+    alerts = (CodeScanningAlert("CodeQL", state, "critical", "error"),)
+    codes = _codes(_evidence(code_scanning=_scanning(alerts=alerts)))
+    assert "UNKNOWN_ALERT_STATE" in codes
+
+
+def test_unknown_review_state_blocks() -> None:
+    codes = _codes(_evidence(review_states=("LOOKS_GOOD",)))
+    assert "UNKNOWN_REVIEW_STATE" in codes
+
+
 def test_unsupported_schema_version_blocks() -> None:
     contract = replace(_contract(), schema_version=4)
     codes = _codes(_evidence(), contract)

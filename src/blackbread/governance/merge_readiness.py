@@ -1,7 +1,6 @@
-"""Deterministic merge-readiness evaluation for the schema-v3 delivery contract.
+"""Deterministic, fail-closed merge-readiness evaluation for the schema-v3 contract.
 
-Fail-closed over supplied evidence; no GitHub I/O. Schema v3 models only status
-checks and code scanning; other ruleset rule types are evidence, never drift.
+Pure function over supplied evidence; no GitHub I/O; unmodeled ruleset rule types are not drift.
 """
 
 from __future__ import annotations
@@ -122,6 +121,8 @@ _SECURITY_THRESHOLD_MIN = {
 }
 _ALERTS_THRESHOLD_MIN = {"all": 0, "errors_and_warnings": 1, "errors": 2, "none": 99}
 _PASSING_MERGE_STATES = {"CLEAN", "UNSTABLE"}
+_ALERT_STATES = frozenset({"open", "dismissed", "fixed"})
+_REVIEW_STATES = frozenset({"APPROVED", "CHANGES_REQUESTED", "COMMENTED", "DISMISSED", "PENDING"})
 _SUPPORTED_SCHEMA_VERSION = 3
 
 
@@ -153,9 +154,17 @@ def _identity_blockers(evidence: MergeEvidence, expected_head_sha: str) -> list[
     blockers: list[MergeBlocker] = []
     if before != after:
         blockers.append(MergeBlocker("PR_IDENTITY_DRIFT", "before/after identities differ"))
+    if after.number <= 0:
+        blockers.append(MergeBlocker("INVALID_PR_NUMBER", str(after.number)))
+    if not after.head_sha.strip():
+        blockers.append(MergeBlocker("BLANK_PR_FIELD", "head_sha"))
+    if not after.base_sha.strip():
+        blockers.append(MergeBlocker("BLANK_PR_FIELD", "base_sha"))
+    if not after.base_ref.strip():
+        blockers.append(MergeBlocker("BLANK_PR_FIELD", "base_ref"))
     if after.head_sha != expected_head_sha:
         blockers.append(MergeBlocker("HEAD_SHA_MISMATCH", f"head {after.head_sha}"))
-    if not after.potential_merge_sha:
+    if not after.potential_merge_sha.strip():
         blockers.append(MergeBlocker("MISSING_MERGE_CANDIDATE", "no potential merge SHA"))
     return blockers
 
@@ -193,9 +202,7 @@ def _ruleset_blockers(contract: DeliveryContract, evidence: MergeEvidence) -> li
         return [MergeBlocker("MISSING_EVIDENCE", "ruleset evidence")]
     blockers: list[MergeBlocker] = []
     if ruleset.ruleset_id != contract.ruleset_id:
-        blockers.append(
-            MergeBlocker("RULESET_ID_MISMATCH", f"{ruleset.ruleset_id} != {contract.ruleset_id}")
-        )
+        blockers.append(MergeBlocker("RULESET_ID_MISMATCH", str(ruleset.ruleset_id)))
     if ruleset.enforcement != "active":
         blockers.append(MergeBlocker("RULESET_INACTIVE", ruleset.enforcement))
     if ruleset.bypass_actors is None:
@@ -222,8 +229,8 @@ def _ruleset_scope_blockers(
         return [MergeBlocker("RULESET_SCOPE_MISSING", "ruleset ref scope not collected")]
     if ruleset.target != "branch":
         return [MergeBlocker("RULESET_SCOPE_MISMATCH", f"target {ruleset.target}")]
-    if after is None or not after.base_ref:
-        return []
+    if after is None or not after.base_ref.strip():
+        return [MergeBlocker("RULESET_SCOPE_MISSING", "pull request base ref unknown")]
     ref = f"refs/heads/{after.base_ref}"
     if ref not in included or ref in excluded:
         return [MergeBlocker("RULESET_SCOPE_MISMATCH", f"{ref} outside ruleset scope")]
@@ -298,7 +305,11 @@ def _alert_blockers(
     if alerts_min is None:
         blockers.append(MergeBlocker("UNKNOWN_ALERTS_THRESHOLD", requirement.alerts_threshold))
     for alert in alerts:
-        if alert.tool == requirement.tool and alert.state == "open":
+        if alert.tool != requirement.tool:
+            continue
+        if alert.state not in _ALERT_STATES:
+            blockers.append(MergeBlocker("UNKNOWN_ALERT_STATE", alert.state))
+        elif alert.state == "open":
             blockers.extend(_single_alert_blockers(alert, security_min, alerts_min))
     return blockers
 
@@ -324,24 +335,35 @@ def _single_alert_blockers(
 
 
 def _review_blockers(contract: DeliveryContract, evidence: MergeEvidence) -> list[MergeBlocker]:
-    blockers: list[MergeBlocker] = []
-    if evidence.review_states is None:
-        blockers.append(MergeBlocker("MISSING_EVIDENCE", "review evidence"))
-    else:
-        if "reviews" in evidence.incomplete_sections:
-            blockers.append(MergeBlocker("INCOMPLETE_EVIDENCE", "review pagination"))
-        if not contract.allow_changes_requested and "CHANGES_REQUESTED" in evidence.review_states:
-            blockers.append(MergeBlocker("CHANGES_REQUESTED", "a review requested changes"))
-        approvals = evidence.review_states.count("APPROVED")
-        if approvals < contract.required_approving_reviews:
-            blockers.append(MergeBlocker("INSUFFICIENT_APPROVALS", str(approvals)))
-    if evidence.review_threads is None:
+    blockers = _review_state_blockers(contract, evidence)
+    threads = evidence.review_threads
+    if threads is None:
         blockers.append(MergeBlocker("MISSING_EVIDENCE", "review thread evidence"))
     else:
         if "review_threads" in evidence.incomplete_sections:
             blockers.append(MergeBlocker("INCOMPLETE_EVIDENCE", "review thread pagination"))
-        if contract.require_review_thread_resolution and not all(evidence.review_threads):
+        if contract.require_review_thread_resolution and not all(threads):
             blockers.append(MergeBlocker("UNRESOLVED_REVIEW_THREAD", "unresolved thread"))
+    return blockers
+
+
+def _review_state_blockers(
+    contract: DeliveryContract,
+    evidence: MergeEvidence,
+) -> list[MergeBlocker]:
+    states = evidence.review_states
+    if states is None:
+        return [MergeBlocker("MISSING_EVIDENCE", "review evidence")]
+    blockers: list[MergeBlocker] = []
+    if "reviews" in evidence.incomplete_sections:
+        blockers.append(MergeBlocker("INCOMPLETE_EVIDENCE", "review pagination"))
+    for state in states:
+        if state not in _REVIEW_STATES:
+            blockers.append(MergeBlocker("UNKNOWN_REVIEW_STATE", state))
+    if not contract.allow_changes_requested and "CHANGES_REQUESTED" in states:
+        blockers.append(MergeBlocker("CHANGES_REQUESTED", "a review requested changes"))
+    if states.count("APPROVED") < contract.required_approving_reviews:
+        blockers.append(MergeBlocker("INSUFFICIENT_APPROVALS", "below required count"))
     return blockers
 
 
