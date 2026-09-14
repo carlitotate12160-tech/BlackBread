@@ -1,8 +1,7 @@
 """Deterministic merge-readiness evaluation for the schema-v3 delivery contract.
 
-No GitHub transport or I/O lives here; callers supply collected evidence and the
-evaluator decides fail-closed. Schema v3 models only required status checks and
-code scanning inside the live ruleset; other rule types are never drift.
+Fail-closed over supplied evidence; no GitHub I/O. Schema v3 models only status
+checks and code scanning; other ruleset rule types are evidence, never drift.
 """
 
 from __future__ import annotations
@@ -39,6 +38,7 @@ class PullRequestIdentity:
     number: int
     head_sha: str
     base_sha: str
+    base_ref: str
     potential_merge_sha: str
 
 
@@ -54,9 +54,12 @@ class CheckRunEvidence:
 class RulesetEvidence:
     ruleset_id: int
     enforcement: str
-    bypass_actors: tuple[str, ...] = ()
+    bypass_actors: tuple[str, ...] | None = None
     status_checks: tuple[RequiredStatusCheck, ...] | None = None
     code_scanning: tuple[CodeScanningRequirement, ...] | None = None
+    target: str | None = None
+    included_refs: tuple[str, ...] | None = None
+    excluded_refs: tuple[str, ...] | None = None
     unmodeled_rule_types: tuple[str, ...] = ()
 
 
@@ -79,6 +82,7 @@ class CodeScanningAlert:
 class CodeScanningEvidence:
     analyses: tuple[CodeScanningAnalysis, ...] | None
     alerts: tuple[CodeScanningAlert, ...] | None
+    queried_ref: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,6 +122,7 @@ _SECURITY_THRESHOLD_MIN = {
 }
 _ALERTS_THRESHOLD_MIN = {"all": 0, "errors_and_warnings": 1, "errors": 2, "none": 99}
 _PASSING_MERGE_STATES = {"CLEAN", "UNSTABLE"}
+_SUPPORTED_SCHEMA_VERSION = 3
 
 
 def evaluate_merge_readiness(
@@ -125,20 +130,19 @@ def evaluate_merge_readiness(
     evidence: MergeEvidence,
     expected_head_sha: str,
 ) -> MergeReadinessDecision:
+    if contract.schema_version != _SUPPORTED_SCHEMA_VERSION:
+        blocker = MergeBlocker("UNSUPPORTED_SCHEMA_VERSION", str(contract.schema_version))
+        return MergeReadinessDecision(ready=False, blockers=(blocker,))
     blockers = (
         _identity_blockers(evidence, expected_head_sha)
         + _check_run_blockers(contract, evidence)
-        + _ruleset_blockers(contract, evidence.ruleset)
+        + _ruleset_blockers(contract, evidence)
         + _scanning_blockers(contract, evidence)
         + _review_blockers(contract, evidence)
         + _pull_request_state_blockers(evidence)
     )
     ordered = tuple(sorted(set(blockers)))
     return MergeReadinessDecision(ready=not ordered, blockers=ordered)
-
-
-def _missing(detail: str) -> list[MergeBlocker]:
-    return [MergeBlocker("MISSING_EVIDENCE", detail)]
 
 
 def _identity_blockers(evidence: MergeEvidence, expected_head_sha: str) -> list[MergeBlocker]:
@@ -159,7 +163,7 @@ def _identity_blockers(evidence: MergeEvidence, expected_head_sha: str) -> list[
 def _check_run_blockers(contract: DeliveryContract, evidence: MergeEvidence) -> list[MergeBlocker]:
     runs = evidence.check_runs
     if runs is None:
-        return _missing("check run evidence")
+        return [MergeBlocker("MISSING_EVIDENCE", "check run evidence")]
     blockers: list[MergeBlocker] = []
     if "check_runs" in evidence.incomplete_sections:
         blockers.append(MergeBlocker("INCOMPLETE_EVIDENCE", "check run pagination"))
@@ -183,12 +187,10 @@ def _check_run_blockers(contract: DeliveryContract, evidence: MergeEvidence) -> 
     return blockers
 
 
-def _ruleset_blockers(
-    contract: DeliveryContract,
-    ruleset: RulesetEvidence | None,
-) -> list[MergeBlocker]:
+def _ruleset_blockers(contract: DeliveryContract, evidence: MergeEvidence) -> list[MergeBlocker]:
+    ruleset = evidence.ruleset
     if ruleset is None:
-        return _missing("ruleset evidence")
+        return [MergeBlocker("MISSING_EVIDENCE", "ruleset evidence")]
     blockers: list[MergeBlocker] = []
     if ruleset.ruleset_id != contract.ruleset_id:
         blockers.append(
@@ -196,8 +198,13 @@ def _ruleset_blockers(
         )
     if ruleset.enforcement != "active":
         blockers.append(MergeBlocker("RULESET_INACTIVE", ruleset.enforcement))
-    if ruleset.bypass_actors:
+    if ruleset.bypass_actors is None:
+        blockers.append(
+            MergeBlocker("RULESET_BYPASS_EVIDENCE_MISSING", "bypass actors uncollected")
+        )
+    elif ruleset.bypass_actors:
         blockers.append(MergeBlocker("RULESET_BYPASS_ACTOR", ",".join(ruleset.bypass_actors)))
+    blockers.extend(_ruleset_scope_blockers(ruleset, evidence.pull_request_after))
     if frozenset(ruleset.status_checks or ()) != frozenset(contract.required_status_checks):
         blockers.append(MergeBlocker("RULESET_STATUS_CHECK_DRIFT", "live checks differ"))
     if frozenset(ruleset.code_scanning or ()) != frozenset(contract.required_code_scanning):
@@ -205,18 +212,37 @@ def _ruleset_blockers(
     return blockers
 
 
+def _ruleset_scope_blockers(
+    ruleset: RulesetEvidence,
+    after: PullRequestIdentity | None,
+) -> list[MergeBlocker]:
+    included = ruleset.included_refs
+    excluded = ruleset.excluded_refs
+    if ruleset.target is None or included is None or excluded is None:
+        return [MergeBlocker("RULESET_SCOPE_MISSING", "ruleset ref scope not collected")]
+    if ruleset.target != "branch":
+        return [MergeBlocker("RULESET_SCOPE_MISMATCH", f"target {ruleset.target}")]
+    if after is None or not after.base_ref:
+        return []
+    ref = f"refs/heads/{after.base_ref}"
+    if ref not in included or ref in excluded:
+        return [MergeBlocker("RULESET_SCOPE_MISMATCH", f"{ref} outside ruleset scope")]
+    return []
+
+
 def _scanning_blockers(contract: DeliveryContract, evidence: MergeEvidence) -> list[MergeBlocker]:
     scanning = evidence.code_scanning
     if scanning is None:
-        return _missing("code scanning evidence")
+        return [MergeBlocker("MISSING_EVIDENCE", "code scanning evidence")]
     blockers: list[MergeBlocker] = []
     if "code_scanning" in evidence.incomplete_sections:
         blockers.append(MergeBlocker("INCOMPLETE_EVIDENCE", "code scanning pagination"))
     if scanning.analyses is None:
-        blockers.extend(_missing("code scanning analyses"))
+        blockers.append(MergeBlocker("MISSING_EVIDENCE", "code scanning analyses"))
     if scanning.alerts is None:
-        blockers.extend(_missing("code scanning alerts"))
+        blockers.append(MergeBlocker("MISSING_EVIDENCE", "code scanning alerts"))
     after = evidence.pull_request_after
+    blockers.extend(_queried_ref_blockers(scanning, after))
     merge_sha = after.potential_merge_sha if after is not None else None
     for requirement in contract.required_code_scanning:
         if scanning.analyses is not None and merge_sha:
@@ -224,6 +250,18 @@ def _scanning_blockers(contract: DeliveryContract, evidence: MergeEvidence) -> l
         if scanning.alerts is not None:
             blockers.extend(_alert_blockers(requirement, scanning.alerts))
     return blockers
+
+
+def _queried_ref_blockers(
+    scanning: CodeScanningEvidence,
+    after: PullRequestIdentity | None,
+) -> list[MergeBlocker]:
+    if scanning.queried_ref is None:
+        return [MergeBlocker("MISSING_EVIDENCE", "code scanning queried ref")]
+    expected = f"refs/pull/{after.number}/merge" if after is not None else None
+    if scanning.queried_ref != expected:
+        return [MergeBlocker("CODE_SCANNING_REF_MISMATCH", scanning.queried_ref)]
+    return []
 
 
 def _analysis_blockers(
@@ -288,7 +326,7 @@ def _single_alert_blockers(
 def _review_blockers(contract: DeliveryContract, evidence: MergeEvidence) -> list[MergeBlocker]:
     blockers: list[MergeBlocker] = []
     if evidence.review_states is None:
-        blockers.extend(_missing("review evidence"))
+        blockers.append(MergeBlocker("MISSING_EVIDENCE", "review evidence"))
     else:
         if "reviews" in evidence.incomplete_sections:
             blockers.append(MergeBlocker("INCOMPLETE_EVIDENCE", "review pagination"))
@@ -298,7 +336,7 @@ def _review_blockers(contract: DeliveryContract, evidence: MergeEvidence) -> lis
         if approvals < contract.required_approving_reviews:
             blockers.append(MergeBlocker("INSUFFICIENT_APPROVALS", str(approvals)))
     if evidence.review_threads is None:
-        blockers.extend(_missing("review thread evidence"))
+        blockers.append(MergeBlocker("MISSING_EVIDENCE", "review thread evidence"))
     else:
         if "review_threads" in evidence.incomplete_sections:
             blockers.append(MergeBlocker("INCOMPLETE_EVIDENCE", "review thread pagination"))
@@ -310,11 +348,11 @@ def _review_blockers(contract: DeliveryContract, evidence: MergeEvidence) -> lis
 def _pull_request_state_blockers(evidence: MergeEvidence) -> list[MergeBlocker]:
     blockers: list[MergeBlocker] = []
     if evidence.is_draft is None:
-        blockers.extend(_missing("draft state"))
+        blockers.append(MergeBlocker("MISSING_EVIDENCE", "draft state"))
     elif evidence.is_draft:
         blockers.append(MergeBlocker("DRAFT_PULL_REQUEST", "pull request is a draft"))
     if evidence.merge_state is None:
-        blockers.extend(_missing("merge state"))
+        blockers.append(MergeBlocker("MISSING_EVIDENCE", "merge state"))
     elif evidence.merge_state not in _PASSING_MERGE_STATES:
         blockers.append(MergeBlocker("BLOCKING_MERGE_STATE", evidence.merge_state))
     return blockers

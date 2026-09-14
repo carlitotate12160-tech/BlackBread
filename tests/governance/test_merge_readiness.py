@@ -47,6 +47,7 @@ def _identity(**overrides: object) -> PullRequestIdentity:
         number=91,
         head_sha=HEAD_SHA,
         base_sha=BASE_SHA,
+        base_ref="main",
         potential_merge_sha=MERGE_SHA,
     )
     return replace(identity, **overrides)
@@ -72,6 +73,9 @@ def _ruleset(**overrides: object) -> RulesetEvidence:
         bypass_actors=(),
         status_checks=contract.required_status_checks,
         code_scanning=contract.required_code_scanning,
+        target="branch",
+        included_refs=("refs/heads/main",),
+        excluded_refs=(),
         unmodeled_rule_types=(
             "deletion",
             "non_fast_forward",
@@ -86,6 +90,7 @@ def _scanning(**overrides: object) -> CodeScanningEvidence:
     evidence = CodeScanningEvidence(
         analyses=(CodeScanningAnalysis(tool="CodeQL", commit_sha=MERGE_SHA, error=""),),
         alerts=(),
+        queried_ref="refs/pull/91/merge",
     )
     return replace(evidence, **overrides)
 
@@ -193,6 +198,17 @@ def test_analysis_error_blocks_with_zero_alerts() -> None:
 def test_analysis_with_unknown_error_state_blocks() -> None:
     unknown = (CodeScanningAnalysis(tool="CodeQL", commit_sha=MERGE_SHA, error=None),)
     assert "INCOMPLETE_EVIDENCE" in _codes(_evidence(code_scanning=_scanning(analyses=unknown)))
+
+
+def test_missing_code_scanning_queried_ref_blocks() -> None:
+    codes = _codes(_evidence(code_scanning=_scanning(queried_ref=None)))
+    assert "MISSING_EVIDENCE" in codes
+
+
+@pytest.mark.parametrize("ref", ["refs/pull/91/head", "refs/pull/92/merge"])
+def test_wrong_code_scanning_queried_ref_blocks(ref: str) -> None:
+    codes = _codes(_evidence(code_scanning=_scanning(queried_ref=ref)))
+    assert "CODE_SCANNING_REF_MISMATCH" in codes
 
 
 @pytest.mark.parametrize("severity", ["critical", "high"])
@@ -331,6 +347,38 @@ def test_unmodeled_ruleset_rules_do_not_block() -> None:
     ruleset = _ruleset(unmodeled_rule_types=("deletion", "pull_request", "copilot_code_review"))
     decision = evaluate_merge_readiness(_contract(), _evidence(ruleset=ruleset), HEAD_SHA)
     assert decision.ready
+
+
+def test_unsupported_schema_version_blocks() -> None:
+    contract = replace(_contract(), schema_version=4)
+    codes = _codes(_evidence(), contract)
+    assert codes == ["UNSUPPORTED_SCHEMA_VERSION"]
+
+
+def test_missing_bypass_evidence_blocks() -> None:
+    codes = _codes(_evidence(ruleset=_ruleset(bypass_actors=None)))
+    assert "RULESET_BYPASS_EVIDENCE_MISSING" in codes
+
+
+@pytest.mark.parametrize("field", ["target", "included_refs", "excluded_refs"])
+def test_missing_ruleset_scope_blocks(field: str) -> None:
+    codes = _codes(_evidence(ruleset=_ruleset(**{field: None})))
+    assert "RULESET_SCOPE_MISSING" in codes
+
+
+def test_ruleset_scoped_away_from_pr_base_blocks() -> None:
+    ruleset = _ruleset(included_refs=("refs/heads/release/1.0",))
+    assert "RULESET_SCOPE_MISMATCH" in _codes(_evidence(ruleset=ruleset))
+
+
+def test_ruleset_excluding_pr_base_blocks() -> None:
+    ruleset = _ruleset(excluded_refs=("refs/heads/main",))
+    assert "RULESET_SCOPE_MISMATCH" in _codes(_evidence(ruleset=ruleset))
+
+
+def test_ruleset_with_non_branch_target_blocks() -> None:
+    codes = _codes(_evidence(ruleset=_ruleset(target="tag")))
+    assert "RULESET_SCOPE_MISMATCH" in codes
 
 
 def test_changes_requested_review_blocks() -> None:
