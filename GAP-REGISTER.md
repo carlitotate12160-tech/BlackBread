@@ -26,8 +26,11 @@ admission blockers are recorded with their owner, milestone, and release in
   (`high_or_higher` security alerts and `errors` tool/analysis alerts), strict branch currency,
   and no bypass actors (`bypass_actors: []`, `current_user_can_bypass: "never"`).
 - **Verification:** captured live ruleset snapshot below, fetched from
-  `https://api.github.com/repos/carlitotate12160-tech/BlackBread/rulesets/21644438`, matches the
-  schema-v3 machine contract.
+  `https://api.github.com/repos/carlitotate12160-tech/BlackBread/rulesets/21644438`. The captured
+  live snapshot matches the schema-v3 machine contract for the `required_status_checks` and
+  `code_scanning` portions. The remaining live ruleset controls are verified against
+  `.github/BRANCH-PROTECTION.md` and the captured snapshot; schema v3 does not claim a complete
+  structural ruleset mirror or live evaluator.
 - **Contract parity correction (2026-09-14):** the original "matches the machine contract" claim
   overstated parity. Schema v2 reduced `required_status_checks` to bare context strings and had no
   `code_scanning` field, so the snapshot's integration identities (`15368` for `ci-ok`, `46505` for

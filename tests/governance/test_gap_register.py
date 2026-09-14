@@ -40,6 +40,12 @@ def test_gov_gap_001_status_and_snapshot_structure() -> None:
     assert delivery["force_push_allowed"] is False
 
 
+def test_gov_gap_001_verification_scope_is_explicitly_limited() -> None:
+    _, _, _, gap = _load_snapshot_and_contract()
+    normalized = " ".join(gap.split())
+    assert "does not claim a complete structural ruleset mirror or live evaluator" in normalized
+
+
 def test_gov_gap_001_branch_protection_rules_present() -> None:
     snapshot, _, _, _ = _load_snapshot_and_contract()
     rules = _rules_by_type(snapshot)
