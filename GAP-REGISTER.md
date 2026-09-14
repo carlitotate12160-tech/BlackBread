@@ -13,7 +13,9 @@ admission blockers are recorded with their owner, milestone, and release in
 - **Blocks:** R0 and every real-target release
 - **Closed at:** 2026-08-31T16:39:39+07:00
 - **Closure evidence:** the live `main-branch-protection` ruleset (`21644438`) was read from GitHub
-  after alignment and matches `.github/agent-delivery.json` and `.github/BRANCH-PROTECTION.md`. The
+  after alignment and matches `.github/BRANCH-PROTECTION.md`; the schema-v2
+  `.github/agent-delivery.json` modeled only the required status-check contexts, not the full
+  ruleset contract (see the parity correction below). The
   legacy `main-approval-required` ruleset (`21698082`) is disabled and retained only as rollback evidence. The
   verified ruleset enforces: deletion protection, non-fast-forward, required linear history,
   required pull request with solo-developer settings (`required_approving_review_count: 0`,
@@ -25,7 +27,14 @@ admission blockers are recorded with their owner, milestone, and release in
   and no bypass actors (`bypass_actors: []`, `current_user_can_bypass: "never"`).
 - **Verification:** captured live ruleset snapshot below, fetched from
   `https://api.github.com/repos/carlitotate12160-tech/BlackBread/rulesets/21644438`, matches the
-  machine contract.
+  schema-v3 machine contract.
+- **Contract parity correction (2026-09-14):** the original "matches the machine contract" claim
+  overstated parity. Schema v2 reduced `required_status_checks` to bare context strings and had no
+  `code_scanning` field, so the snapshot's integration identities (`15368` for `ci-ok`, `46505` for
+  `GitGuardian Security Checks`) and the CodeQL `code_scanning` rule were verified live but not
+  machine-modeled. Schema v3 models each required status check as `{context, integration_id}` and
+  adds `required_code_scanning`; `tests/governance/test_gap_register.py` now asserts both against
+  the snapshot field-for-field. CodeQL remains a `code_scanning` rule, not a status check.
 - **Compensating control:** N/A.
 
 <details>
