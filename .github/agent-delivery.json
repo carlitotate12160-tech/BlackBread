@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "agent_delivery": {
     "owner_instruction_required": true,
     "feature_branch_commit_push_allowed": true,
@@ -17,8 +17,15 @@
     "require_ai_bot_comment_disposition": false,
     "require_branch_up_to_date": true,
     "required_status_checks": [
-      "ci-ok",
-      "GitGuardian Security Checks"
+      {"context": "ci-ok", "integration_id": 15368},
+      {"context": "GitGuardian Security Checks", "integration_id": 46505}
+    ],
+    "required_code_scanning": [
+      {
+        "tool": "CodeQL",
+        "security_alerts_threshold": "high_or_higher",
+        "alerts_threshold": "errors"
+      }
     ],
     "allow_blocking_debt": false,
     "ruleset_id": 21644438

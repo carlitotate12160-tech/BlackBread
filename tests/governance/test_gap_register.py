@@ -40,6 +40,12 @@ def test_gov_gap_001_status_and_snapshot_structure() -> None:
     assert delivery["force_push_allowed"] is False
 
 
+def test_gov_gap_001_verification_scope_is_explicitly_limited() -> None:
+    _, _, _, gap = _load_snapshot_and_contract()
+    normalized = " ".join(gap.split())
+    assert "does not claim a complete structural ruleset mirror or live evaluator" in normalized
+
+
 def test_gov_gap_001_branch_protection_rules_present() -> None:
     snapshot, _, _, _ = _load_snapshot_and_contract()
     rules = _rules_by_type(snapshot)
@@ -54,20 +60,28 @@ def test_gov_gap_001_required_status_checks_match_contract() -> None:
     status = rules["required_status_checks"]["parameters"]
     assert status["strict_required_status_checks_policy"] == delivery["require_branch_up_to_date"]
     assert status["do_not_enforce_on_create"] is False
+    assert status["required_status_checks"] == delivery["required_status_checks"]
     contexts = [check["context"] for check in status["required_status_checks"]]
-    assert contexts == delivery["required_status_checks"]
     assert contexts == ["ci-ok", "GitGuardian Security Checks"]
+    assert "CodeQL" not in contexts
+    integration_ids = [check["integration_id"] for check in status["required_status_checks"]]
+    assert integration_ids == [15368, 46505]
     assert "ci-ok" in branch_protection
     assert "GitGuardian Security Checks" in branch_protection
 
 
 def test_gov_gap_001_code_scanning_matches_contract() -> None:
-    snapshot, _, branch_protection, _ = _load_snapshot_and_contract()
+    snapshot, delivery, branch_protection, _ = _load_snapshot_and_contract()
     rules = _rules_by_type(snapshot)
-    code_scanning = rules["code_scanning"]["parameters"]["code_scanning_tools"][0]
-    assert code_scanning["tool"] == "CodeQL"
-    assert code_scanning["security_alerts_threshold"] == "high_or_higher"
-    assert code_scanning["alerts_threshold"] == "errors"
+    tools = rules["code_scanning"]["parameters"]["code_scanning_tools"]
+    assert tools == delivery["required_code_scanning"]
+    assert tools == [
+        {
+            "tool": "CodeQL",
+            "security_alerts_threshold": "high_or_higher",
+            "alerts_threshold": "errors",
+        }
+    ]
     assert "CodeQL" in branch_protection
     assert "high_or_higher" in branch_protection
     assert "errors" in branch_protection

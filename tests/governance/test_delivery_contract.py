@@ -149,19 +149,26 @@ def test_agent_delivery_authority_is_explicit_and_fail_closed() -> None:
         "require_ai_bot_comment_disposition": False,
         "require_branch_up_to_date": True,
         "required_status_checks": [
-            "ci-ok",
-            "GitGuardian Security Checks",
+            {"context": "ci-ok", "integration_id": 15368},
+            {"context": "GitGuardian Security Checks", "integration_id": 46505},
+        ],
+        "required_code_scanning": [
+            {
+                "tool": "CodeQL",
+                "security_alerts_threshold": "high_or_higher",
+                "alerts_threshold": "errors",
+            }
         ],
         "allow_blocking_debt": False,
         "ruleset_id": 21644438,
     }
 
-    assert contract["schema_version"] == 2
+    assert contract["schema_version"] == 3
     assert delivery == expected
 
-    required_checks = set(delivery["required_status_checks"])
-    assert "ci-ok" in required_checks
-    assert "GitGuardian Security Checks" in required_checks
+    required_checks = {check["context"] for check in delivery["required_status_checks"]}
+    assert required_checks == {"ci-ok", "GitGuardian Security Checks"}
+    assert "CodeQL" not in required_checks
     assert "ai-review-gate" not in required_checks
     assert "Sourcery review" not in required_checks
     assert "pending_required_status_checks" not in delivery
