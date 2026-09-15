@@ -73,15 +73,23 @@ def _require(condition: bool, code: str) -> None:
 
 
 def _str_field(source: Any, key: str, code: str = _MALFORMED_ITEM) -> str:
-    """A required non-empty string field; raises otherwise."""
+    """A required string field that is non-empty once stripped; raises otherwise."""
     value = source.get(key) if isinstance(source, dict) else None
-    _require(isinstance(value, str) and bool(value), code)
+    _require(isinstance(value, str) and bool(value.strip()), code)
     return cast(str, value)
 
 
 def _int_field(value: Any, code: str = _MALFORMED_BODY) -> int:
     _require(isinstance(value, int) and not isinstance(value, bool), code)
     return cast(int, value)
+
+
+def _opt_int_field(value: Any) -> int | None:
+    # Absent stays None; a present non-integer (or bool) is malformed, not missing.
+    _require(
+        value is None or (isinstance(value, int) and not isinstance(value, bool)), _MALFORMED_ITEM
+    )
+    return cast("int | None", value)
 
 
 def _bool_field(value: Any, code: str = _MALFORMED_BODY) -> bool:
@@ -129,9 +137,10 @@ def normalize_check_runs_page(body: Any) -> CheckRunPage:
         context = _str_field(item, "name")
         head_sha = _str_field(item, "head_sha")
         conclusion, app = item.get("conclusion"), item.get("app")
-        integration_id = app.get("id") if isinstance(app, dict) else None
         _require(conclusion is None or isinstance(conclusion, str), _MALFORMED_ITEM)
-        _require(integration_id is None or isinstance(integration_id, int), _MALFORMED_ITEM)
+        # A present but non-dict app is malformed evidence, never "no app".
+        _require(app is None or isinstance(app, dict), _MALFORMED_ITEM)
+        integration_id = _opt_int_field(app.get("id") if app is not None else None)
         return CheckRunEvidence(
             context=context, integration_id=integration_id, head_sha=head_sha, conclusion=conclusion
         )
@@ -158,9 +167,9 @@ def _modeled(matches: list[dict[str, Any]], param_key: str, parser: Callable[[An
 def _rules(rules: Any) -> _RuleModel:
     def status_check(item: Any) -> RequiredStatusCheck:
         context = _str_field(item, "context")
-        integration_id = item.get("integration_id")
-        _require(integration_id is None or isinstance(integration_id, int), _MALFORMED_ITEM)
-        return RequiredStatusCheck(context=context, integration_id=integration_id)
+        return RequiredStatusCheck(
+            context=context, integration_id=_opt_int_field(item.get("integration_id"))
+        )
 
     def scanning_requirement(item: Any) -> CodeScanningRequirement:
         return CodeScanningRequirement(
@@ -193,8 +202,10 @@ def _rules(rules: Any) -> _RuleModel:
 
 def normalize_ruleset(body: Any) -> RulesetEvidence:
     def string_tuple(value: Any) -> tuple[str, ...] | None:
-        if not isinstance(value, list):
+        # Absent stays None (the evaluator blocks on it); present-but-wrong is malformed.
+        if value is None:
             return None
+        _require(isinstance(value, list), _MALFORMED_ITEM)
         _require(all(isinstance(item, str) for item in value), _MALFORMED_ITEM)
         return tuple(value)
 
@@ -215,11 +226,13 @@ def normalize_ruleset(body: Any) -> RulesetEvidence:
     enforcement = _str_field(body, "enforcement", _MALFORMED_BODY)
     status_checks, code_scanning, unmodeled = _rules(body.get("rules"))
     target = body.get("target")
-    target = target if isinstance(target, str) and target else None
+    _require(target is None or (isinstance(target, str) and bool(target.strip())), _MALFORMED_BODY)
     conditions = body.get("conditions")
-    ref_name = conditions.get("ref_name") if isinstance(conditions, dict) else None
-    included = string_tuple(ref_name.get("include")) if isinstance(ref_name, dict) else None
-    excluded = string_tuple(ref_name.get("exclude")) if isinstance(ref_name, dict) else None
+    _require(conditions is None or isinstance(conditions, dict), _MALFORMED_BODY)
+    ref_name = conditions.get("ref_name") if conditions is not None else None
+    _require(ref_name is None or isinstance(ref_name, dict), _MALFORMED_BODY)
+    included = string_tuple(ref_name.get("include")) if ref_name is not None else None
+    excluded = string_tuple(ref_name.get("exclude")) if ref_name is not None else None
     return RulesetEvidence(
         ruleset_id=ruleset_id,
         enforcement=enforcement,

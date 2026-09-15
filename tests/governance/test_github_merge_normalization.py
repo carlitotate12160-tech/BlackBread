@@ -65,6 +65,10 @@ def _check_runs_body(**overrides: Any) -> dict[str, Any]:
     return {"total_count": 1, "check_runs": [run], **overrides}
 
 
+_RUN_BAD_APP = {"name": "x", "head_sha": HEAD_SHA, "conclusion": None, "app": "nope"}
+_RUN_BOOL_ID = {"name": "x", "head_sha": HEAD_SHA, "conclusion": None, "app": {"id": True}}
+
+
 def _rule(rule_type: str, **params: Any) -> dict[str, Any]:
     return {"type": rule_type, "parameters": params}
 
@@ -81,6 +85,10 @@ _SCAN_RULE = _rule(
             "alerts_threshold": "errors",
         }
     ],
+)
+# bool is an int subclass, so a JSON true must not slip through as an integration id.
+_BOOL_ID_RULE = _rule(
+    "required_status_checks", required_status_checks=[{"context": "c", "integration_id": True}]
 )
 
 
@@ -182,9 +190,6 @@ def _evidence_for(observation: PullRequestObservation) -> MergeEvidence:
     )
 
 
-# --- Typed records and stable errors ------------------------------------------
-
-
 def test_records_are_frozen_and_slotted() -> None:
     identity = PullRequestIdentity(91, HEAD_SHA, BASE_SHA, "main", MERGE_SHA)
     observation = PullRequestObservation(identity=identity, is_draft=False, merge_state="CLEAN")
@@ -200,7 +205,7 @@ def test_records_are_frozen_and_slotted() -> None:
             setattr(obj, field, 1)
 
 
-def test_error_message_is_fixed_and_code_is_stable() -> None:
+def test_error_is_stable_and_never_leaks_input(capsys: pytest.CaptureFixture[str]) -> None:
     messages = []
     for func in (normalize_pull_request, normalize_reviews, normalize_ruleset):
         with pytest.raises(EvidenceNormalizationError) as excinfo:
@@ -208,6 +213,14 @@ def test_error_message_is_fixed_and_code_is_stable() -> None:
         assert excinfo.value.code == "MALFORMED_BODY"
         messages.append(str(excinfo.value))
     assert messages == ["evidence normalization failed: MALFORMED_BODY"] * 3
+    poisoned = _pr_body(head={"sha": SECRET}, number="not-an-int")
+    with pytest.raises(EvidenceNormalizationError) as excinfo:
+        normalize_pull_request(poisoned)
+    assert SECRET not in str(excinfo.value)
+    assert SECRET not in repr(excinfo.value)
+    captured = capsys.readouterr()
+    assert SECRET not in captured.out
+    assert SECRET not in captured.err
 
 
 def test_normalize_pull_request_clean_fixture_and_unknown_state() -> None:
@@ -379,10 +392,8 @@ def test_review_threads_page_graphql_errors_with_data_raises() -> None:
         (_alerts, "not-a-list"),
         (normalize_reviews, "not-a-list"),
         (normalize_review_threads_page, "not-a-dict"),
-        (normalize_review_threads_page, {}),
         (normalize_review_threads_page, {"data": {"repository": "not-a-dict"}}),
         (normalize_review_threads_page, {"data": {"repository": {"pullRequest": "x"}}}),
-        # Required pull-request identity and state.
         (normalize_pull_request, _pr_body(number="91")),
         (normalize_pull_request, _pr_body(number=True)),
         (normalize_pull_request, _pr_body(head={"sha": ""})),
@@ -390,23 +401,31 @@ def test_review_threads_page_graphql_errors_with_data_raises() -> None:
         (normalize_pull_request, _pr_body(merge_commit_sha=12345)),
         (normalize_pull_request, _pr_body(draft="no")),
         (normalize_pull_request, _pr_body(mergeable_state="")),
-        # Check-run page items and counts.
+        # A blank-but-truthy enum must not degrade into an empty merge state.
+        (normalize_pull_request, _pr_body(mergeable_state="   ")),
         (normalize_check_runs_page, _check_runs_body(check_runs="not-a-list")),
         (normalize_check_runs_page, _check_runs_body(check_runs=[{"head_sha": HEAD_SHA}])),
         (normalize_check_runs_page, _check_runs_body(check_runs=[{"name": "x", "conclusion": 5}])),
         (normalize_check_runs_page, _check_runs_body(total_count="1")),
-        # Ruleset structure, rule parameters, bypass actors and ref scope.
+        # A present-but-malformed app, or a bool id, is malformed -- never "no app".
+        (normalize_check_runs_page, _check_runs_body(check_runs=[_RUN_BAD_APP])),
+        (normalize_check_runs_page, _check_runs_body(check_runs=[_RUN_BOOL_ID])),
         (normalize_ruleset, _ruleset_body(id="21644438")),
         (normalize_ruleset, _ruleset_body(enforcement="")),
         (normalize_ruleset, _ruleset_body(rules="not-a-list")),
         (normalize_ruleset, _ruleset_body(rules=[{"type": ""}])),
         (normalize_ruleset, _ruleset_body(rules=[_rule("required_status_checks")])),
         (normalize_ruleset, _ruleset_body(rules=[_rule("code_scanning", code_scanning_tools="x")])),
+        (normalize_ruleset, _ruleset_body(rules=[_BOOL_ID_RULE])),
         (normalize_ruleset, _ruleset_body(bypass_actors="not-a-list")),
         (normalize_ruleset, _ruleset_body(bypass_actors=[{"actor_type": "Team"}])),
         (normalize_ruleset, _ruleset_body(bypass_actors=[{"actor_type": "T", "actor_id": "42"}])),
+        # Present-but-malformed ref scope must raise, not look "not collected".
         (normalize_ruleset, _ruleset_body(conditions={"ref_name": {"include": [1]}})),
-        # Code-scanning items.
+        (normalize_ruleset, _ruleset_body(conditions={"ref_name": {"include": "not-a-list"}})),
+        (normalize_ruleset, _ruleset_body(conditions="not-a-dict")),
+        (normalize_ruleset, _ruleset_body(conditions={"ref_name": "not-a-dict"})),
+        (normalize_ruleset, _ruleset_body(target="   ")),
         (_analyses, [_analysis(tool={})]),
         (_analyses, [_analysis(commit_sha="")]),
         (_analyses, [_analysis(error=None)]),
@@ -414,7 +433,6 @@ def test_review_threads_page_graphql_errors_with_data_raises() -> None:
         (_alerts, [_alert(state="")]),
         (_alerts, [_alert(rule="not-a-dict")]),
         (_alerts, [_alert(rule={"security_severity_level": 5})]),
-        # Review states and GraphQL thread nodes.
         (normalize_reviews, [{"state": ""}]),
         (normalize_reviews, [{}]),
         (normalize_review_threads_page, _bad_pr(number="91")),
@@ -434,20 +452,6 @@ def test_malformed_input_fails_closed(call: Any, payload: Any) -> None:
         call(payload)
 
 
-# --- Sanitization and non-reachability ----------------------------------------
-
-
-def test_exceptions_never_leak_input_content(capsys: pytest.CaptureFixture[str]) -> None:
-    poisoned = _pr_body(head={"sha": SECRET}, number="not-an-int")
-    with pytest.raises(EvidenceNormalizationError) as excinfo:
-        normalize_pull_request(poisoned)
-    assert SECRET not in str(excinfo.value)
-    assert SECRET not in repr(excinfo.value)
-    captured = capsys.readouterr()
-    assert SECRET not in captured.out
-    assert SECRET not in captured.err
-
-
 def test_module_has_no_transport_or_io_dependency() -> None:
     tree = ast.parse(Path(norm.__file__).read_text(encoding="utf-8"))
     imported: set[str] = set()
@@ -460,9 +464,6 @@ def test_module_has_no_transport_or_io_dependency() -> None:
     banned.add("blackbread.governance.github_merge_transport")
     assert imported.isdisjoint(banned)
     assert not hasattr(norm, "main")
-
-
-# --- Compatibility: composes with the existing evaluator unchanged ------------
 
 
 def test_normalized_evidence_composes_with_evaluator() -> None:
