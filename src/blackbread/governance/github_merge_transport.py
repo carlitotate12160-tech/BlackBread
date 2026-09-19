@@ -33,8 +33,12 @@ _REDIRECT_MAX = 400
 _USER_AGENT = "blackbread-governance-read/1"
 _DEFINITION_KEYWORDS = frozenset({"query", "fragment"})
 _TOKEN_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*|[{}()]")
+# Atomic groups make each parameter repetition backtracking-free, so a
+# hostile/oversized Link header cannot exhaust CPU (a socket timeout does not
+# bound regex CPU).
 _LINK_SEGMENT_RE = re.compile(
-    r"<(?P<url>[^<>]+)>(?P<params>(?:\s*;\s*[^\s;,=]+(?:\s*=\s*(?:\"[^\"]*\"|[^\s;,]+))?)*)"
+    r"<(?P<url>[^<>]+)>(?P<params>(?:(?>\s*;\s*)[^\s;,=]+"
+    r"(?:(?>\s*=\s*)(?:\"[^\"]*\"|[^\s;,]+))?)*+)"
 )
 _REL_RE = re.compile(r'rel\s*=\s*(?:"([^"]*)"|([^\s;,]+))', re.IGNORECASE)
 _VISIBLE_ASCII_RE = re.compile(r"[\x21-\x7e]+")
