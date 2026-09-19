@@ -192,9 +192,9 @@ def test_agent_delivery_authority_is_explicit_and_fail_closed() -> None:
         assert "changes requested" in content
         assert "blocking debt" in content or "blocking-debt" in content
 
-    build_agent_skill = (
-        ROOT / ".devin/skills/build-blackbread-agent/SKILL.md"
-    ).read_text(encoding="utf-8")
+    build_agent_skill = (ROOT / ".devin/skills/build-blackbread-agent/SKILL.md").read_text(
+        encoding="utf-8"
+    )
     assert "[blackbread-engineering](../blackbread-engineering/SKILL.md)" in build_agent_skill
     assert "does not define a separate merge or bypass procedure" in build_agent_skill
     assert "final merge workflow" not in build_agent_skill
