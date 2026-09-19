@@ -6,10 +6,10 @@ business objective, with evidence for every boundary transition, control outcome
 
 `ADR-FINAL-002.md` through `ADR-FINAL-004.md` define the foundation, campaign intelligence, and
 delivery model. `ADR-FINAL-005.md` through `ADR-FINAL-009.md`, plus `ADR-FINAL-010.md` and
-`ADR-FINAL-011.md`, define campaign-bounded autonomy,
-access-context chaining, an optional ephemeral target runtime, bounded lateral movement, Rapid N-Day
-response, declarative attack opportunities, and evidence-qualified learning. R0/M1 is not complete
-or production-eligible, and no target-facing capability is currently eligible.
+`ADR-FINAL-011.md`, define campaign-bounded autonomy, access-context chaining, an optional
+ephemeral target runtime, bounded lateral movement, Rapid N-Day response, declarative attack
+opportunities, and evidence-qualified learning. R0/M1 is not complete or production-eligible,
+and no target-facing capability is currently eligible.
 
 ## Implemented slices
 
