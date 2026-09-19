@@ -4,7 +4,9 @@ Use this lens for changes to agent roles, campaign reasoning, evidence, target i
 semantics, authorization meaning, control assessment, or target-effect classification. It is not a
 generic penetration-testing playbook. Read the relevant live foundation plus
 `ADR-FINAL-005.md` through `ADR-FINAL-009.md`, `PRD.md`, the gap register, and the capability
-registry before applying it to external-to-objective work.
+registry before applying it to external-to-objective work. When
+`ADR-FINAL-010.md` and `ADR-FINAL-011.md` exist on protected main, they are also required for
+opportunity, specialist, and learning responsibilities.
 
 ## Contents
 
@@ -69,6 +71,16 @@ permitted through a dedicated source-to-destination capability and cannot be hid
 action.
 
 ## World and claim semantics
+
+For ADR-FINAL-010.md/ADR-FINAL-011.md work, inspect the graph-driven opportunity and learning loops.
+The declarative knowledge registry describes possible conditions; a deterministic compiler creates
+advisory snapshot-bound candidates; the owning role chooses, challenges, or abandons them. Each
+admitted delta must invalidate affected candidates and can reopen earlier paths. Ephemeral cognition
+workers answer bounded questions without role identity, secrets, target egress, or proposal rights.
+Require behavioral examples for patience, multiple entry hypotheses, per-edge proof, minimal tooling,
+and alternate authorized surfaces. The build skill's role-contracts reference owns that doctrine.
+Neither an empty ready queue nor a control block establishes that the objective is exhausted.
+
 
 Keep the ADR-FINAL-003 views separate and coherently bound to one verified ledger prefix and time:
 

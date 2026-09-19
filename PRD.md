@@ -3,16 +3,16 @@
 - **Product:** BlackBread
 - **Category:** Autonomous, threat-informed, external red-team / adversary-emulation platform
 - **Positioning:** An external red-team exploitation service that *works like an APT operator* — covert, patient, objective-driven, evidence-backed — while remaining strictly authorized, non-destructive, and agentless.
-- **Companion documents:** `ADR-FINAL-002.md` (foundation), `ADR-FINAL-003.md` (campaign intelligence), `ADR-FINAL-004.md` (vertical delivery and Policy minimalism), `ADR-FINAL-005.md` (campaign authority), `ADR-FINAL-006.md` (access-context chaining), `ADR-FINAL-007.md` (ephemeral target runtime and adaptive capability synthesis), `ADR-FINAL-008.md` (bounded lateral movement), `ADR-FINAL-009.md` (Rapid N-Day response), `.devin/rules/blackbread.md` (engineering guardrails), `.devin/skills/build-blackbread-agent/SKILL.md` (build guidance).
+- **Companion documents:** `ADR-FINAL-002.md` (foundation), `ADR-FINAL-003.md` (campaign intelligence), `ADR-FINAL-004.md` (vertical delivery and Policy minimalism), `ADR-FINAL-005.md` (campaign authority), `ADR-FINAL-006.md` (access-context chaining), `ADR-FINAL-007.md` (ephemeral target runtime and adaptive capability synthesis), `ADR-FINAL-008.md` (bounded lateral movement), `ADR-FINAL-009.md` (Rapid N-Day response), `ADR-FINAL-010.md` (declarative attack knowledge and opportunity frontier), `ADR-FINAL-011.md` (evidence-qualified learning and memory), `.devin/rules/blackbread.md` (engineering guardrails), `.devin/skills/build-blackbread-agent/SKILL.md` (build guidance).
 - **Status:** Accepted product baseline for M0–R1; implementation status is tracked by tests and release evidence, not this document.
 
 ---
 
 ## 0. Requirement Authority and Status
 
-`ADR-FINAL-002.md` through `ADR-FINAL-009.md` govern foundation safety, campaign intelligence,
+`ADR-FINAL-002.md` through `ADR-FINAL-011.md` govern foundation safety, campaign intelligence,
 delivery, autonomy, access-context chaining, target execution, lateral movement, and vulnerability
-currency. This PRD defines product behavior and measurable release outcomes. Rules and skills may
+currency, declarative opportunities, and evidence-qualified learning. This PRD defines product behavior and measurable release outcomes. Rules and skills may
 prescribe implementation technique but may not weaken any accepted ADR.
 The machine-readable capability registry controls which tools an agent may propose; runtime policy
 controls whether an exact invocation may execute.
@@ -57,6 +57,8 @@ definition of BlackBread.
 ### 3.1 Goals (MVP)
 - Deliver one **cross-verified, evidence-backed payable finding** on an authorized real target (the Recon-only tier).
 - Preserve a vertical path toward complete external-to-objective proof rather than optimizing the architecture for vulnerability counts.
+- Select and revise attack paths from a current graph-driven opportunity frontier rather than a fixed playbook.
+- Compound evidence-qualified experience across tasks without treating historical success as current target truth.
 - Operate **covertly** (blue team not informed) without causing outages, lockouts, or data loss.
 - Produce findings a client can **independently reproduce** and act on, with defensible severity.
 - Be **honest about coverage** — never imply "secure" from "nothing found."
@@ -142,6 +144,46 @@ Tier is selected in the client portal and gates capability families and which ag
   cannot widen family semantics or mutate the registry. Dispatch additionally requires current
   source context, Policy, lease, WorkOrder, execution deadline, and cleanup reserve.
 
+### 6.4b Autonomous attack knowledge and opportunity frontier
+
+- `AKR-001 [DECIDED]` Maintain a versioned, provenance-bound declarative registry of weakness and
+  technique knowledge that remains independent from the executable capability registry.
+- `AKR-002 [DECIDED]` Knowledge definitions describe predicates, transitions, proof requirements,
+  remediation, and capability-family bindings; they cannot encode an opaque executable playbook or
+  create target truth.
+- `OPP-001 [DECIDED]` Compile an expiring campaign-local opportunity frontier from one coherent
+  world snapshot, current access contexts, objective, knowledge version, and capability-eligibility
+  projection.
+- `OPP-002 [DECIDED]` Re-evaluate only affected opportunities after each admitted graph, context,
+  capability, control, expiry, cleanup, or outcome delta; failures prune only their supported context.
+- `OPP-003 [DECIDED]` Agents retain a multi-objective uncertainty vector and role-specific ranking;
+  opportunity scores and specialist assessments remain advisory and cannot alter Policy admission.
+- `OPP-004 [DECIDED]` The five permanent roles may use short-lived role-owned specialists for bounded
+  reasoning, but specialists have no agent identity, target access, execution authority, or
+  evidence-promotion right.
+- `OPP-005 [DECIDED]` External tools and adaptive payloads remain qualified capability
+  implementations; knowledge entries and opportunity scores cannot replace execution admission.
+
+### 6.4c Evidence-qualified learning
+
+- `LRN-001 [DECIDED]` Separate ephemeral task scratch, ledger-backed campaign memory, tenant
+  longitudinal priors, and privacy-qualified global experience.
+- `LRN-002 [DECIDED]` Record a provenance-bound `TechniqueOutcome` for success, valid disproof,
+  control block, Policy denial, expiry, model refusal, tool/adapter error, safety stop, cancellation,
+  and inconclusive evidence without collapsing their semantics.
+- `LRN-003 [DECIDED]` Failures retain distinct semantics and update only the matching contextual
+  prior; unattempted decisions do not enter execution-success denominators.
+- `LRN-004 [DECIDED]` Historical outcomes may influence hypotheses, information value, and ranking
+  only through versioned contextual priors with uncertainty and temporal decay; current target facts
+  always require current evidence.
+- `LRN-005 [DECIDED]` Production models, prompts, knowledge, ranking functions, or capabilities do
+  not self-modify online. Changes require offline benchmark/range evidence, review, versioned
+  promotion, and rollback.
+- `LRN-006 [DECIDED]` Repeated evidence-qualified patterns may produce knowledge or privacy-safe
+  range-scenario candidates; they cannot self-publish, self-deploy, or promote executable artifacts.
+- `LRN-007 [DECIDED]` Evaluate per-role and campaign learning on held-out objective, evidence,
+  and safety outcomes before promoting a new version.
+
 ### 6.5 Controlled exploit (gated, R3+)
 - `EXP-001 [DECIDED]` Reviewed and promoted capability artifacts only, including qualified adaptive
   campaign-local instances of an eligible registry family; least-invasive proof; safe oracles
@@ -190,7 +232,7 @@ target executor, and dedicated bounded lateral movement. `objective_read` cannot
 
 ## 8. Architecture Summary
 
-Five autonomous agents (Scout, Strike, Exploit, Post-Exploit, Report) + deterministic Conductor + Policy Kernel + OPSEC service + Session/Secret Broker service. Canonical state is a hash-chained PostgreSQL event ledger; world state is a temporal evidence-backed attack graph. LLMs reason, plan, and may synthesize untrusted capability candidates off-target; deterministic systems execute, enforce safety, and hold memory. A separate Capability Forge verifies and qualifies candidates without target reachability. Full-kill-chain mode may add an ephemeral target executor that cannot reason, compile, mutate a module, or select work. Full detail is in `ADR-FINAL-002.md` through `ADR-FINAL-009.md`.
+Five autonomous agents (Scout, Strike, Exploit, Post-Exploit, Report) + deterministic Conductor + Policy Kernel + OPSEC service + Session/Secret Broker service. Canonical state is a hash-chained PostgreSQL event ledger; world state is a temporal evidence-backed terrain and attack-path graph bundle. A declarative knowledge registry and opportunity compiler expose an uncertainty-aware frontier to the owning role without becoming a playbook, canonical graph, or execution authority. LLMs reason, may use bounded ephemeral specialists, and may synthesize untrusted capability candidates off-target; deterministic systems execute, enforce safety, classify outcomes, and own durable memory. Evidence-qualified learning improves future ranking and range scenarios without turning history into current target truth or enabling online self-modification. A separate Capability Forge verifies and qualifies candidates without target reachability. Full-kill-chain mode may add an ephemeral target executor that cannot reason, compile, mutate a module, or select work. Full detail is in `ADR-FINAL-002.md` through `ADR-FINAL-011.md`.
 
 ---
 
@@ -207,6 +249,10 @@ BlackBread borrows **discipline and TTPs** (not harm) from four groups: **APT41*
 - **Quality:** false-positive rate; independent-evidence-family coverage; findings reproduced by clients.
 - **Stealth:** proportion of engagement time spent COOL; time-to-BURNED; percentage of BURNED events with verified freeze and operator-authorized recovery.
 - **Efficiency:** actions per finding; information gain per request; external-source outage tolerance.
+- **Autonomy:** verified path completion; time to abandon dominated paths; path-value reversal;
+  frontier recovery after tool, control, or evidence failure; no Conductor strategy.
+- **Learning:** held-out calibration and objective-progress lift by ranking version; terrain-diff
+  coverage gain; client reproduction and retest path elimination; zero cross-tenant leakage.
 - **Safety:** zero lockouts/outages/data-loss; 100% scope adherence; 100% cleanup verification.
 - **Business:** engagements sold; Recon-only → higher-tier conversion; per-engagement cost.
 
@@ -214,7 +260,7 @@ BlackBread borrows **discipline and TTPs** (not harm) from four groups: **APT41*
 
 ## 11. Milestones
 
-M0 skeleton → M1 trust spine → M2 capability gateway + OPSEC/egress + passive recon → M3 Scout + Target Identity Guard → M4 restricted/full Strike profiles + first-lane validation → M5 Report + first finding → M6 state/low-and-slow/backup. Releases R0–R5; Exploit (R3) and Post-Exploit (R4) remain held until their ranges validate stability. Milestones are dependency gates, not labels: the release cannot advance with inherited P0/P1 or safety blockers. `ADR-FINAL-004.md` changes delivery order inside these gates; `ADR-FINAL-005.md` through `ADR-FINAL-009.md` define the later external-to-objective contracts without skipping any release gate. Product gates remain detailed in `ADR-FINAL-002.md` §35.
+M0 skeleton → M1 trust spine → M2 capability gateway + OPSEC/egress + passive recon → M3 Scout + Target Identity Guard → M4 restricted/full Strike profiles + first-lane validation → M5 Report + first finding → M6 state/low-and-slow/backup. Releases R0–R5; Exploit (R3) and Post-Exploit (R4) remain held until their ranges validate stability. Milestones are dependency gates, not labels: the release cannot advance with inherited P0/P1 or safety blockers. `ADR-FINAL-004.md` changes delivery order inside these gates; `ADR-FINAL-005.md` through `ADR-FINAL-011.md` define the later external-to-objective, graph-opportunity, and learning contracts without skipping any release gate. Product gates remain detailed in `ADR-FINAL-002.md` §35.
 
 Before the first real-target R1 run, required CI checks must be branch-protected; the capability registry must be enforced on the live path; legal/SOW, UU ITE/UU PDP, cross-border processor, breach-data, retention/deletion, incident, responsible-disclosure, and shared-SaaS policies must be approved; ownership evidence and White Cell contacts must be sealed; and kill/dead-man, backup restore, cleanup, and deletion drills must pass.
 

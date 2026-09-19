@@ -34,6 +34,13 @@ runtime gate, or serialized decision cannot bypass the chain.
 
 ## Capability and invocation contract
 
+ADR-FINAL-010.md knowledge and opportunities do not replace external tools or adapters. A knowledge
+entry describes a possible test; the registered capability family and qualified implementation own
+its exact effect. ADR-FINAL-011.md outcome feedback must preserve pre-dispatch rejection, attempted
+execution, oracle adjudication, and cleanup as distinct facts. Neither learned success nor a new
+candidate can bypass artifact qualification or the existing runtime admission path.
+
+
 The live capability registry is the only allowlist. Require an eligible lifecycle, owning agent,
 typed adapter, pinned supply-chain identity, risk class, target tier, approval class, network path,
 typed input/output, budgets, oracle/evidence contract, cleanup, and prohibited effects. `PLANNED` and

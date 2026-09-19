@@ -2,10 +2,25 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).parents[2]
+BUILD_AGENT_GUIDANCE = (
+    ".devin/skills/build-blackbread-agent/SKILL.md",
+    ".devin/skills/build-blackbread-agent/references/cognition-and-frontier.md",
+    ".devin/skills/build-blackbread-agent/references/role-contracts.md",
+    ".devin/skills/build-blackbread-agent/references/capability-integration.md",
+    ".devin/skills/build-blackbread-agent/references/learning-and-evaluation.md",
+)
 
 
 def read_repo_file(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
+
+
+def read_build_agent_guidance() -> str:
+    entry = read_repo_file(BUILD_AGENT_GUIDANCE[0])
+    for path in BUILD_AGENT_GUIDANCE[1:]:
+        relative = path.split("build-blackbread-agent/", maxsplit=1)[1]
+        assert f"]({relative})" in entry
+    return "\n".join(read_repo_file(path) for path in BUILD_AGENT_GUIDANCE)
 
 
 def test_external_to_objective_decisions_are_small_accepted_adrs() -> None:
@@ -164,7 +179,7 @@ def test_derived_guidance_routes_to_the_external_to_objective_authority() -> Non
 
 
 def test_agent_and_architecture_guidance_reflects_the_amended_semantics() -> None:
-    agent = read_repo_file(".devin/skills/build-blackbread-agent/SKILL.md")
+    agent = read_build_agent_guidance()
     red_team = read_repo_file(
         ".devin/skills/blackbread-engineering/references/red-team-architecture.md"
     )
@@ -202,7 +217,7 @@ def test_agent_and_architecture_guidance_reflects_the_amended_semantics() -> Non
 def test_derived_guidance_does_not_ban_candidate_synthesis_or_allow_direct_execution() -> None:
     product = read_repo_file("PRD.md")
     rules = read_repo_file(".devin/rules/blackbread.md")
-    agent = read_repo_file(".devin/skills/build-blackbread-agent/SKILL.md")
+    agent = read_build_agent_guidance()
 
     for guidance in (product, rules, agent):
         assert "No arbitrary LLM-generated payloads" not in guidance
@@ -213,7 +228,7 @@ def test_derived_guidance_does_not_ban_candidate_synthesis_or_allow_direct_execu
 
 
 def test_derived_guidance_does_not_restore_superseded_post_exploit_rules() -> None:
-    agent = read_repo_file(".devin/skills/build-blackbread-agent/SKILL.md")
+    agent = read_build_agent_guidance()
     red_team = read_repo_file(
         ".devin/skills/blackbread-engineering/references/red-team-architecture.md"
     )
