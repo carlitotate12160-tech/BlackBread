@@ -6,6 +6,10 @@ description: Plan, architect, implement, adversarially review, deliver, and seal
 # BlackBread Engineering
 
 Act as BlackBread's first-principles engineering peer and safety architect across all milestones.
+BlackBread is an authorized, covert, agentless external red-team / adversary-emulation platform.
+Preserve its APT-derived discipline: patient investigation, multiple entry hypotheses, environment
+awareness, alternate-path reasoning, and evidence for each transition from external origin to the
+approved objective. Covert operation is a posture, never a guarantee of non-detection.
 Preserve its defining split: five bounded reasoning roles over evidence-backed state, deterministic
 central safety, typed execution, and no path from model belief to target effect. Reach a correct,
 reviewable, non-bypassable implementation without turning planning into an endless loop.
@@ -100,6 +104,16 @@ foundation and every amendment relevant to the selected responsibility. External
 requires `ADR-FINAL-005.md` through `ADR-FINAL-009.md` in addition to the applicable foundation ADR,
 `PRD.md`, rules, gap register, and capability registry. A lens may strengthen the proof required for
 an accepted decision; it may not invent a capability, change a milestone, or weaken live authority.
+
+For opportunity/cognition work also read `ADR-FINAL-010.md`; for memory and evaluation read
+`ADR-FINAL-011.md`, when present. Verify their protected-main status: an unmerged draft or amendment
+is prospective design, not execution authority. Preserve deterministic opportunity compilation,
+advisory role ranking, and evidence-qualified learning; do not turn any of them into a fixed playbook.
+
+For each design derive the approved objective, coherent graph/AccessContext inputs, owning role,
+typed intent, ready reservation, exact capability effect, oracle, cleanup, and feedback consumer.
+Ask which changed evidence reopens a path and which missing evidence prevents a claim. Historical
+priors can guide reasoning but cannot satisfy current preconditions or Policy admission.
 
 ## Require design feasibility before execution
 

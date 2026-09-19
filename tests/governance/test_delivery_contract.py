@@ -183,7 +183,6 @@ def test_agent_delivery_authority_is_explicit_and_fail_closed() -> None:
     documents = (
         ROOT / "ADR-FINAL-002.md",
         ROOT / ".devin/rules/blackbread.md",
-        ROOT / ".devin/skills/build-blackbread-agent/SKILL.md",
         ROOT / ".github/BRANCH-PROTECTION.md",
     )
     for path in documents:
@@ -192,6 +191,14 @@ def test_agent_delivery_authority_is_explicit_and_fail_closed() -> None:
         assert re.search(r"(?:direct push to|push directly to) `main`", content)
         assert "changes requested" in content
         assert "blocking debt" in content or "blocking-debt" in content
+
+    build_agent_skill = (
+        ROOT / ".devin/skills/build-blackbread-agent/SKILL.md"
+    ).read_text(encoding="utf-8")
+    assert "[blackbread-engineering](../blackbread-engineering/SKILL.md)" in build_agent_skill
+    assert "does not define a separate merge or bypass procedure" in build_agent_skill
+    assert "final merge workflow" not in build_agent_skill
+    assert "automation-integration bypass" not in build_agent_skill
 
     gaps = (ROOT / "GAP-REGISTER.md").read_text(encoding="utf-8")
     assert "21644438" in gaps

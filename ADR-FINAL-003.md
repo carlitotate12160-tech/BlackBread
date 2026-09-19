@@ -10,7 +10,9 @@
 
 **Amended by:** `ADR-FINAL-004.md` — Vertical Delivery, Policy Minimalism, and Agent Autonomy
 (accepted 2026-09-11); `ADR-FINAL-005.md`, `ADR-FINAL-006.md`, and `ADR-FINAL-008.md` — campaign
-authority, access-context chaining, and bounded lateral movement (accepted 2026-09-12)
+authority, access-context chaining, and bounded lateral movement (accepted 2026-09-12);
+`ADR-FINAL-010.md` and `ADR-FINAL-011.md` — declarative attack opportunities, bounded specialist
+cognition, and evidence-qualified learning (accepted 2026-09-14)
 
 **Retains:** every authorization, Policy Kernel, OPSEC, target-identity, capability,
 evidence-integrity, do-no-harm, agentless-execution, and release gate in `ADR-FINAL-002`
@@ -664,6 +666,26 @@ If agents disagree, BlackBread records both assessments. It does not vote them i
 reservations are suppressed; resource allocation remains fair and deterministic; strategic quality is
 measured by campaign benchmarks. Persistent failure of this protocol is evidence for a future
 Campaign Advisor ADR, not permission to hide strategy inside the Conductor.
+
+### 13.1 Ephemeral cognition workers
+
+One permanent role MAY instantiate short-lived `EphemeralCognitionWorker` assessments to answer a
+bounded question such as product fingerprint ambiguity, applicability conditions, proof variants,
+privilege/trust implications, cleanup risk, or evidence sufficiency.
+
+An ephemeral worker:
+
+- is owned by exactly one of the five role agents and inherits only that role's read context;
+- receives a bounded question, immutable input references, time/token/cost limits, and an output
+  schema;
+- emits an attributed, expiring `SpecialistAssessment`, not an `ActionProposal`;
+- has no agent identity, campaign reservation, capability ownership, secret access, target egress,
+  Policy standing, lease, `WorkOrder`, evidence-promotion right, or direct ledger truth authority;
+- cannot call another worker or survive beyond the owning cognition attempt.
+
+The owning role evaluates the specialist output and remains accountable for any hypothesis,
+investigation intent, or proposal it subsequently publishes. Specialist agreement is not evidence
+independence, and specialist count cannot change the five-agent authority model.
 
 ## 14. Strike and Exploit effect boundary
 

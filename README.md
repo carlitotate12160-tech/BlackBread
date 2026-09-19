@@ -5,10 +5,11 @@ product north star is a verified attack path from the declared external origin t
 business objective, with evidence for every boundary transition, control outcome, and cleanup.
 
 `ADR-FINAL-002.md` through `ADR-FINAL-004.md` define the foundation, campaign intelligence, and
-delivery model. `ADR-FINAL-005.md` through `ADR-FINAL-009.md` define campaign-bounded autonomy,
-access-context chaining, an optional ephemeral target runtime, bounded lateral movement, and Rapid
-N-Day response. R0/M1 is not complete or production-eligible, and no target-facing capability is
-currently eligible.
+delivery model. `ADR-FINAL-005.md` through `ADR-FINAL-009.md`, plus `ADR-FINAL-010.md` and
+`ADR-FINAL-011.md`, define campaign-bounded autonomy,
+access-context chaining, an optional ephemeral target runtime, bounded lateral movement, Rapid N-Day
+response, declarative attack opportunities, and evidence-qualified learning. R0/M1 is not complete
+or production-eligible, and no target-facing capability is currently eligible.
 
 ## Implemented slices
 
@@ -42,7 +43,7 @@ export BLACKBREAD_TEST_RUNTIME_PASSWORD="blackbread_test_runtime"
 uv run pytest tests/ledger
 ```
 
-`ADR-FINAL-002.md` through `ADR-FINAL-009.md` are the accepted architecture set. The later decisions
+`ADR-FINAL-002.md` through `ADR-FINAL-011.md` are the accepted architecture set. The later decisions
 are `DECIDED` only: they do not activate a target runtime, lateral movement, exploit execution, or a
 Rapid N-Day service. Planned capabilities remain default-denied in
 `config/capability-registry.json`; the blocking gaps in `GAP-REGISTER.md` remain authoritative until

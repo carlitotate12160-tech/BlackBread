@@ -89,6 +89,15 @@ exists and is verified by the consumer.
 
 ## Durable provenance and replay
 
+For ADR-FINAL-010.md and ADR-FINAL-011.md, bind knowledge, opportunities, and outcomes to versions,
+tenants, source snapshots, and expiry. Keep LearningSnapshotRef separate from WorldSnapshotRef:
+historical priors are not current target evidence. Record unattempted decisions separately from
+attempted effects and exclude them from execution-success denominators. Tenant/global promotion
+requires its declared privacy, provenance, retention, and review boundary; raw secrets, screenshots,
+and customer-identifying evidence cannot enter global experience. No learning record self-promotes
+a capability or deploys a new production model, prompt, registry, oracle, or ranking function.
+
+
 For persistence, define the transaction that joins evaluation, durable decision lineage, ledger
 publication, idempotency, and any outbox. A repository must not accept a caller-supplied serialized
 `PolicyDecision`, `AdmissionResult`, `RuntimeGateResult`, binding, or lease as authoritative merely

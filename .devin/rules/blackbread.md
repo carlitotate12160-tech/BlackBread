@@ -5,10 +5,13 @@ trigger: always_on
 
 # BlackBread Engineering Guardrails
 
-BlackBread is an **authorized, covert, agentless external red-team / adversary-emulation** platform. It emulates APT tradecraft (patience, stealth, chain composition) but is strictly authorized and non-destructive. Full context: `ADR-FINAL-002.md`, `ADR-FINAL-003.md`, `ADR-FINAL-004.md`, `ADR-FINAL-005.md`, `ADR-FINAL-006.md`, `ADR-FINAL-007.md`, `ADR-FINAL-008.md`, `ADR-FINAL-009.md`, and `PRD.md`. For how to build agents, use the `/build-blackbread-agent` skill.
+BlackBread is an **authorized, covert, agentless external red-team / adversary-emulation** platform. It emulates APT tradecraft (patience, stealth, chain composition) but is strictly authorized and non-destructive. Full context: `ADR-FINAL-002.md` through `ADR-FINAL-011.md` and `PRD.md`. For how to build agents, use the `/build-blackbread-agent` skill.
 
 ## Authority and completion claims
-- Read the applicable accepted ADRs from `ADR-FINAL-002.md` through `ADR-FINAL-009.md`, `PRD.md`, and `config/capability-registry.json` before changing architecture, an agent, a target-facing capability, or a release gate.
+- Campaign amendments: `ADR-FINAL-005.md`, `ADR-FINAL-006.md`, `ADR-FINAL-007.md`,
+  `ADR-FINAL-008.md`, and `ADR-FINAL-009.md`; cognition and learning additions:
+  `ADR-FINAL-010.md` and `ADR-FINAL-011.md`. Unmerged amendments are prospective, not live authority.
+- Read the applicable accepted ADRs from `ADR-FINAL-002.md` through `ADR-FINAL-011.md`, `PRD.md`, and `config/capability-registry.json` before changing architecture, an agent, a target-facing capability, or a release gate.
 - Authority order is law/SOW/manifest → accepted ADR → PRD → these rules → capability registry/schema → skill → tests/readmes/history. Never use a lower artifact to weaken a higher one.
 - A documented capability is not implemented. Use only `DECIDED`, `IMPLEMENTED`, `VERIFIED`, and `RELEASED`; claim the latter three only with live-path, test, and release evidence respectively.
 - Do not hide blocking work as `TODO`, `TBD`, `later`, dormant, skipped tests, `continue-on-error`, an optional bot, or an undocumented waiver. Record a stable gap ID, severity, owner, milestone, blocking release, verification, and closure evidence. Deferral requires an accepted ADR amendment and compensating control.
@@ -53,6 +56,10 @@ rather than a copy here. Two delivery-side rules bind regardless of that skill:
 
 ## Architecture rules
 - Five agents (Scout, Strike, Exploit, Post-Exploit, Report). No central brain. No arbitrary agent-to-agent commands — communicate via typed events → Conductor → work orders.
+- Attack knowledge is declarative and non-executable; opportunity scores, specialist assessments,
+  and historical priors are advisory and never target truth, capability eligibility, or Policy input.
+- Historical outcomes use evidence-qualified, tenant-isolated memory planes. A new engagement starts
+  with no current target facts, and production models/prompts/registries do not self-modify online.
 - Session/Secret custody is a deterministic **service**, not an agent.
 - Canonical state = hash-chained PostgreSQL event ledger. NetworkX is a rebuildable view, never storage.
 - Two egress paths kept separate: **target egress** (scope-locked, stealth-shaped) vs **control-plane egress** (LLM/OSINT/installs). Never mix.

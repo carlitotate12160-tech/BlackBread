@@ -70,6 +70,16 @@ action.
 
 ## World and claim semantics
 
+For ADR-FINAL-010.md/ADR-FINAL-011.md work, inspect the graph-driven opportunity and learning loops.
+The declarative knowledge registry describes possible conditions; a deterministic compiler creates
+advisory snapshot-bound candidates; the owning role chooses, challenges, or abandons them. Each
+admitted delta must invalidate affected candidates and can reopen earlier paths. Ephemeral cognition
+workers answer bounded questions without role identity, secrets, target egress, or proposal rights.
+Require behavioral examples for patience, multiple entry hypotheses, per-edge proof, minimal tooling,
+and alternate authorized surfaces. The build skill's role-contracts reference owns that doctrine.
+Neither an empty ready queue nor a control block establishes that the objective is exhausted.
+
+
 Keep the ADR-FINAL-003 views separate and coherently bound to one verified ledger prefix and time:
 
 | View | Answers | Does not prove |

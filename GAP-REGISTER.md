@@ -400,6 +400,52 @@ has no live effect; it is retained only as rollback evidence:
 - **Compensating control:** the full kill-chain capability remains non-executable; current work is
   deny-only and has no target-effect consumer.
 
+## KNOWLEDGE-GAP-001 — Declarative attack knowledge and opportunity frontier are not implemented
+
+- **Status:** OPEN
+- **Severity:** P1 architecture
+- **Owner:** campaign-intelligence and agent-cognition
+- **Target milestone:** minimal contracts in W2, first consumer in W3, multi-role frontier in W5-W6
+- **Blocks:** R1 autonomous campaign claim and every graph-driven external-to-objective parity claim
+- **Discovered:** `ADR-FINAL-010` acceptance, 2026-09-14.
+- **Description:** the live repository has no `AttackKnowledgeRegistry`, weakness/technique
+  definitions, `OpportunityCompiler`, `AttackOpportunity` frontier, graph-delta invalidation, or
+  role-specific uncertainty-aware ranking. The capability registry is an allowlist of planned
+  execution affordances; it is not attack knowledge or a playbook. `AttackPathGraph` is decided but
+  not implemented and therefore cannot provide forward chaining.
+- **Required closure:** implement `AKR-001` through `AKR-002` and `OPP-001` through `OPP-005` through
+  the staged consumers in `ADR-FINAL-010.md`; prove registry/capability separation, snapshot and
+  tenant binding, advisory isolation, contextual failure semantics, incremental re-evaluation, and
+  absence of strategy in Policy/Conductor.
+- **Verification:** the RED-first contract in `ADR-FINAL-010.md` plus W3 Passive Scout and W5-W6
+  multi-role frontier conformance scenarios.
+- **Compensating control:** no graph-driven autonomy or product-parity claim is released; planned
+  capabilities remain default-denied and the current trust spine has no target-effect consumer.
+
+## LEARNING-GAP-001 — Evidence-qualified learning and memory planes are not implemented
+
+- **Status:** OPEN
+- **Severity:** P2 product architecture
+- **Owner:** campaign-intelligence, data-governance, and agent-cognition
+- **Target milestone:** outcome taxonomy with the first real agent consumer; tenant/global learning
+  after W3 data and privacy gates exist
+- **Blocks:** continuous-learning, cross-engagement improvement, and learning-moat claims; does not
+  block R0 or the first synthetic/passive loop
+- **Discovered:** `ADR-FINAL-011` acceptance, 2026-09-14.
+- **Description:** no normalized `TechniqueOutcome`, `LearningSnapshotRef`, tenant longitudinal
+  prior, privacy-qualified global aggregate, contextual decay/ranking evaluation, or
+  Experience-to-Range Compiler exists. The ledger preserves historical events but does not by
+  itself classify them as reusable experience or prove that future behavior improves.
+- **Required closure:** implement `LRN-001` through `LRN-007` in named-consumer slices; preserve
+  task/campaign/tenant/global separation, failure semantics, temporal decay, privacy and consent,
+  immutable version promotion, held-out evaluation, and rollback.
+- **Verification:** the RED-first contract in `ADR-FINAL-011.md`, cross-tenant privacy tests, temporal
+  backtests, replay determinism, and held-out range evidence showing improvement without safety or
+  evidence-integrity regression.
+- **Compensating control:** no learning or compounding-intelligence claim is made. Every engagement
+  requires current observations, and no historical result can become target truth or execution
+  authority.
+
 ## TARGET-RUNTIME-GAP-001 — Adaptive qualification, ephemeral target execution, and bounded lateral movement are absent
 
 - **Status:** OPEN

@@ -63,7 +63,8 @@ For each step, the owning role SHALL:
 
 1. read a coherent campaign blackboard and current access contexts;
 2. update the candidate path frontier and select one next move;
-3. publish one bounded investigation intent and one atomic proposal;
+3. publish one bounded investigation intent, obtain an active ready reservation under
+   ADR-FINAL-003.md, then publish one atomic proposal for that reservation;
 4. wait for deterministic Policy, lease, and `WorkOrder` admission;
 5. consume the typed outcome and admitted evidence;
 6. accept, reject, or narrow the proposed state transition;

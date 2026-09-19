@@ -9,7 +9,8 @@
 **Amends:** `ADR-FINAL-002.md` §§0, 7, 21, 28, 35, and 36; `ADR-FINAL-003.md` §§2, 13, 16, and 18
 
 **Amended by:** `ADR-FINAL-005.md` — External-to-Objective Product and Campaign Authority Envelope
-(accepted 2026-09-12)
+(accepted 2026-09-12); `ADR-FINAL-010.md` and `ADR-FINAL-011.md` — opportunity and learning consumers
+within the existing delivery waves (prospective until merged)
 
 **Retains:** every law, SOW, signed-manifest, scope, target-identity, capability-lifecycle, OPSEC,
 do-no-harm, tenant-isolation, evidence-integrity, cleanup, and release gate in the amended ADRs
@@ -25,6 +26,7 @@ replayable and whose effects remain bounded:
 ```text
 signed objective + verified world state
   -> agent hypothesis and investigation intent
+  -> deterministic readiness and active reservation
   -> ActionProposal
   -> Policy decision
   -> Conductor work order + lease
@@ -163,15 +165,16 @@ delivery order inside those gates so BlackBread reaches useful closed loops earl
 | W0 — reset and verify | Merge this authority correction; reconcile local, protected-main, and private Oracle runtime evidence without uploading secrets or host state | clean baseline, green governance, explicit next slice and no false runtime claim | governance only; does not release M1 work |
 | W1 — R0 closed loop | Finish only the minimum `M1.4c2b0b`/`M1.4c2b1` decision envelope; add the Conductor decision consumer, budgets/locks/lease, work order, halt/kill path, and deterministic simulated executor | an authorized synthetic proposal completes `proposal -> decision -> work order -> outcome -> ledger`; denied, expired, duplicate, and halted cases cannot execute | closes `LEDGER-GAP-001` only when its full verification evidence exists; R0 remains blocked until then |
 | W2 — Verified World Model v1 | Add truth-class events, one `WorldSnapshotRef`, and minimal coherent `CyberTerrainGraph`, `AttackPathGraph`, `ControlAssessmentProjection`, and `CampaignProjection` | one synthetic ledger replay rebuilds all views at the same anchor; terrain reachability creates no attack edge and control state does not erase the underlying condition | begins `CAMPAIGN-GAP-001`; no target capability yet |
-| W3 — Passive Scout | Add minimum Capability Gateway lifecycle, artifact contract, passive asset capability, fresh context envelope, and Scout local OODA | Scout forms a hypothesis, proposes passive work, receives evidence, updates the world model, and chooses continue/defer/abandon without a static playbook | first agent loop; capability admission tests required; no direct target contact |
+| W3 — Passive Scout | Add minimum Capability Gateway lifecycle, artifact contract, passive asset capability, fresh context envelope, ready reservations/deduplication, and Scout local OODA | Scout forms a hypothesis, reserves and proposes passive work, receives evidence, updates the world model, and chooses continue/defer/abandon without a static playbook | first agent loop; capability admission tests required; no direct target contact |
 | W4 — T1 recon | Add scope-locked DNS/TLS/HTTP observation, controlled egress, OPSEC pacing, redirect/destination validation, and control-effect observation | Scout adapts after blocked, stale, duplicate, and source-outage outcomes while remaining inside T1 budgets | first target-active candidate; still ineligible until all R1 entry gates pass |
 | W5 — restricted Strike + Report | Promote supported attack-path candidates, run restricted Strike verification, adjudicate independent evidence in Report, and produce a ProofArtifact | synthetic-to-range Scout -> restricted Strike -> Report finding with honest inconclusive/control-blocked branches | closes the R1 portions of `CAMPAIGN-GAP-001` only with the conformance record |
-| W6 — campaign adaptation | Add bounded trajectories, reservations, deduplication, information-gap feedback, stall/exhausted handling, and campaign benchmarks | path-value reversal, local disagreement, restart/replay, and no-brain benchmarks pass without Conductor strategy | completes campaign-coherence obligations needed by R1 |
+| W6 — campaign adaptation | Extend the W3 bounded trajectories, reservations, and deduplication across roles; add information-gap feedback, campaign-wide stall/exhausted handling, and benchmarks | path-value reversal, local disagreement, restart/replay, and no-brain benchmarks pass without Conductor strategy | completes campaign-coherence obligations needed by R1 |
 | W7 — higher-risk modes | Add R2 authenticated reconnaissance, then separately range-qualify T2/T3 Strike, Exploit, and Post-Exploit capabilities | each effect tier passes its own approval, abort, cleanup, reconciliation, and negative-control suite | R2/R3/R4 remain independent hard release gates |
 
-`M1.4c2b0b` remains the selected next release-bearing slice. Its scope SHALL remain bounded to the
-missing decision-envelope behavior already selected on protected main; it is not permission to add
-new strategic rules. If private Oracle verification reproduces a credential/bootstrap defect that
+The named M1.4c2b slices record the selection at this ADR's adoption, not a permanent next-slice
+instruction. Read protected-main `.github/engineering-state.json` and `ENGINEERING-STATE.md` for
+the current checkpoint, then verify live release evidence. This does not permit adding new strategic
+Policy rules. If private Oracle verification reproduces a credential/bootstrap defect that
 prevents the slice's tests or runtime proof, that defect SHALL be isolated as a prerequisite slice and
 no sensitive Oracle material may enter Git.
 
@@ -186,13 +189,19 @@ The earlier brainstorming is scheduled as architecture work, not discarded:
 | Capability Gateway lifecycle and rendering boundary | W3, before the first capability | every invocation remains typed, isolated, destination-checked, and evidence-producing |
 | fresh context envelope | W3, before Scout OODA | coherent snapshot and authority facts; no hidden mutable memory |
 | advisory middleware | after the W3 boundary exists, as a separate slice if it has a distinct authority boundary | advisory output cannot authorize, promote truth, or execute |
-| campaign blackboard and deterministic reservations | minimal projection in W2, active coordination in W6 | no Mission Brain and no Conductor path ranking |
+| campaign blackboard and deterministic reservations | minimal projection in W2; ready reservation and deduplication before the first W3 agent proposal; expanded cross-role coordination in W6 | no Mission Brain and no Conductor path ranking |
 | no-brain and path-reversal benchmarks | W6 | benchmark failure may justify a future ADR, not silent central cognition |
 | ADR index, generated quality bar, and PR risk tiers | one governance-only slice after R0 | must not displace W1-W3 runtime work |
 
 No Decepticon item authorizes a static action playbook. A playbook MAY be an advisory tactic library
 or test fixture, but the agent remains free to choose, reorder, skip, or abandon tactics inside the
 current effect envelope.
+
+W3 includes the minimal ADR-FINAL-003 intent, ready-reservation, deduplication, and bounded-trajectory
+protocol. W6 expands that protocol and its benchmarks; it does not defer prerequisites of the first
+agent proposal. The W1 synthetic executor proof does not claim an autonomous agent is implemented.
+ADR-FINAL-010.md and ADR-FINAL-011.md add opportunity and learning consumers within these waves,
+without changing release gates or permitting a disconnected catalog/memory subsystem.
 
 ## 7. Proof obligations
 
