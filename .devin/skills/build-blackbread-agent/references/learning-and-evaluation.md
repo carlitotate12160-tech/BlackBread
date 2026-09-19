@@ -22,7 +22,9 @@ reviewed promotion, and rollback for each new version.
 
 ## Selection versus execution
 
-Record a candidate's selection, deferral, rejection, or expiry separately from an attempted effect.
+Record a candidate's selection, deferral, rejection, or pre-dispatch expiry as a typed
+`TechniqueOutcome` carrying an explicit attempted-effect discriminator, separately from an attempted
+effect.
 Do not put an unexecuted opportunity in the denominator of execution success rates. Retain Policy
 and model outcomes as their own reason classes. A tool error cannot prove the target is safe; a
 control block cannot erase the underlying applicability evidence. Cleanup status is independent.

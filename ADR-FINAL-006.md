@@ -64,8 +64,10 @@ For each step, the owning role SHALL:
 1. read a coherent campaign blackboard and current access contexts;
 2. update the candidate path frontier and select one next move;
 3. publish one bounded investigation intent, obtain an active ready reservation under
-   ADR-FINAL-003.md, then publish one atomic proposal for that reservation;
-4. wait for deterministic Policy, lease, and `WorkOrder` admission;
+   ADR-FINAL-003.md, then publish one atomic proposal carrying that reservation's
+   deduplication identity and source snapshot;
+4. wait for deterministic Policy, lease, and `WorkOrder` admission, which rejects any
+   proposal whose reservation is expired, superseded, or different from the admitted one;
 5. consume the typed outcome and admitted evidence;
 6. accept, reject, or narrow the proposed state transition;
 7. re-read a new coherent world snapshot before choosing subsequent work.

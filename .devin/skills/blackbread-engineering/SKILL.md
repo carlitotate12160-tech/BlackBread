@@ -113,7 +113,10 @@ advisory role ranking, and evidence-qualified learning; do not turn any of them 
 For each design derive the approved objective, coherent graph/AccessContext inputs, owning role,
 typed intent, ready reservation, exact capability effect, oracle, cleanup, and feedback consumer.
 Ask which changed evidence reopens a path and which missing evidence prevents a claim. Historical
-priors can guide reasoning but cannot satisfy current preconditions or Policy admission.
+priors can guide reasoning but cannot satisfy current preconditions or Policy admission. A
+contract-only design may mark the capability effect, oracle, cleanup, and feedback consumer as
+prospective; a concrete consumer is required once the design reaches a live execution or learning
+boundary.
 
 ## Require design feasibility before execution
 

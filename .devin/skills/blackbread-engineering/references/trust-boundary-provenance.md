@@ -89,8 +89,11 @@ exists and is verified by the consumer.
 
 ## Durable provenance and replay
 
-For ADR-FINAL-010.md and ADR-FINAL-011.md, bind knowledge, opportunities, and outcomes to versions,
-tenants, source snapshots, and expiry. Keep LearningSnapshotRef separate from WorldSnapshotRef:
+For ADR-FINAL-010.md and ADR-FINAL-011.md, apply two binding classes. Reusable registry knowledge
+(`WeaknessDefinition`, `TechniqueDefinition`) binds to immutable versions, semantic digests,
+provenance, validity, and supersession lineage — not to a tenant or campaign. Campaign-local
+`AttackOpportunity` and outcome records bind to tenant, engagement, exact source/world snapshot, and
+expiry. Keep LearningSnapshotRef separate from WorldSnapshotRef:
 historical priors are not current target evidence. Record unattempted decisions separately from
 attempted effects and exclude them from execution-success denominators. Tenant/global promotion
 requires its declared privacy, provenance, retention, and review boundary; raw secrets, screenshots,

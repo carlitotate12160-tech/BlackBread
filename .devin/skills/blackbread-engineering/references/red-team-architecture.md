@@ -4,7 +4,9 @@ Use this lens for changes to agent roles, campaign reasoning, evidence, target i
 semantics, authorization meaning, control assessment, or target-effect classification. It is not a
 generic penetration-testing playbook. Read the relevant live foundation plus
 `ADR-FINAL-005.md` through `ADR-FINAL-009.md`, `PRD.md`, the gap register, and the capability
-registry before applying it to external-to-objective work.
+registry before applying it to external-to-objective work. When
+`ADR-FINAL-010.md` and `ADR-FINAL-011.md` exist on protected main, they are also required for
+opportunity, specialist, and learning responsibilities.
 
 ## Contents
 
