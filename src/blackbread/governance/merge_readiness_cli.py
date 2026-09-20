@@ -231,16 +231,19 @@ class _StrictParser(argparse.ArgumentParser):
 _SHA_REGEX = re.compile(r"^[0-9a-f]{40}$")
 
 
-def main(argv: list[str] | None = None) -> None:
+def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser = _StrictParser(description="Merge Readiness CLI")
     parser.add_argument("--repository", required=True, type=str)
     parser.add_argument("--pull-request", required=True, type=int)
     parser.add_argument("--expected-head-sha", required=True, type=str)
 
     try:
-        args = parser.parse_args(argv)
+        return parser.parse_args(argv)
     except Exception:
         _fail_exit_2("CLI_ARGUMENTS_INVALID")
+
+def main(argv: list[str] | None = None) -> None:
+    args = _parse_args(argv)
 
     if not _SHA_REGEX.match(args.expected_head_sha):
         _fail_exit_2("CLI_ARGUMENTS_INVALID")

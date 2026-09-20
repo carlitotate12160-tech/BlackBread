@@ -52,8 +52,28 @@ from blackbread.governance.merge_readiness import (
 def run_cli(
     env: dict[str, str], args: list[str], cwd: str | None = None
 ) -> subprocess.CompletedProcess[str]:
-    cmd = [sys.executable, "-m", "blackbread.governance.merge_readiness_cli", *args]
-    return subprocess.run(cmd, env=env, cwd=cwd, capture_output=True, text=True, check=False)
+    import os, io
+    from contextlib import redirect_stdout
+    with mock.patch.dict(os.environ, env):
+        f = io.StringIO()
+        with redirect_stdout(f):
+            try:
+                # Assuming the test sets cwd via monkeypatch, but since run_cli takes cwd, let's chdir
+                original_cwd = os.getcwd()
+                if cwd:
+                    os.chdir(cwd)
+                try:
+                    cli.main(args)
+                    code = 0
+                except SystemExit as e:
+                    code = e.code if isinstance(e.code, int) else 1
+                finally:
+                    if cwd:
+                        os.chdir(original_cwd)
+            except Exception:
+                code = 1
+        
+        return subprocess.CompletedProcess(args=args, returncode=code, stdout=f.getvalue(), stderr="")
 
 
 def test_invalid_contracts_fail_with_exit_two_before_io(tmp_path: Path) -> None:
