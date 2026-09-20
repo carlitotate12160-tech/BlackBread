@@ -436,3 +436,34 @@ def test_terminal_page_without_next_link_still_accepted() -> None:
     spy = _OpenerSpy(_FakeResponse(body=b"[]", headers=headers))
     result = _transport(spy).rest_get("/x")
     assert result.next_url is None
+
+
+@pytest.mark.timeout(2)
+@pytest.mark.parametrize("segment_count", [24, 40, 200])
+def test_hostile_link_header_matching_is_linear_time(segment_count: int) -> None:
+    # A catastrophically-backtracking _LINK_SEGMENT_RE burns CPU on this
+    # near-miss (space-padded, non-fullmatching) repetition; a socket timeout
+    # does not bound regex CPU, so this must stay well under the 2s budget.
+    hostile = "<https://api.github.com/x>; " + 'rel = "next" ;' * segment_count
+    spy = _OpenerSpy(_FakeResponse(body=b"[]", headers={"Link": hostile}))
+    with pytest.raises(TransportError):
+        _transport(spy).rest_get("/x")
+
+
+def test_link_header_parsing_parity_after_redos_hardening() -> None:
+    headers = {
+        "Link": (
+            '<https://api.github.com/x?page=2>; rel="next", '
+            '<https://api.github.com/x?page=9>; rel="last"'
+        )
+    }
+    spy = _OpenerSpy(_FakeResponse(body=b"[]", headers=headers))
+    result = _transport(spy).rest_get("/x")
+    assert result.next_url == "https://api.github.com/x?page=2"
+
+    duplicate_next = (
+        '<https://api.github.com/x>; rel="next", <https://api.github.com/y>; rel="next"'
+    )
+    dup_spy = _OpenerSpy(_FakeResponse(body=b"[]", headers={"Link": duplicate_next}))
+    with pytest.raises(TransportError):
+        _transport(dup_spy).rest_get("/x")
