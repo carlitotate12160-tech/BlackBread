@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+import re
 import sys
 from typing import Any, NoReturn
 
@@ -21,7 +22,6 @@ from blackbread.governance.merge_readiness import (
 
 _ALLOWED_EXIT_1_BLOCKERS = frozenset(
     {
-        "HEAD_SHA_MISMATCH",
         "REQUIRED_CHECK_MISSING",
         "REQUIRED_CHECK_INTEGRATION_MISMATCH",
         "REQUIRED_CHECK_STALE",
@@ -93,13 +93,22 @@ def _check_type(val: Any, expected: type) -> None:
 def _parse_status_checks(raw_checks: Any) -> tuple[RequiredStatusCheck, ...]:
     _check_type(raw_checks, list)
     parsed = []
+    seen = set()
     for rc in raw_checks:
         _check_type(rc, dict)
         if set(rc.keys()) != {"context", "integration_id"}:
             _fail_exit_2("CONTRACT_INVALID_STATUS_CHECK")
         _check_type(rc["context"], str)
+        if not rc["context"].strip():
+            _fail_exit_2("CONTRACT_INVALID_STATUS_CHECK")
         if rc["integration_id"] is not None:
             _check_type(rc["integration_id"], int)
+            if rc["integration_id"] <= 0:
+                _fail_exit_2("CONTRACT_INVALID_STATUS_CHECK")
+        key = (rc["context"], rc["integration_id"])
+        if key in seen:
+            _fail_exit_2("CONTRACT_INVALID_STATUS_CHECK")
+        seen.add(key)
         parsed.append(
             RequiredStatusCheck(context=rc["context"], integration_id=rc["integration_id"])
         )
@@ -109,13 +118,22 @@ def _parse_status_checks(raw_checks: Any) -> tuple[RequiredStatusCheck, ...]:
 def _parse_code_scanning(raw_scans: Any) -> tuple[CodeScanningRequirement, ...]:
     _check_type(raw_scans, list)
     parsed = []
+    seen = set()
+    valid_thresholds = {"none", "errors", "errors_and_warnings", "all"}
     for rs in raw_scans:
         _check_type(rs, dict)
         if set(rs.keys()) != {"tool", "security_alerts_threshold", "alerts_threshold"}:
             _fail_exit_2("CONTRACT_INVALID_CODE_SCANNING")
         _check_type(rs["tool"], str)
+        if not rs["tool"].strip():
+            _fail_exit_2("CONTRACT_INVALID_CODE_SCANNING")
         _check_type(rs["security_alerts_threshold"], str)
         _check_type(rs["alerts_threshold"], str)
+        if rs["security_alerts_threshold"] not in valid_thresholds or rs["alerts_threshold"] not in valid_thresholds:
+            _fail_exit_2("CONTRACT_INVALID_CODE_SCANNING")
+        if rs["tool"] in seen:
+            _fail_exit_2("CONTRACT_INVALID_CODE_SCANNING")
+        seen.add(rs["tool"])
         parsed.append(
             CodeScanningRequirement(
                 tool=rs["tool"],
@@ -161,7 +179,11 @@ def _load_contract() -> DeliveryContract:
             _check_type(ad[k], bool)
 
     _check_type(ad["required_approving_reviews"], int)
+    if ad["required_approving_reviews"] < 0:
+        _fail_exit_2("CONTRACT_INVALID_REVIEWS")
     _check_type(ad["ruleset_id"], int)
+    if ad["ruleset_id"] <= 0:
+        _fail_exit_2("CONTRACT_INVALID_RULESET")
 
     return DeliveryContract(
         schema_version=schema_version,
@@ -202,8 +224,15 @@ def _emit_not_ready_exit_1(args: argparse.Namespace, blocker_codes: list[str]) -
     sys.exit(1)
 
 
+class _StrictParser(argparse.ArgumentParser):
+    def error(self, message: str) -> NoReturn:
+        _fail_exit_2("CLI_ARGUMENTS_INVALID")
+
+_SHA_REGEX = re.compile(r"^[0-9a-f]{40}$")
+
+
 def main(argv: list[str] | None = None) -> None:
-    parser = argparse.ArgumentParser(description="Merge Readiness CLI")
+    parser = _StrictParser(description="Merge Readiness CLI")
     parser.add_argument("--repository", required=True, type=str)
     parser.add_argument("--pull-request", required=True, type=int)
     parser.add_argument("--expected-head-sha", required=True, type=str)
@@ -211,6 +240,9 @@ def main(argv: list[str] | None = None) -> None:
     try:
         args = parser.parse_args(argv)
     except Exception:
+        _fail_exit_2("CLI_ARGUMENTS_INVALID")
+
+    if not _SHA_REGEX.match(args.expected_head_sha):
         _fail_exit_2("CLI_ARGUMENTS_INVALID")
 
     token = os.environ.get("GITHUB_TOKEN", "").strip()
@@ -223,12 +255,18 @@ def main(argv: list[str] | None = None) -> None:
         collector = GitHubMergeEvidenceCollector(transport, args.repository)
 
         evidence = collector.collect(args.pull_request, contract)
+        if evidence.incomplete_sections:
+            _fail_exit_2("EVIDENCE_INCOMPLETE")
+
         decision = evaluate_merge_readiness(contract, evidence, args.expected_head_sha)
+
+        blocker_codes = sorted({b.code for b in decision.blockers})
+        if "HEAD_SHA_MISMATCH" in blocker_codes:
+            _fail_exit_2("HEAD_SHA_MISMATCH")
 
         if decision.ready:
             _emit_ready_exit_0(args)
 
-        blocker_codes = sorted({b.code for b in decision.blockers})
         all_allowlisted = all(code in _ALLOWED_EXIT_1_BLOCKERS for code in blocker_codes)
 
         if not all_allowlisted:

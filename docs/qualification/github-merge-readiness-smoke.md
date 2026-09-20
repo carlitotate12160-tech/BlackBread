@@ -14,10 +14,11 @@ Prove that the governance CLI classification path successfully loads a live deli
 
 ## Procedure
 
-Run the CLI strictly without echoing the token into shell history or process arguments:
+Run the CLI from an environment where `GITHUB_TOKEN` is securely exported (e.g., from your vault or `.env`), strictly without echoing the token into shell history or process arguments:
 
 ```shell
-GITHUB_TOKEN="<read-only-token>" uv run python -m blackbread.governance.merge_readiness_cli \
+# Ensure GITHUB_TOKEN is securely exported in your environment first.
+uv run python -m blackbread.governance.merge_readiness_cli \
     --repository carlitotate12160-tech/BlackBread \
     --pull-request <PR_NUMBER> \
     --expected-head-sha <LOWERCASE_40_HEX_HEAD_SHA>

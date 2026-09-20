@@ -6,6 +6,40 @@ from unittest import mock
 
 import pytest
 
+@pytest.fixture
+def contract_env(tmp_path: Path):
+    contract_file = tmp_path / ".github" / "agent-delivery.json"
+    contract_file.parent.mkdir()
+    contract_file.write_text(
+        json.dumps(
+            {
+                "schema_version": 3,
+                "agent_delivery": {
+                    "owner_instruction_required": True,
+                    "feature_branch_commit_push_allowed": True,
+                    "pull_request_required": True,
+                    "direct_push_main_allowed": False,
+                    "force_push_allowed": False,
+                    "expected_head_sha_required": True,
+                    "required_approving_reviews": 0,
+                    "require_code_owner_review": False,
+                    "require_last_push_approval": False,
+                    "require_extra_approval_for_unattributed_changes": False,
+                    "dismiss_stale_reviews": True,
+                    "require_review_thread_resolution": True,
+                    "allow_changes_requested": False,
+                    "require_ai_bot_comment_disposition": False,
+                    "require_branch_up_to_date": True,
+                    "required_status_checks": [],
+                    "required_code_scanning": [],
+                    "allow_blocking_debt": False,
+                    "ruleset_id": 123,
+                },
+            }
+        )
+    )
+    return tmp_path
+
 import blackbread.governance.merge_readiness_cli as cli
 from blackbread.governance.merge_readiness import (
     MergeBlocker,
@@ -63,40 +97,9 @@ def test_invalid_contracts_fail_with_exit_two_before_io(tmp_path: Path) -> None:
         assert "errors" in out
 
 
-def test_expected_head_is_passed_unchanged_and_mismatch_returns_one(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_expected_head_is_passed_unchanged_and_mismatch_returns_two(
+    contract_env: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    contract_file = tmp_path / ".github" / "agent-delivery.json"
-    contract_file.parent.mkdir()
-    contract_file.write_text(
-        json.dumps(
-            {
-                "schema_version": 3,
-                "agent_delivery": {
-                    "owner_instruction_required": True,
-                    "feature_branch_commit_push_allowed": True,
-                    "pull_request_required": True,
-                    "direct_push_main_allowed": False,
-                    "force_push_allowed": False,
-                    "expected_head_sha_required": True,
-                    "required_approving_reviews": 0,
-                    "require_code_owner_review": False,
-                    "require_last_push_approval": False,
-                    "require_extra_approval_for_unattributed_changes": False,
-                    "dismiss_stale_reviews": True,
-                    "require_review_thread_resolution": True,
-                    "allow_changes_requested": False,
-                    "require_ai_bot_comment_disposition": False,
-                    "require_branch_up_to_date": True,
-                    "required_status_checks": [],
-                    "required_code_scanning": [],
-                    "allow_blocking_debt": False,
-                    "ruleset_id": 123,
-                },
-            }
-        )
-    )
-
     # We will mock the evaluate_merge_readiness function via patching
     # But since it's a subprocess, we can't easily mock it unless we write a small script
     # Let's import the cli directly in the test to test internal composition
@@ -111,10 +114,10 @@ def test_expected_head_is_passed_unchanged_and_mismatch_returns_one(
         with mock.patch(
             "blackbread.governance.merge_readiness_cli.GitHubMergeEvidenceCollector.collect"
         ) as mock_collect:
-            mock_collect.return_value = mock.MagicMock()
+            mock_collect.return_value = mock.MagicMock(incomplete_sections=())
 
             with mock.patch.dict("os.environ", {"GITHUB_TOKEN": "token"}):
-                monkeypatch.chdir(tmp_path)
+                monkeypatch.chdir(contract_env)
                 with pytest.raises(SystemExit) as exc:
                     cli.main(
                         [
@@ -127,58 +130,26 @@ def test_expected_head_is_passed_unchanged_and_mismatch_returns_one(
                         ]
                     )
 
-            assert exc.value.code == 1
+            assert exc.value.code == 2
             mock_eval.assert_called_once()
             args = mock_eval.call_args[0]
             assert args[2] == "1234567890abcdef1234567890abcdef12345678"
 
 
 def test_complete_ready_evidence_returns_zero_with_canonical_output(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    contract_env: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    contract_file = tmp_path / ".github" / "agent-delivery.json"
-    contract_file.parent.mkdir()
-    contract_file.write_text(
-        json.dumps(
-            {
-                "schema_version": 3,
-                "agent_delivery": {
-                    "owner_instruction_required": True,
-                    "feature_branch_commit_push_allowed": True,
-                    "pull_request_required": True,
-                    "direct_push_main_allowed": False,
-                    "force_push_allowed": False,
-                    "expected_head_sha_required": True,
-                    "required_approving_reviews": 0,
-                    "require_code_owner_review": False,
-                    "require_last_push_approval": False,
-                    "require_extra_approval_for_unattributed_changes": False,
-                    "dismiss_stale_reviews": True,
-                    "require_review_thread_resolution": True,
-                    "allow_changes_requested": False,
-                    "require_ai_bot_comment_disposition": False,
-                    "require_branch_up_to_date": True,
-                    "required_status_checks": [],
-                    "required_code_scanning": [],
-                    "allow_blocking_debt": False,
-                    "ruleset_id": 123,
-                },
-            }
-        )
-    )
-
     with mock.patch(
         "blackbread.governance.merge_readiness_cli.evaluate_merge_readiness"
     ) as mock_eval:
         mock_eval.return_value = MergeReadinessDecision(ready=True, blockers=())
         with (
-            mock.patch(
-                "blackbread.governance.merge_readiness_cli.GitHubMergeEvidenceCollector.collect"
-            ),
+            mock.patch("blackbread.governance.merge_readiness_cli.GitHubMergeEvidenceCollector.collect") as mock_collect,
             mock.patch("sys.stdout.write") as mock_stdout,
         ):
+            mock_collect.return_value = mock.MagicMock(incomplete_sections=())
             with mock.patch.dict("os.environ", {"GITHUB_TOKEN": "token"}):
-                monkeypatch.chdir(tmp_path)
+                monkeypatch.chdir(contract_env)
                 with pytest.raises(SystemExit) as exc:
                     cli.main(
                         [
@@ -199,50 +170,18 @@ def test_complete_ready_evidence_returns_zero_with_canonical_output(
 
 
 def test_complete_substantive_blockers_return_one(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    contract_env: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    contract_file = tmp_path / ".github" / "agent-delivery.json"
-    contract_file.parent.mkdir()
-    contract_file.write_text(
-        json.dumps(
-            {
-                "schema_version": 3,
-                "agent_delivery": {
-                    "owner_instruction_required": True,
-                    "feature_branch_commit_push_allowed": True,
-                    "pull_request_required": True,
-                    "direct_push_main_allowed": False,
-                    "force_push_allowed": False,
-                    "expected_head_sha_required": True,
-                    "required_approving_reviews": 0,
-                    "require_code_owner_review": False,
-                    "require_last_push_approval": False,
-                    "require_extra_approval_for_unattributed_changes": False,
-                    "dismiss_stale_reviews": True,
-                    "require_review_thread_resolution": True,
-                    "allow_changes_requested": False,
-                    "require_ai_bot_comment_disposition": False,
-                    "require_branch_up_to_date": True,
-                    "required_status_checks": [],
-                    "required_code_scanning": [],
-                    "allow_blocking_debt": False,
-                    "ruleset_id": 123,
-                },
-            }
-        )
-    )
-
     with mock.patch(
         "blackbread.governance.merge_readiness_cli.evaluate_merge_readiness"
     ) as mock_eval:
         mock_eval.return_value = MergeReadinessDecision(
             ready=False, blockers=(MergeBlocker("CHANGES_REQUESTED", "detail"),)
         )
-        with mock.patch(
-            "blackbread.governance.merge_readiness_cli.GitHubMergeEvidenceCollector.collect"
-        ):
+        with mock.patch("blackbread.governance.merge_readiness_cli.GitHubMergeEvidenceCollector.collect") as mock_collect:
+            mock_collect.return_value = mock.MagicMock(incomplete_sections=())
             with mock.patch.dict("os.environ", {"GITHUB_TOKEN": "token"}):
-                monkeypatch.chdir(tmp_path)
+                monkeypatch.chdir(contract_env)
                 with pytest.raises(SystemExit) as exc:
                     cli.main(
                         [
@@ -259,11 +198,10 @@ def test_complete_substantive_blockers_return_one(
         mock_eval.return_value = MergeReadinessDecision(
             ready=False, blockers=(MergeBlocker("UNKNOWN_BLOCKER", "detail"),)
         )
-        with mock.patch(
-            "blackbread.governance.merge_readiness_cli.GitHubMergeEvidenceCollector.collect"
-        ):
+        with mock.patch("blackbread.governance.merge_readiness_cli.GitHubMergeEvidenceCollector.collect") as mock_collect:
+            mock_collect.return_value = mock.MagicMock(incomplete_sections=())
             with mock.patch.dict("os.environ", {"GITHUB_TOKEN": "token"}):
-                monkeypatch.chdir(tmp_path)
+                monkeypatch.chdir(contract_env)
                 with pytest.raises(SystemExit) as exc:
                     cli.main(
                         [
@@ -279,49 +217,18 @@ def test_complete_substantive_blockers_return_one(
 
 
 def test_incomplete_or_drifted_evidence_returns_two(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    contract_env: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    contract_file = tmp_path / ".github" / "agent-delivery.json"
-    contract_file.parent.mkdir()
-    contract_file.write_text(
-        json.dumps(
-            {
-                "schema_version": 3,
-                "agent_delivery": {
-                    "owner_instruction_required": True,
-                    "feature_branch_commit_push_allowed": True,
-                    "pull_request_required": True,
-                    "direct_push_main_allowed": False,
-                    "force_push_allowed": False,
-                    "expected_head_sha_required": True,
-                    "required_approving_reviews": 0,
-                    "require_code_owner_review": False,
-                    "require_last_push_approval": False,
-                    "require_extra_approval_for_unattributed_changes": False,
-                    "dismiss_stale_reviews": True,
-                    "require_review_thread_resolution": True,
-                    "allow_changes_requested": False,
-                    "require_ai_bot_comment_disposition": False,
-                    "require_branch_up_to_date": True,
-                    "required_status_checks": [],
-                    "required_code_scanning": [],
-                    "allow_blocking_debt": False,
-                    "ruleset_id": 123,
-                },
-            }
-        )
-    )
     with mock.patch(
         "blackbread.governance.merge_readiness_cli.evaluate_merge_readiness"
     ) as mock_eval:
         mock_eval.return_value = MergeReadinessDecision(
             ready=False, blockers=(MergeBlocker("INCOMPLETE_EVIDENCE", "pagination"),)
         )
-        with mock.patch(
-            "blackbread.governance.merge_readiness_cli.GitHubMergeEvidenceCollector.collect"
-        ):
+        with mock.patch("blackbread.governance.merge_readiness_cli.GitHubMergeEvidenceCollector.collect") as mock_collect:
+            mock_collect.return_value = mock.MagicMock(incomplete_sections=())
             with mock.patch.dict("os.environ", {"GITHUB_TOKEN": "token"}):
-                monkeypatch.chdir(tmp_path)
+                monkeypatch.chdir(contract_env)
                 with pytest.raises(SystemExit) as exc:
                     cli.main(
                         [
@@ -337,45 +244,15 @@ def test_incomplete_or_drifted_evidence_returns_two(
 
 
 def test_token_remote_text_and_exception_text_never_reach_output(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    contract_env: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    contract_file = tmp_path / ".github" / "agent-delivery.json"
-    contract_file.parent.mkdir()
-    contract_file.write_text(
-        json.dumps(
-            {
-                "schema_version": 3,
-                "agent_delivery": {
-                    "owner_instruction_required": True,
-                    "feature_branch_commit_push_allowed": True,
-                    "pull_request_required": True,
-                    "direct_push_main_allowed": False,
-                    "force_push_allowed": False,
-                    "expected_head_sha_required": True,
-                    "required_approving_reviews": 0,
-                    "require_code_owner_review": False,
-                    "require_last_push_approval": False,
-                    "require_extra_approval_for_unattributed_changes": False,
-                    "dismiss_stale_reviews": True,
-                    "require_review_thread_resolution": True,
-                    "allow_changes_requested": False,
-                    "require_ai_bot_comment_disposition": False,
-                    "require_branch_up_to_date": True,
-                    "required_status_checks": [],
-                    "required_code_scanning": [],
-                    "allow_blocking_debt": False,
-                    "ruleset_id": 123,
-                },
-            }
-        )
-    )
     with mock.patch(
         "blackbread.governance.merge_readiness_cli.GitHubMergeEvidenceCollector.collect"
     ) as mock_collect:
         mock_collect.side_effect = Exception("hostile_remote_text_my_secret_token_123")
         with mock.patch("sys.stdout.write") as mock_stdout:
             with mock.patch.dict("os.environ", {"GITHUB_TOKEN": "my_secret_token_123"}):
-                monkeypatch.chdir(tmp_path)
+                monkeypatch.chdir(contract_env)
                 with pytest.raises(SystemExit) as exc:
                     cli.main(
                         [
@@ -396,39 +273,8 @@ def test_token_remote_text_and_exception_text_never_reach_output(
 
 
 def test_cli_constructs_urllib_transport_collector_and_existing_evaluator(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    contract_env: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    contract_file = tmp_path / ".github" / "agent-delivery.json"
-    contract_file.parent.mkdir()
-    contract_file.write_text(
-        json.dumps(
-            {
-                "schema_version": 3,
-                "agent_delivery": {
-                    "owner_instruction_required": True,
-                    "feature_branch_commit_push_allowed": True,
-                    "pull_request_required": True,
-                    "direct_push_main_allowed": False,
-                    "force_push_allowed": False,
-                    "expected_head_sha_required": True,
-                    "required_approving_reviews": 0,
-                    "require_code_owner_review": False,
-                    "require_last_push_approval": False,
-                    "require_extra_approval_for_unattributed_changes": False,
-                    "dismiss_stale_reviews": True,
-                    "require_review_thread_resolution": True,
-                    "allow_changes_requested": False,
-                    "require_ai_bot_comment_disposition": False,
-                    "require_branch_up_to_date": True,
-                    "required_status_checks": [],
-                    "required_code_scanning": [],
-                    "allow_blocking_debt": False,
-                    "ruleset_id": 123,
-                },
-            }
-        )
-    )
-
     with (
         mock.patch(
             "blackbread.governance.merge_readiness_cli.UrllibGitHubReadTransport"
@@ -438,13 +284,14 @@ def test_cli_constructs_urllib_transport_collector_and_existing_evaluator(
         ) as mock_collector_cls,
     ):
         mock_collector = mock.MagicMock()
+        mock_collector.collect.return_value = mock.MagicMock(incomplete_sections=())
         mock_collector_cls.return_value = mock_collector
         with mock.patch(
             "blackbread.governance.merge_readiness_cli.evaluate_merge_readiness"
         ) as mock_eval:
             mock_eval.return_value = MergeReadinessDecision(ready=True, blockers=())
             with mock.patch.dict("os.environ", {"GITHUB_TOKEN": "token"}):
-                monkeypatch.chdir(tmp_path)
+                monkeypatch.chdir(contract_env)
                 with pytest.raises(SystemExit) as exc:
                     cli.main(
                         [
@@ -464,10 +311,9 @@ def test_cli_constructs_urllib_transport_collector_and_existing_evaluator(
 
 
 def test_smoke_document_names_exact_command_exit_contract_and_redaction() -> None:
-    doc_path = Path("d:/BLACKBREAD/docs/qualification/github-merge-readiness-smoke.md")
-    if not doc_path.exists():
-        pytest.skip("Doc not created yet")
-    content = doc_path.read_text()
+    doc_path = Path(__file__).resolve().parent.parent.parent / "docs" / "qualification" / "github-merge-readiness-smoke.md"
+    assert doc_path.exists(), f"Smoke doc not found at {doc_path}"
+    content = doc_path.read_text(encoding="utf-8")
     assert "uv run python -m blackbread.governance.merge_readiness_cli" in content
     assert "--repository" in content
     assert "--pull-request" in content
