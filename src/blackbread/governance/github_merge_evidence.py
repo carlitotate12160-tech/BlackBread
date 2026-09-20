@@ -254,18 +254,16 @@ class GitHubMergeEvidenceCollector:
     ) -> CodeScanningEvidence:
         if not identity.potential_merge_sha:
             _fail("MISSING_MERGE_CANDIDATE")
-        queried_ref = f"refs/pull/{identity.number}/merge"
+        queried_ref = f"refs/pull/{identity.number}/head"
         analyses: list[CodeScanningAnalysis] = []
         alerts: list[CodeScanningAlert] = []
         tools = tuple(dict.fromkeys(item.tool for item in contract.required_code_scanning))
         for tool in tools:
-            analyses.extend(self._analyses(tool, queried_ref, identity.potential_merge_sha))
-            alerts.extend(self._alerts(tool, queried_ref, identity.potential_merge_sha))
+            analyses.extend(self._analyses(tool, queried_ref))
+            alerts.extend(self._alerts(tool, queried_ref, identity.head_sha))
         return CodeScanningEvidence(tuple(analyses), tuple(alerts), queried_ref)
 
-    def _analyses(
-        self, tool: str, queried_ref: str, merge_sha: str
-    ) -> tuple[CodeScanningAnalysis, ...]:
+    def _analyses(self, tool: str, queried_ref: str) -> tuple[CodeScanningAnalysis, ...]:
         path = f"{self._repository_path}/code-scanning/analyses"
         params = {"ref": queried_ref, "tool_name": tool, "per_page": _PAGE_SIZE}
         items = tuple(
@@ -273,11 +271,13 @@ class GitHubMergeEvidenceCollector:
             for body in _rest_bodies(self._transport, path, params)
             for item in norm.normalize_code_scanning_analyses(body, queried_ref=queried_ref)
         )
-        if any(item.tool != tool or item.commit_sha != merge_sha for item in items):
+        # A head ref legitimately holds analyses for every pushed commit;
+        # freshness against the exact head SHA is the evaluator's job.
+        if any(item.tool != tool for item in items):
             _fail("INCONSISTENT_PROVENANCE")
         return items
 
-    def _alerts(self, tool: str, queried_ref: str, merge_sha: str) -> tuple[CodeScanningAlert, ...]:
+    def _alerts(self, tool: str, queried_ref: str, head_sha: str) -> tuple[CodeScanningAlert, ...]:
         path = f"{self._repository_path}/code-scanning/alerts"
         params = {
             "ref": queried_ref,
@@ -291,7 +291,7 @@ class GitHubMergeEvidenceCollector:
             for item in norm.normalize_code_scanning_alerts(
                 body,
                 queried_ref=queried_ref,
-                expected_commit_sha=merge_sha,
+                expected_commit_sha=head_sha,
                 expected_tool=tool,
             )
         )

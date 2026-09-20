@@ -28,6 +28,7 @@ class DeliveryContract:
     required_approving_reviews: int
     require_review_thread_resolution: bool
     allow_changes_requested: bool
+    require_branch_up_to_date: bool
     required_status_checks: tuple[RequiredStatusCheck, ...]
     required_code_scanning: tuple[CodeScanningRequirement, ...]
 
@@ -59,6 +60,7 @@ class RulesetEvidence:
     target: str | None = None
     included_refs: tuple[str, ...] | None = None
     excluded_refs: tuple[str, ...] | None = None
+    strict_branch_currency: bool | None = None
     unmodeled_rule_types: tuple[str, ...] = ()
 
 
@@ -214,6 +216,8 @@ def _ruleset_blockers(contract: DeliveryContract, evidence: MergeEvidence) -> li
     blockers.extend(_ruleset_scope_blockers(ruleset, evidence.pull_request_after))
     if frozenset(ruleset.status_checks or ()) != frozenset(contract.required_status_checks):
         blockers.append(MergeBlocker("RULESET_STATUS_CHECK_DRIFT", "live checks differ"))
+    if ruleset.strict_branch_currency != contract.require_branch_up_to_date:
+        blockers.append(MergeBlocker("RULESET_STATUS_CHECK_DRIFT", "strict branch currency"))
     if frozenset(ruleset.code_scanning or ()) != frozenset(contract.required_code_scanning):
         blockers.append(MergeBlocker("RULESET_CODE_SCANNING_DRIFT", "live scanning differs"))
     return blockers
@@ -250,10 +254,10 @@ def _scanning_blockers(contract: DeliveryContract, evidence: MergeEvidence) -> l
         blockers.append(MergeBlocker("MISSING_EVIDENCE", "code scanning alerts"))
     after = evidence.pull_request_after
     blockers.extend(_queried_ref_blockers(scanning, after))
-    merge_sha = after.potential_merge_sha if after is not None else None
+    head_sha = after.head_sha if after is not None else None
     for requirement in contract.required_code_scanning:
-        if scanning.analyses is not None and merge_sha:
-            blockers.extend(_analysis_blockers(requirement, scanning.analyses, merge_sha))
+        if scanning.analyses is not None and head_sha:
+            blockers.extend(_analysis_blockers(requirement, scanning.analyses, head_sha))
         if scanning.alerts is not None:
             blockers.extend(_alert_blockers(requirement, scanning.alerts))
     return blockers
@@ -265,7 +269,7 @@ def _queried_ref_blockers(
 ) -> list[MergeBlocker]:
     if scanning.queried_ref is None:
         return [MergeBlocker("MISSING_EVIDENCE", "code scanning queried ref")]
-    expected = f"refs/pull/{after.number}/merge" if after is not None else None
+    expected = f"refs/pull/{after.number}/head" if after is not None else None
     if scanning.queried_ref != expected:
         return [MergeBlocker("CODE_SCANNING_REF_MISMATCH", scanning.queried_ref)]
     return []
@@ -274,12 +278,12 @@ def _queried_ref_blockers(
 def _analysis_blockers(
     requirement: CodeScanningRequirement,
     analyses: tuple[CodeScanningAnalysis, ...],
-    merge_sha: str,
+    head_sha: str,
 ) -> list[MergeBlocker]:
     tool_analyses = [a for a in analyses if a.tool == requirement.tool]
     if not tool_analyses:
         return [MergeBlocker("CODE_SCANNING_ANALYSIS_MISSING", requirement.tool)]
-    current = [a for a in tool_analyses if a.commit_sha == merge_sha]
+    current = [a for a in tool_analyses if a.commit_sha == head_sha]
     if not current:
         return [MergeBlocker("CODE_SCANNING_ANALYSIS_STALE", requirement.tool)]
     blockers: list[MergeBlocker] = []
