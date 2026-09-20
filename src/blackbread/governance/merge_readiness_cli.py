@@ -5,6 +5,7 @@ import json
 import os
 import re
 import sys
+from pathlib import Path
 from typing import Any, NoReturn, cast
 
 from blackbread.governance import github_merge_normalization as norm
@@ -147,9 +148,15 @@ def _parse_code_scanning(raw_scans: Any) -> tuple[CodeScanningRequirement, ...]:
     return tuple(parsed)
 
 
+def _get_repo_root() -> Path:
+    return Path(__file__).resolve().parent.parent.parent.parent
+
+
 def _read_contract_json() -> dict[str, Any]:
+    repo_root = _get_repo_root()
+    contract_path = repo_root / ".github" / "agent-delivery.json"
     try:
-        with open(".github/agent-delivery.json", encoding="utf-8") as f:
+        with open(contract_path, encoding="utf-8") as f:
             result = json.load(f, object_pairs_hook=_reject_duplicates)
             return cast(dict[str, Any], result)
     except FileNotFoundError:
@@ -158,6 +165,28 @@ def _read_contract_json() -> dict[str, Any]:
         _fail_exit_2("CONTRACT_MALFORMED_JSON")
     except Exception:
         _fail_exit_2("CONTRACT_READ_ERROR")
+
+
+def _enforce_static_policy(ad: dict[str, Any]) -> None:
+    static_policy = {
+        "owner_instruction_required": True,
+        "feature_branch_commit_push_allowed": True,
+        "pull_request_required": True,
+        "direct_push_main_allowed": False,
+        "force_push_allowed": False,
+        "expected_head_sha_required": True,
+        "require_code_owner_review": False,
+        "require_last_push_approval": False,
+        "require_extra_approval_for_unattributed_changes": False,
+        "dismiss_stale_reviews": True,
+        "require_ai_bot_comment_disposition": False,
+        "require_branch_up_to_date": True,
+        "allow_blocking_debt": False,
+    }
+    for k, expected_val in static_policy.items():
+        _check_type(ad[k], bool)
+        if ad[k] is not expected_val:
+            _fail_exit_2("CONTRACT_UNSUPPORTED_POLICY")
 
 
 def _load_contract() -> DeliveryContract:
@@ -177,14 +206,7 @@ def _load_contract() -> DeliveryContract:
     if set(ad.keys()) != _EXPECTED_AD_KEYS:
         _fail_exit_2("CONTRACT_KEYS_INVALID")
 
-    for k in _EXPECTED_AD_KEYS:
-        if k not in {
-            "required_status_checks",
-            "required_code_scanning",
-            "required_approving_reviews",
-            "ruleset_id",
-        }:
-            _check_type(ad[k], bool)
+    _enforce_static_policy(ad)
 
     _check_type(ad["required_approving_reviews"], int)
     if ad["required_approving_reviews"] < 0:
@@ -241,7 +263,7 @@ _SHA_REGEX = re.compile(r"^[0-9a-f]{40}$")
 
 
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:
-    parser = _StrictParser(description="Merge Readiness CLI")
+    parser = _StrictParser(description="Merge Readiness CLI", add_help=False, allow_abbrev=False)
     parser.add_argument("--repository", required=True, type=str)
     parser.add_argument("--pull-request", required=True, type=int)
     parser.add_argument("--expected-head-sha", required=True, type=str)
