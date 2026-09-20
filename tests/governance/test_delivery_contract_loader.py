@@ -112,6 +112,14 @@ def test_malformed_json_fails_closed(tmp_path: Path) -> None:
     assert _code(excinfo) == "CONTRACT_MALFORMED_JSON"
 
 
+def test_invalid_utf8_is_malformed_not_uncaught(tmp_path: Path) -> None:
+    path = tmp_path / "agent-delivery.json"
+    path.write_bytes(b'{"schema_version": 3, "agent_delivery": \xff\xfe}')
+    with pytest.raises(ContractValidationError) as excinfo:
+        load_delivery_contract(path)
+    assert _code(excinfo) == "CONTRACT_MALFORMED_JSON"
+
+
 def test_duplicate_root_keys_fail_closed(tmp_path: Path) -> None:
     path = _write(
         tmp_path,

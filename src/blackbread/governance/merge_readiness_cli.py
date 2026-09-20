@@ -1,9 +1,8 @@
 """Read-only merge-readiness CLI composing transport, collector, and evaluator.
 
-Advisory only: it cannot merge, write to GitHub, enable auto-merge, alter a
-branch, authorize execution, or advance engineering state. It emits exactly
-one sanitized, deterministic, compact JSON line on stdout; exception text,
-remote text, token material, paths, and raw evidence never reach stdout/stderr.
+Advisory only: it cannot merge, write to GitHub, alter state, or authorize
+anything. It emits one sanitized deterministic compact JSON line; exception
+text, remote text, tokens, and raw evidence never reach stdout or stderr.
 """
 
 from __future__ import annotations
@@ -148,13 +147,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         contract = load_delivery_contract()
     except ContractValidationError as exc:
         return _error(exc.code)
+    except Exception:
+        return _error("INTERNAL_ERROR")
     token = os.environ.get("GITHUB_TOKEN", "").strip()
     if not token:
         return _error("MISSING_GITHUB_TOKEN")
     outcome = _collect(args, contract, token)
-    if isinstance(outcome, int):
-        return outcome
-    return _emit_decision(args, outcome)
+    return outcome if isinstance(outcome, int) else _emit_decision(args, outcome)
 
 
 if __name__ == "__main__":

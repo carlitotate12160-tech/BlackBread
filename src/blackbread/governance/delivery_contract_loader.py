@@ -68,7 +68,7 @@ class ContractValidationError(Exception):
 
 
 def _fail(code: str) -> NoReturn:
-    raise ContractValidationError(code)
+    raise ContractValidationError(code) from None
 
 
 def default_contract_path() -> Path:
@@ -114,6 +114,8 @@ def _read_json(path: Path) -> Any:
         text = path.read_text(encoding="utf-8")
     except FileNotFoundError:
         _fail("CONTRACT_NOT_FOUND")
+    except UnicodeDecodeError:
+        _fail("CONTRACT_MALFORMED_JSON")
     except OSError:
         _fail("CONTRACT_UNREADABLE")
     try:

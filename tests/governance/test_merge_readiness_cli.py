@@ -317,6 +317,22 @@ def test_contract_failure_precedes_transport(
     assert not any(call.startswith("transport:") for call in bound)
 
 
+def test_unexpected_loader_failure_is_sanitized(
+    bound: list[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def raise_unknown() -> DeliveryContract:
+        raise ValueError("decode blew up at D:\\secret\\path")
+
+    monkeypatch.setattr(cli, "load_delivery_contract", raise_unknown)
+
+    code, payload, raw = _run()
+
+    assert code == 2
+    assert payload["errors"] == ["INTERNAL_ERROR"]
+    assert "secret" not in raw
+    assert not any(call.startswith("transport:") for call in bound)
+
+
 @pytest.mark.parametrize(
     ("error", "expected"),
     [
