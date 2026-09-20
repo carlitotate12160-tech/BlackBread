@@ -1,4 +1,4 @@
-"""Focused proofs for strict branch-currency evidence (GOV-LIVE-GATES-001D2)."""
+"""Focused proofs for ruleset and strict branch-currency evidence (GOV-LIVE-GATES-001D2)."""
 
 from typing import Any
 
@@ -11,6 +11,7 @@ from blackbread.governance.github_merge_normalization import (
 from blackbread.governance.merge_readiness import (
     CheckRunEvidence,
     CodeScanningEvidence,
+    CodeScanningRequirement,
     DeliveryContract,
     MergeEvidence,
     PullRequestIdentity,
@@ -28,6 +29,20 @@ def _status_rule(**params: Any) -> dict[str, Any]:
         "strict_required_status_checks_policy": True,
     }
     return {"type": "required_status_checks", "parameters": {**base, **params}}
+
+
+_SCAN_RULE = {
+    "type": "code_scanning",
+    "parameters": {
+        "code_scanning_tools": [
+            {
+                "tool": "CodeQL",
+                "security_alerts_threshold": "high_or_higher",
+                "alerts_threshold": "errors",
+            }
+        ]
+    },
+}
 
 
 def _ruleset_body(**overrides: Any) -> dict[str, Any]:
@@ -109,3 +124,54 @@ def test_strict_currency_malformed_fails_closed(bad: Any) -> None:
     body = _ruleset_body(rules=[_status_rule(strict_required_status_checks_policy=bad)])
     with pytest.raises(EvidenceNormalizationError):
         normalize_ruleset(body)
+
+
+def test_normalize_ruleset_clean_fixture() -> None:
+    body = _ruleset_body(rules=[_status_rule(), _SCAN_RULE, {"type": "deletion"}])
+    assert normalize_ruleset(body) == RulesetEvidence(
+        ruleset_id=21644438,
+        enforcement="active",
+        bypass_actors=(),
+        status_checks=(RequiredStatusCheck("ci-ok", 15368),),
+        code_scanning=(CodeScanningRequirement("CodeQL", "high_or_higher", "errors"),),
+        target="branch",
+        included_refs=("refs/heads/main",),
+        excluded_refs=(),
+        strict_branch_currency=True,
+        unmodeled_rule_types=("deletion",),
+    )
+
+
+def test_normalize_ruleset_absent_modeled_rules_stay_none() -> None:
+    absent = normalize_ruleset(_ruleset_body(rules=[{"type": "deletion"}]))
+    assert (absent.status_checks, absent.code_scanning) == (None, None)
+    assert absent.unmodeled_rule_types == ("deletion",)  # unmodeled types are preserved
+    no_rules = normalize_ruleset(_ruleset_body(rules=None))
+    assert (no_rules.status_checks, no_rules.unmodeled_rule_types) == (None, ())
+
+
+@pytest.mark.parametrize("rule", [_status_rule(), _SCAN_RULE])
+def test_normalize_ruleset_duplicate_modeled_rule_raises(rule: dict[str, Any]) -> None:
+    with pytest.raises(EvidenceNormalizationError) as excinfo:
+        normalize_ruleset(_ruleset_body(rules=[rule, rule]))
+    assert excinfo.value.code == "DUPLICATE_MODELED_RULE"
+
+
+def test_normalize_ruleset_bypass_missing_differs_from_empty() -> None:
+    missing = _ruleset_body()
+    del missing["bypass_actors"]
+    assert normalize_ruleset(missing).bypass_actors is None
+    assert normalize_ruleset(_ruleset_body(bypass_actors=[])).bypass_actors == ()
+    present = _ruleset_body(bypass_actors=[{"actor_type": "Team", "actor_id": 42}])
+    assert normalize_ruleset(present).bypass_actors == ("Team:42",)
+
+
+def test_normalize_ruleset_scope_missing_conditions_is_none() -> None:
+    body = _ruleset_body()
+    del body["conditions"]
+    del body["target"]
+    scope = normalize_ruleset(body)
+    assert (scope.target, scope.included_refs, scope.excluded_refs) == (None, None, None)
+    # A ref_name present but without include/exclude lists is still "not collected".
+    partial = normalize_ruleset(_ruleset_body(conditions={"ref_name": {}}))
+    assert (partial.included_refs, partial.excluded_refs) == (None, None)
