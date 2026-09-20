@@ -142,6 +142,36 @@ def test_invalid_contracts_fail_with_exit_two_before_io(
         assert "errors" in out
 
 
+def test_dynamic_boolean_validation_rejects_non_booleans_with_exit_two(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    env = {"GITHUB_TOKEN": "valid_token"}
+    args = _DEFAULT_ARGS
+
+    monkeypatch.setattr(cli, "_get_repo_root", lambda: tmp_path)
+
+    github_dir = tmp_path / ".github"
+    github_dir.mkdir()
+    contract_file = github_dir / "agent-delivery.json"
+
+    base_contract = _base_contract()
+
+    invalid_values = ["false", 0, 1, None, [], "true"]
+    boolean_fields = ["require_review_thread_resolution", "allow_changes_requested"]
+
+    for field in boolean_fields:
+        for val in invalid_values:
+            mod = json.loads(json.dumps(base_contract))
+            mod["agent_delivery"][field] = val
+            contract_file.write_text(json.dumps(mod))
+            res = run_cli(env, args, cwd=str(tmp_path))
+            assert res.returncode == 2, f"Failed to reject {field}={val!r}"
+            out = json.loads(res.stdout.strip())
+            assert out["status"] == "error"
+            assert out["ready"] is False
+            assert "CONTRACT_INVALID_TYPE" in out["errors"]
+
+
 def test_invalid_code_scanning_thresholds_return_exit_two(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -414,8 +444,6 @@ def test_unsupported_static_policy_flags_return_exit_two(
     base_contract = _base_contract()
 
     contract_file.write_text(json.dumps(base_contract))
-    res = run_cli(env, args, cwd=str(tmp_path))
-    # It fails on EVIDENCE_INCOMPLETE in collect, but that means it passed loading!
     # Let's mock collect to ensure we only test loading.
     with mock.patch(
         "blackbread.governance.merge_readiness_cli.evaluate_merge_readiness"

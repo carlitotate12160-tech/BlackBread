@@ -215,6 +215,9 @@ def _load_contract() -> DeliveryContract:
     if ad["ruleset_id"] <= 0:
         _fail_exit_2("CONTRACT_INVALID_RULESET")
 
+    _check_type(ad["require_review_thread_resolution"], bool)
+    _check_type(ad["allow_changes_requested"], bool)
+
     return DeliveryContract(
         schema_version=schema_version,
         ruleset_id=ad["ruleset_id"],
