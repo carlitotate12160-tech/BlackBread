@@ -127,8 +127,6 @@ def test_invalid_contracts_fail_with_exit_two_before_io(
         '{"schema_version": 3, "unknown_key": 1}',
         '{"schema_version": 3}',
         '{"schema_version": 999, "agent_delivery": {}}',
-        '{"schema_version": 3, "agent_delivery": '
-        '{"required_status_checks": [{"context": "ci-ok", "integration_id": "not_an_int"}]}}',
     ]
 
     for case in invalid_json_cases:
@@ -140,6 +138,17 @@ def test_invalid_contracts_fail_with_exit_two_before_io(
         assert out["ready"] is False
         assert out["schema_version"] == 1
         assert "errors" in out
+    contract = _base_contract()
+    bad_check = {"context": "ci-ok", "integration_id": "not_an_int"}
+    contract["agent_delivery"]["required_status_checks"] = [bad_check]
+    contract_file.write_text(json.dumps(contract))
+    with mock.patch.object(cli, "UrllibGitHubReadTransport") as mock_transport:
+        res = run_cli(env, args, cwd=str(tmp_path))
+    assert res.returncode == 2
+    out = json.loads(res.stdout.strip())
+    assert out["status"] == "error" and out["ready"] is False
+    assert out["errors"] == ["CONTRACT_INVALID_TYPE"]
+    mock_transport.assert_not_called()
 
 
 def test_dynamic_boolean_validation_rejects_non_booleans_with_exit_two(
