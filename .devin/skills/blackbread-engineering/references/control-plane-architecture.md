@@ -55,6 +55,14 @@ ranking in a readiness score, scheduling priority, retry policy, budget rule, or
 
 ## State and authorization invariants
 
+Under ADR-FINAL-003.md and ADR-FINAL-010.md, admit a ready investigation reservation before its
+agent proposal. The Conductor schedules ready work without ranking offensive value. Waiting for
+evidence, resources, or OPSEC clearance does not increment stall counters; reconcile pending and
+in-flight work before exhaustion. Deadline and authority expiry retain their own outcomes.
+Opportunity scores, specialist assessments, and ADR-FINAL-011.md learning priors never affect Policy
+when the exact effect and authorization facts are unchanged.
+
+
 For every component, declare durable state, ephemeral state, caller-supplied facts, transaction owner,
 and mutation authority. Require tenant and engagement binding throughout. Bind campaign authority,
 objective, source `AccessContext`, expected transition, execution route, proposal, exact target,
