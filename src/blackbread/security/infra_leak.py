@@ -82,6 +82,7 @@ SELF_EXCLUSION_PREFIXES = (
     "src/blackbread/security/",
     "tests/test_infra_leak.py",
     "scripts/check_infra_leak.py",
+    ".agents/rules/",
 )
 
 

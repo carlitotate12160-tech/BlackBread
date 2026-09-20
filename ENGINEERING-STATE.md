@@ -12,6 +12,6 @@ This file records the repository owner's selected work sequence.
 ## State metadata
 
 * **Current milestone:** M1
-* **Last released slice:** M1.4c2b1b
-* **Selected next slice:** M1.4d
-* **State revision:** 11
+* **Last released slice:** M1.4d
+* **Selected next slice:** TBD
+* **State revision:** 12
