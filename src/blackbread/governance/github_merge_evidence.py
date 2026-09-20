@@ -24,6 +24,9 @@ _PAGE_SIZE = "100"
 _MAX_PAGES = 100
 _OWNER_RE = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})")
 _REPOSITORY_RE = re.compile(r"[A-Za-z0-9_.-]{1,100}")
+_CANONICAL_REPOSITORY_PATH_RE = re.compile(
+    r"/repositories/(?P<repository_id>[0-9]+)(?P<suffix>/.+)"
+)
 _REVIEW_THREADS_QUERY = """query PullRequestReviewThreads(
   $owner: String!, $name: String!, $number: Int!, $after: String
 ) {
@@ -74,6 +77,18 @@ def _attempt[T](action: Callable[[], T]) -> tuple[T | None, bool]:
         return None, True
 
 
+def _pagination_path_matches(candidate: str, bound_path: str) -> bool:
+    if candidate == bound_path:
+        return True
+    bound_parts = bound_path.split("/", 4)
+    if bound_parts[:2] != ["", "repos"] or not bound_parts[4:]:
+        return False
+    match = _CANONICAL_REPOSITORY_PATH_RE.fullmatch(candidate)
+    if match is None or not match.group("repository_id").lstrip("0"):
+        return False
+    return match.group("suffix") == f"/{bound_parts[4]}"
+
+
 def _next_page_number(
     next_url: str,
     *,
@@ -94,7 +109,7 @@ def _next_page_number(
         or parsed.username is not None
         or parsed.password is not None
         or parsed.fragment
-        or parsed.path != path
+        or not _pagination_path_matches(parsed.path, path)
     ):
         _fail("PAGINATION_SEMANTICS")
     if len(pairs) != len({key for key, _ in pairs}):
@@ -127,7 +142,9 @@ def _rest_bodies(
             result.next_url, path=path, params=params, current_page=current_page
         )
         seen.add(result.next_url)
-        request_target, request_params = result.next_url, None
+        # Treat the Link as cursor evidence only; retain the collector-bound repository path.
+        request_target = path
+        request_params = {**params, "page": str(current_page)}
     _fail("PAGINATION_LIMIT")
 
 

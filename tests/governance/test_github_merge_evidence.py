@@ -5,6 +5,7 @@ from __future__ import annotations
 import urllib.parse
 from dataclasses import replace
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any
 
 import pytest
@@ -27,7 +28,9 @@ BASE_SHA = "b" * 40
 MERGE_SHA = "2" * 40
 OTHER_SHA = "3" * 40
 REF = "refs/pull/91/merge"
-_MARKERS = {"checks": "check_runs", "analyses": "code_scanning", "alerts": "code_scanning"}
+_MARKERS = MappingProxyType(
+    {"checks": "check_runs", "analyses": "code_scanning", "alerts": "code_scanning"}
+)
 
 
 def _contract(**overrides: object) -> DeliveryContract:
@@ -329,6 +332,38 @@ def test_rest_continuations_reject_semantic_query_mutation(
     _, evidence = _collect(fake)
     marker = _MARKERS.get(section, section)
     assert marker in evidence.incomplete_sections
+
+
+def test_canonical_repository_next_link_rebinds_to_original_path() -> None:
+    path, params = _section_path("reviews")
+    canonical = "/repositories/1348286952/pulls/91/reviews"
+    pages = {"reviews": [_result([], _next(canonical, params)), _result([])]}
+    fake, evidence = _collect(_FakeTransport(pages))
+    review_calls = [
+        call for call in fake.rest_calls if _FakeTransport._section(call[0]) == "reviews"
+    ]
+    assert evidence.review_states == ()
+    assert review_calls == [(path, params), (path, {**params, "page": "2"})]
+
+
+@pytest.mark.parametrize(
+    "canonical",
+    [
+        "/repositories/not-decimal/pulls/91/reviews",
+        "/repositories/0/pulls/91/reviews",
+        "/repositories/1348286952/pulls/92/reviews",
+    ],
+)
+def test_invalid_canonical_repository_path_fails_closed(canonical: str) -> None:
+    path, params = _section_path("reviews")
+    pages = {"reviews": [_result([], _next(canonical, params)), _result([])]}
+    fake, evidence = _collect(_FakeTransport(pages))
+    review_calls = [
+        call for call in fake.rest_calls if _FakeTransport._section(call[0]) == "reviews"
+    ]
+    assert evidence.review_states is None
+    assert "reviews" in evidence.incomplete_sections
+    assert review_calls == [(path, params)]
 
 
 def test_rest_next_link_cycle_and_page_limit_fail_closed(monkeypatch: pytest.MonkeyPatch) -> None:
