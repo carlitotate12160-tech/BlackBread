@@ -34,6 +34,7 @@ def _contract() -> DeliveryContract:
         required_approving_reviews=0,
         require_review_thread_resolution=True,
         allow_changes_requested=False,
+        require_branch_up_to_date=True,
         required_status_checks=(
             RequiredStatusCheck("ci-ok", 15368),
             RequiredStatusCheck("GitGuardian Security Checks", 46505),
@@ -76,6 +77,7 @@ def _ruleset(**overrides: object) -> RulesetEvidence:
         target="branch",
         included_refs=("refs/heads/main",),
         excluded_refs=(),
+        strict_branch_currency=True,
         unmodeled_rule_types=(
             "deletion",
             "non_fast_forward",
@@ -88,9 +90,9 @@ def _ruleset(**overrides: object) -> RulesetEvidence:
 
 def _scanning(**overrides: object) -> CodeScanningEvidence:
     evidence = CodeScanningEvidence(
-        analyses=(CodeScanningAnalysis(tool="CodeQL", commit_sha=MERGE_SHA, error=""),),
+        analyses=(CodeScanningAnalysis(tool="CodeQL", commit_sha=HEAD_SHA, error=""),),
         alerts=(),
-        queried_ref="refs/pull/91/merge",
+        queried_ref="refs/pull/91/head",
     )
     return replace(evidence, **overrides)
 
@@ -139,6 +141,7 @@ def test_contract_model_matches_live_delivery_contract() -> None:
     assert contract.required_approving_reviews == delivery["required_approving_reviews"]
     assert contract.require_review_thread_resolution == delivery["require_review_thread_resolution"]
     assert contract.allow_changes_requested == delivery["allow_changes_requested"]
+    assert contract.require_branch_up_to_date == delivery["require_branch_up_to_date"]
 
 
 def test_complete_evidence_is_ready() -> None:
@@ -183,20 +186,20 @@ def test_missing_code_scanning_analysis_blocks() -> None:
     assert "CODE_SCANNING_ANALYSIS_MISSING" in codes
 
 
-def test_analysis_at_pr_head_instead_of_merge_candidate_blocks() -> None:
-    stale = (CodeScanningAnalysis(tool="CodeQL", commit_sha=HEAD_SHA, error=""),)
+def test_analysis_at_merge_candidate_instead_of_pr_head_blocks() -> None:
+    stale = (CodeScanningAnalysis(tool="CodeQL", commit_sha=MERGE_SHA, error=""),)
     codes = _codes(_evidence(code_scanning=_scanning(analyses=stale)))
     assert "CODE_SCANNING_ANALYSIS_STALE" in codes
 
 
 def test_analysis_error_blocks_with_zero_alerts() -> None:
-    failed = (CodeScanningAnalysis(tool="CodeQL", commit_sha=MERGE_SHA, error="sarif failed"),)
+    failed = (CodeScanningAnalysis(tool="CodeQL", commit_sha=HEAD_SHA, error="sarif failed"),)
     codes = _codes(_evidence(code_scanning=_scanning(analyses=failed)))
     assert "CODE_SCANNING_ANALYSIS_ERROR" in codes
 
 
 def test_analysis_with_unknown_error_state_blocks() -> None:
-    unknown = (CodeScanningAnalysis(tool="CodeQL", commit_sha=MERGE_SHA, error=None),)
+    unknown = (CodeScanningAnalysis(tool="CodeQL", commit_sha=HEAD_SHA, error=None),)
     assert "INCOMPLETE_EVIDENCE" in _codes(_evidence(code_scanning=_scanning(analyses=unknown)))
 
 
@@ -205,7 +208,7 @@ def test_missing_code_scanning_queried_ref_blocks() -> None:
     assert "MISSING_EVIDENCE" in codes
 
 
-@pytest.mark.parametrize("ref", ["refs/pull/91/head", "refs/pull/92/merge"])
+@pytest.mark.parametrize("ref", ["refs/pull/91/merge", "refs/pull/92/head"])
 def test_wrong_code_scanning_queried_ref_blocks(ref: str) -> None:
     codes = _codes(_evidence(code_scanning=_scanning(queried_ref=ref)))
     assert "CODE_SCANNING_REF_MISMATCH" in codes
@@ -341,6 +344,12 @@ def test_code_scanning_rule_drift_blocks() -> None:
     drifted = (CodeScanningRequirement("CodeQL", "all", "errors"),)
     codes = _codes(_evidence(ruleset=_ruleset(code_scanning=drifted)))
     assert "RULESET_CODE_SCANNING_DRIFT" in codes
+
+
+@pytest.mark.parametrize("strict", [False, None], ids=["false", "unobserved"])
+def test_strict_branch_currency_mismatch_blocks(strict: bool | None) -> None:
+    codes = _codes(_evidence(ruleset=_ruleset(strict_branch_currency=strict)))
+    assert "RULESET_STATUS_CHECK_DRIFT" in codes
 
 
 def test_unmodeled_ruleset_rules_do_not_block() -> None:

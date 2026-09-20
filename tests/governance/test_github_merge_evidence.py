@@ -27,7 +27,7 @@ HEAD_SHA = "1" * 40
 BASE_SHA = "b" * 40
 MERGE_SHA = "2" * 40
 OTHER_SHA = "3" * 40
-REF = "refs/pull/91/merge"
+REF = "refs/pull/91/head"
 _MARKERS = MappingProxyType(
     {"checks": "check_runs", "analyses": "code_scanning", "alerts": "code_scanning"}
 )
@@ -40,6 +40,7 @@ def _contract(**overrides: object) -> DeliveryContract:
         required_approving_reviews=0,
         require_review_thread_resolution=True,
         allow_changes_requested=False,
+        require_branch_up_to_date=True,
         required_status_checks=(
             RequiredStatusCheck("ci-ok", 15368),
             RequiredStatusCheck("GitGuardian Security Checks", 46505),
@@ -85,7 +86,8 @@ def _ruleset() -> dict[str, Any]:
                     "required_status_checks": [
                         {"context": "ci-ok", "integration_id": 15368},
                         {"context": "GitGuardian Security Checks", "integration_id": 46505},
-                    ]
+                    ],
+                    "strict_required_status_checks_policy": True,
                 },
             },
             {
@@ -105,7 +107,7 @@ def _ruleset() -> dict[str, Any]:
 
 
 def _analysis(**overrides: Any) -> dict[str, Any]:
-    item = {"tool": {"name": "CodeQL"}, "commit_sha": MERGE_SHA, "error": "", "ref": REF}
+    item = {"tool": {"name": "CodeQL"}, "commit_sha": HEAD_SHA, "error": "", "ref": REF}
     return {**item, **overrides}
 
 
@@ -114,7 +116,7 @@ def _alert(**overrides: Any) -> dict[str, Any]:
         "tool": {"name": "CodeQL"},
         "state": "open",
         "rule": {"security_severity_level": "low", "severity": "note"},
-        "most_recent_instance": {"ref": REF, "commit_sha": MERGE_SHA},
+        "most_recent_instance": {"ref": REF, "commit_sha": HEAD_SHA},
     }
     return {**item, **overrides}
 
@@ -435,10 +437,14 @@ def test_observed_check_app_ids_are_never_substituted(app_id: int | None) -> Non
     [
         ("analyses", [_analysis(tool={})]),
         ("analyses", [_analysis(tool={"name": "Other"})]),
-        ("analyses", [_analysis(ref="refs/pull/92/merge")]),
+        ("analyses", [_analysis(ref="refs/pull/91/merge")]),
         ("analyses", [_analysis(commit_sha=OTHER_SHA)]),
         ("alerts", [_alert(tool={"name": "Other"})]),
         ("alerts", [_alert(most_recent_instance={"ref": REF, "commit_sha": OTHER_SHA})]),
+        (
+            "alerts",
+            [_alert(most_recent_instance={"ref": "refs/pull/91/merge", "commit_sha": HEAD_SHA})],
+        ),
     ],
 )
 def test_wrong_or_missing_codeql_provenance_discards_scanning(section: str, body: Any) -> None:

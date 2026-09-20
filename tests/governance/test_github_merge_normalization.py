@@ -42,7 +42,7 @@ from blackbread.governance.merge_readiness import (
 )
 
 HEAD_SHA, BASE_SHA, MERGE_SHA = "1" * 40, "b" * 40, "2" * 40
-REF = "refs/pull/91/merge"
+REF = "refs/pull/91/head"
 SECRET = "unit-test-dummy-secret-marker"  # noqa: S105 -- sentinel, not a real credential
 
 # --- Fixture builders --------------------------------------------------------
@@ -74,7 +74,9 @@ def _rule(rule_type: str, **params: Any) -> dict[str, Any]:
 
 
 _CHECK_RULE = _rule(
-    "required_status_checks", required_status_checks=[{"context": "ci-ok", "integration_id": 15368}]
+    "required_status_checks",
+    required_status_checks=[{"context": "ci-ok", "integration_id": 15368}],
+    strict_required_status_checks_policy=True,
 )
 _SCAN_RULE = _rule(
     "code_scanning",
@@ -105,7 +107,7 @@ def _ruleset_body(**overrides: Any) -> dict[str, Any]:
 
 
 def _analysis(**overrides: Any) -> dict[str, Any]:
-    item = {"tool": {"name": "CodeQL"}, "commit_sha": MERGE_SHA, "error": "", "ref": REF}
+    item = {"tool": {"name": "CodeQL"}, "commit_sha": HEAD_SHA, "error": "", "ref": REF}
     return {**item, **overrides}
 
 
@@ -114,7 +116,7 @@ def _alert(**overrides: Any) -> dict[str, Any]:
         "tool": {"name": "CodeQL"},
         "state": "open",
         "rule": {"security_severity_level": "high", "severity": "error"},
-        "most_recent_instance": {"ref": REF, "commit_sha": MERGE_SHA},
+        "most_recent_instance": {"ref": REF, "commit_sha": HEAD_SHA},
     }
     return {**item, **overrides}
 
@@ -152,7 +154,7 @@ def _analyses(body: Any) -> tuple[CodeScanningAnalysis, ...]:
 
 def _alerts(body: Any) -> tuple[CodeScanningAlert, ...]:
     return normalize_code_scanning_alerts(
-        body, queried_ref=REF, expected_commit_sha=MERGE_SHA, expected_tool="CodeQL"
+        body, queried_ref=REF, expected_commit_sha=HEAD_SHA, expected_tool="CodeQL"
     )
 
 
@@ -169,6 +171,7 @@ def _contract() -> DeliveryContract:
         required_approving_reviews=0,
         require_review_thread_resolution=True,
         allow_changes_requested=False,
+        require_branch_up_to_date=True,
         required_status_checks=(RequiredStatusCheck("ci-ok", 15368),),
         required_code_scanning=(CodeScanningRequirement("CodeQL", "high_or_higher", "errors"),),
     )
@@ -251,12 +254,13 @@ def test_normalize_ruleset_clean_fixture() -> None:
         target="branch",
         included_refs=("refs/heads/main",),
         excluded_refs=(),
+        strict_branch_currency=True,
         unmodeled_rule_types=("deletion",),
     )
 
 
 def test_normalize_collections_clean_and_empty() -> None:
-    assert _analyses([_analysis()]) == (CodeScanningAnalysis("CodeQL", MERGE_SHA, ""),)
+    assert _analyses([_analysis()]) == (CodeScanningAnalysis("CodeQL", HEAD_SHA, ""),)
     assert _alerts([_alert()]) == (CodeScanningAlert("CodeQL", "open", "high", "error"),)
     assert normalize_reviews([{"state": "APPROVED"}, {"state": "NEW_STATE"}]) == (
         "APPROVED",
@@ -332,8 +336,7 @@ def test_normalize_ruleset_bypass_missing_differs_from_empty() -> None:
 
 def test_normalize_ruleset_scope_missing_conditions_is_none() -> None:
     body = _ruleset_body()
-    del body["conditions"]
-    del body["target"]
+    del body["conditions"], body["target"]
     scope = normalize_ruleset(body)
     assert (scope.target, scope.included_refs, scope.excluded_refs) == (None, None, None)
     # A ref_name present but without include/exclude lists is still "not collected".

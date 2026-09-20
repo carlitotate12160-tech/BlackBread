@@ -34,6 +34,7 @@ _GRAPHQL_ERROR = "GRAPHQL_ERROR"
 _RuleModel = tuple[
     tuple[RequiredStatusCheck, ...] | None,
     tuple[CodeScanningRequirement, ...] | None,
+    bool | None,
     tuple[str, ...],
 ]
 
@@ -164,6 +165,16 @@ def _modeled(matches: list[dict[str, Any]], param_key: str, parser: Callable[[An
     return tuple(parser(item) for item in cast(list[Any], items))
 
 
+def _strict_branch_currency(matches: list[dict[str, Any]]) -> bool | None:
+    if not matches:
+        return None
+    params = matches[0].get("parameters")
+    value = params.get("strict_required_status_checks_policy") if isinstance(params, dict) else None
+    # Absent stays unobserved (None); a present non-boolean is malformed, never falsy-coerced.
+    _require(value is None or isinstance(value, bool), _MALFORMED_ITEM)
+    return cast("bool | None", value)
+
+
 def _rules(rules: Any) -> _RuleModel:
     def status_check(item: Any) -> RequiredStatusCheck:
         context = _str_field(item, "context")
@@ -179,7 +190,7 @@ def _rules(rules: Any) -> _RuleModel:
         )
 
     if rules is None:
-        return None, None, ()
+        return None, None, None, ()
     _require(isinstance(rules, list), _MALFORMED_BODY)
     unmodeled: list[str] = []
     status_rules: list[dict[str, Any]] = []
@@ -197,7 +208,8 @@ def _rules(rules: Any) -> _RuleModel:
     _require(len(scanning_rules) <= 1, _DUPLICATE_RULE)
     status = _modeled(status_rules, "required_status_checks", status_check)
     scanning = _modeled(scanning_rules, "code_scanning_tools", scanning_requirement)
-    return status, scanning, tuple(unmodeled)
+    strict = _strict_branch_currency(status_rules)
+    return status, scanning, strict, tuple(unmodeled)
 
 
 def normalize_ruleset(body: Any) -> RulesetEvidence:
@@ -224,7 +236,7 @@ def normalize_ruleset(body: Any) -> RulesetEvidence:
     _require(isinstance(body, dict), _MALFORMED_BODY)
     ruleset_id = _int_field(body.get("id"))
     enforcement = _str_field(body, "enforcement", _MALFORMED_BODY)
-    status_checks, code_scanning, unmodeled = _rules(body.get("rules"))
+    status_checks, code_scanning, strict_currency, unmodeled = _rules(body.get("rules"))
     target = body.get("target")
     _require(target is None or (isinstance(target, str) and bool(target.strip())), _MALFORMED_BODY)
     conditions = body.get("conditions")
@@ -242,6 +254,7 @@ def normalize_ruleset(body: Any) -> RulesetEvidence:
         target=target,
         included_refs=included,
         excluded_refs=excluded,
+        strict_branch_currency=strict_currency,
         unmodeled_rule_types=unmodeled,
     )
 
