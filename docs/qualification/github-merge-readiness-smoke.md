@@ -34,7 +34,10 @@ uv run python -m blackbread.governance.merge_readiness_cli \
 
 - Never log or print `GITHUB_TOKEN`.
 - Do not poll or construct a retry loop around this command.
-- Do not use the output of this command as authorization to perform an automated merge.
+- The contract is loaded from the CLI's trusted source checkout, not CWD.
+- The CLI does not authenticate the local checkout as protected main.
+- Callers must run qualification from the recorded exact implementation SHA.
+- Output remains advisory and does not authorize merge.
 - The repository owner always retains final manual merge authority.
 
 ## Evidence Schema
