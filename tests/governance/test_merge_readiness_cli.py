@@ -1,13 +1,22 @@
+import io
 import json
+import os
 import subprocess
-import sys
+from contextlib import redirect_stdout
 from pathlib import Path
 from unittest import mock
 
 import pytest
 
+import blackbread.governance.merge_readiness_cli as cli
+from blackbread.governance.merge_readiness import (
+    MergeBlocker,
+    MergeReadinessDecision,
+)
+
+
 @pytest.fixture
-def contract_env(tmp_path: Path):
+def contract_env(tmp_path: Path) -> Path:
     contract_file = tmp_path / ".github" / "agent-delivery.json"
     contract_file.parent.mkdir()
     contract_file.write_text(
@@ -40,11 +49,6 @@ def contract_env(tmp_path: Path):
     )
     return tmp_path
 
-import blackbread.governance.merge_readiness_cli as cli
-from blackbread.governance.merge_readiness import (
-    MergeBlocker,
-    MergeReadinessDecision,
-)
 
 # The test suite for the CLI
 
@@ -52,13 +56,11 @@ from blackbread.governance.merge_readiness import (
 def run_cli(
     env: dict[str, str], args: list[str], cwd: str | None = None
 ) -> subprocess.CompletedProcess[str]:
-    import os, io
-    from contextlib import redirect_stdout
     with mock.patch.dict(os.environ, env):
         f = io.StringIO()
         with redirect_stdout(f):
             try:
-                # Assuming the test sets cwd via monkeypatch, but since run_cli takes cwd, let's chdir
+                # Test sets cwd via monkeypatch, but run_cli takes cwd, so let's chdir
                 original_cwd = os.getcwd()
                 if cwd:
                     os.chdir(cwd)
@@ -72,8 +74,10 @@ def run_cli(
                         os.chdir(original_cwd)
             except Exception:
                 code = 1
-        
-        return subprocess.CompletedProcess(args=args, returncode=code, stdout=f.getvalue(), stderr="")
+
+        return subprocess.CompletedProcess(
+            args=args, returncode=code, stdout=f.getvalue(), stderr=""
+        )
 
 
 def test_invalid_contracts_fail_with_exit_two_before_io(tmp_path: Path) -> None:
@@ -164,7 +168,9 @@ def test_complete_ready_evidence_returns_zero_with_canonical_output(
     ) as mock_eval:
         mock_eval.return_value = MergeReadinessDecision(ready=True, blockers=())
         with (
-            mock.patch("blackbread.governance.merge_readiness_cli.GitHubMergeEvidenceCollector.collect") as mock_collect,
+            mock.patch(
+                "blackbread.governance.merge_readiness_cli.GitHubMergeEvidenceCollector.collect"
+            ) as mock_collect,
             mock.patch("sys.stdout.write") as mock_stdout,
         ):
             mock_collect.return_value = mock.MagicMock(incomplete_sections=())
@@ -198,7 +204,9 @@ def test_complete_substantive_blockers_return_one(
         mock_eval.return_value = MergeReadinessDecision(
             ready=False, blockers=(MergeBlocker("CHANGES_REQUESTED", "detail"),)
         )
-        with mock.patch("blackbread.governance.merge_readiness_cli.GitHubMergeEvidenceCollector.collect") as mock_collect:
+        with mock.patch(
+            "blackbread.governance.merge_readiness_cli.GitHubMergeEvidenceCollector.collect"
+        ) as mock_collect:
             mock_collect.return_value = mock.MagicMock(incomplete_sections=())
             with mock.patch.dict("os.environ", {"GITHUB_TOKEN": "token"}):
                 monkeypatch.chdir(contract_env)
@@ -218,7 +226,9 @@ def test_complete_substantive_blockers_return_one(
         mock_eval.return_value = MergeReadinessDecision(
             ready=False, blockers=(MergeBlocker("UNKNOWN_BLOCKER", "detail"),)
         )
-        with mock.patch("blackbread.governance.merge_readiness_cli.GitHubMergeEvidenceCollector.collect") as mock_collect:
+        with mock.patch(
+            "blackbread.governance.merge_readiness_cli.GitHubMergeEvidenceCollector.collect"
+        ) as mock_collect:
             mock_collect.return_value = mock.MagicMock(incomplete_sections=())
             with mock.patch.dict("os.environ", {"GITHUB_TOKEN": "token"}):
                 monkeypatch.chdir(contract_env)
@@ -245,7 +255,9 @@ def test_incomplete_or_drifted_evidence_returns_two(
         mock_eval.return_value = MergeReadinessDecision(
             ready=False, blockers=(MergeBlocker("INCOMPLETE_EVIDENCE", "pagination"),)
         )
-        with mock.patch("blackbread.governance.merge_readiness_cli.GitHubMergeEvidenceCollector.collect") as mock_collect:
+        with mock.patch(
+            "blackbread.governance.merge_readiness_cli.GitHubMergeEvidenceCollector.collect"
+        ) as mock_collect:
             mock_collect.return_value = mock.MagicMock(incomplete_sections=())
             with mock.patch.dict("os.environ", {"GITHUB_TOKEN": "token"}):
                 monkeypatch.chdir(contract_env)
@@ -331,7 +343,12 @@ def test_cli_constructs_urllib_transport_collector_and_existing_evaluator(
 
 
 def test_smoke_document_names_exact_command_exit_contract_and_redaction() -> None:
-    doc_path = Path(__file__).resolve().parent.parent.parent / "docs" / "qualification" / "github-merge-readiness-smoke.md"
+    doc_path = (
+        Path(__file__).resolve().parent.parent.parent
+        / "docs"
+        / "qualification"
+        / "github-merge-readiness-smoke.md"
+    )
     assert doc_path.exists(), f"Smoke doc not found at {doc_path}"
     content = doc_path.read_text(encoding="utf-8")
     assert "uv run python -m blackbread.governance.merge_readiness_cli" in content

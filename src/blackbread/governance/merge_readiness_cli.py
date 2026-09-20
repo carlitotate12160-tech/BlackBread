@@ -5,7 +5,7 @@ import json
 import os
 import re
 import sys
-from typing import Any, NoReturn
+from typing import Any, NoReturn, cast
 
 from blackbread.governance import github_merge_normalization as norm
 from blackbread.governance.github_merge_evidence import (
@@ -129,7 +129,10 @@ def _parse_code_scanning(raw_scans: Any) -> tuple[CodeScanningRequirement, ...]:
             _fail_exit_2("CONTRACT_INVALID_CODE_SCANNING")
         _check_type(rs["security_alerts_threshold"], str)
         _check_type(rs["alerts_threshold"], str)
-        if rs["security_alerts_threshold"] not in valid_thresholds or rs["alerts_threshold"] not in valid_thresholds:
+        if (
+            rs["security_alerts_threshold"] not in valid_thresholds
+            or rs["alerts_threshold"] not in valid_thresholds
+        ):
             _fail_exit_2("CONTRACT_INVALID_CODE_SCANNING")
         if rs["tool"] in seen:
             _fail_exit_2("CONTRACT_INVALID_CODE_SCANNING")
@@ -144,16 +147,21 @@ def _parse_code_scanning(raw_scans: Any) -> tuple[CodeScanningRequirement, ...]:
     return tuple(parsed)
 
 
-def _load_contract() -> DeliveryContract:
+def _read_contract_json() -> dict[str, Any]:
     try:
         with open(".github/agent-delivery.json", encoding="utf-8") as f:
-            data = json.load(f, object_pairs_hook=_reject_duplicates)
+            result = json.load(f, object_pairs_hook=_reject_duplicates)
+            return cast(dict[str, Any], result)
     except FileNotFoundError:
         _fail_exit_2("CONTRACT_NOT_FOUND")
     except ValueError:
         _fail_exit_2("CONTRACT_MALFORMED_JSON")
     except Exception:
         _fail_exit_2("CONTRACT_READ_ERROR")
+
+
+def _load_contract() -> DeliveryContract:
+    data = _read_contract_json()
 
     _check_type(data, dict)
     if set(data.keys()) != _EXPECTED_ROOT_KEYS:
@@ -242,6 +250,32 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     except Exception:
         _fail_exit_2("CLI_ARGUMENTS_INVALID")
 
+def _evaluate_and_emit(args: argparse.Namespace, token: str) -> None:
+    contract = _load_contract()
+    transport = UrllibGitHubReadTransport(token)
+    collector = GitHubMergeEvidenceCollector(transport, args.repository)
+
+    evidence = collector.collect(args.pull_request, contract)
+    if evidence.incomplete_sections:
+        _fail_exit_2("EVIDENCE_INCOMPLETE")
+
+    decision = evaluate_merge_readiness(contract, evidence, args.expected_head_sha)
+
+    blocker_codes = sorted({b.code for b in decision.blockers})
+    if "HEAD_SHA_MISMATCH" in blocker_codes:
+        _fail_exit_2("HEAD_SHA_MISMATCH")
+
+    if decision.ready:
+        _emit_ready_exit_0(args)
+
+    all_allowlisted = all(code in _ALLOWED_EXIT_1_BLOCKERS for code in blocker_codes)
+
+    if not all_allowlisted:
+        _fail_exit_2("UNCLASSIFIED_BLOCKER")
+
+    _emit_not_ready_exit_1(args, blocker_codes)
+
+
 def main(argv: list[str] | None = None) -> None:
     args = _parse_args(argv)
 
@@ -253,30 +287,7 @@ def main(argv: list[str] | None = None) -> None:
         _fail_exit_2("MISSING_GITHUB_TOKEN")
 
     try:
-        contract = _load_contract()
-        transport = UrllibGitHubReadTransport(token)
-        collector = GitHubMergeEvidenceCollector(transport, args.repository)
-
-        evidence = collector.collect(args.pull_request, contract)
-        if evidence.incomplete_sections:
-            _fail_exit_2("EVIDENCE_INCOMPLETE")
-
-        decision = evaluate_merge_readiness(contract, evidence, args.expected_head_sha)
-
-        blocker_codes = sorted({b.code for b in decision.blockers})
-        if "HEAD_SHA_MISMATCH" in blocker_codes:
-            _fail_exit_2("HEAD_SHA_MISMATCH")
-
-        if decision.ready:
-            _emit_ready_exit_0(args)
-
-        all_allowlisted = all(code in _ALLOWED_EXIT_1_BLOCKERS for code in blocker_codes)
-
-        if not all_allowlisted:
-            _fail_exit_2("UNCLASSIFIED_BLOCKER")
-
-        _emit_not_ready_exit_1(args, blocker_codes)
-
+        _evaluate_and_emit(args, token)
     except TransportError:
         _fail_exit_2("TRANSPORT_FAILURE")
     except EvidenceCollectionError:
