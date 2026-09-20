@@ -438,7 +438,6 @@ def test_observed_check_app_ids_are_never_substituted(app_id: int | None) -> Non
         ("analyses", [_analysis(tool={})]),
         ("analyses", [_analysis(tool={"name": "Other"})]),
         ("analyses", [_analysis(ref="refs/pull/91/merge")]),
-        ("analyses", [_analysis(commit_sha=OTHER_SHA)]),
         ("alerts", [_alert(tool={"name": "Other"})]),
         ("alerts", [_alert(most_recent_instance={"ref": REF, "commit_sha": OTHER_SHA})]),
         (
@@ -452,6 +451,16 @@ def test_wrong_or_missing_codeql_provenance_discards_scanning(section: str, body
     _, evidence = _collect(fake)
     assert evidence.code_scanning is None
     assert "code_scanning" in evidence.incomplete_sections
+
+
+def test_historical_analyses_on_head_ref_are_collected_not_rejected() -> None:
+    fake = _FakeTransport({"analyses": [_result([_analysis(), _analysis(commit_sha=OTHER_SHA)])]})
+    _, evidence = _collect(fake)
+    scanning = evidence.code_scanning
+    assert scanning is not None
+    assert "code_scanning" not in evidence.incomplete_sections
+    assert {a.commit_sha for a in scanning.analyses or ()} == {HEAD_SHA, OTHER_SHA}
+    assert evaluate_merge_readiness(_contract(), evidence, HEAD_SHA).ready
 
 
 @pytest.mark.parametrize("repository", ["owner", "owner/repo/extra", "owner/repo?x=1", "../repo"])
