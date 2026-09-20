@@ -366,13 +366,16 @@ def test_unknown_exception_is_sanitized(bound: list[str], seam_state: dict[str, 
 def test_token_never_reaches_output(
     bound: list[str], seam_state: dict[str, Any], capsys: pytest.CaptureFixture[str]
 ) -> None:
-    seam_state["error"] = TransportError("network request failed")
+    # The exception text deliberately carries the token so a sanitization
+    # leak would surface in the emitted JSON line.
+    seam_state["error"] = TransportError("upstream body echoed unit-test-token")
 
-    code, _, _ = _run()
+    code, payload, raw = _run()
 
     captured = capsys.readouterr()
     assert code == 2
-    assert "unit-test-token" not in captured.out
+    assert payload["errors"] == ["TRANSPORT_FAILURE"]
+    assert "unit-test-token" not in raw
     assert captured.err == ""
 
 

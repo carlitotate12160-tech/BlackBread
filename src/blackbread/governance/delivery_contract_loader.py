@@ -190,7 +190,15 @@ def _code_scanning(raw: Any) -> tuple[CodeScanningRequirement, ...]:
         alerts = item["alerts_threshold"]
         if not isinstance(tool, str) or not tool.strip():
             _fail("CONTRACT_CODE_SCANNING_INVALID")
-        if security not in _SECURITY_THRESHOLDS or alerts not in _ALERTS_THRESHOLDS:
+        # Membership tests require strings first: a JSON array/object is
+        # unhashable and would escape as a raw TypeError instead of failing
+        # closed with a sanitized code.
+        if (
+            not isinstance(security, str)
+            or security not in _SECURITY_THRESHOLDS
+            or not isinstance(alerts, str)
+            or alerts not in _ALERTS_THRESHOLDS
+        ):
             _fail("CONTRACT_CODE_SCANNING_INVALID")
         if tool in seen:
             _fail("CONTRACT_CODE_SCANNING_INVALID")

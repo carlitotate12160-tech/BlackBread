@@ -313,6 +313,22 @@ def test_required_code_scanning_strict(tmp_path: Path, scanning: Any) -> None:
     assert _code(excinfo) == "CONTRACT_CODE_SCANNING_INVALID"
 
 
+@pytest.mark.parametrize("field", ["security_alerts_threshold", "alerts_threshold"])
+@pytest.mark.parametrize("value", [[], {}, None, 7, True])
+def test_non_string_thresholds_fail_closed(tmp_path: Path, field: str, value: Any) -> None:
+    item = {
+        "tool": "CodeQL",
+        "security_alerts_threshold": "all",
+        "alerts_threshold": "all",
+        field: value,
+    }
+    delivery = _delivery_dict(required_code_scanning=[item])
+    path = _write(tmp_path, _contract_dict(delivery))
+    with pytest.raises(ContractValidationError) as excinfo:
+        load_delivery_contract(path)
+    assert _code(excinfo) == "CONTRACT_CODE_SCANNING_INVALID"
+
+
 def test_error_message_never_embeds_input(tmp_path: Path) -> None:
     hostile = _delivery_dict(ruleset_id="D:\\secret\\path ghp_token123")
     path = _write(tmp_path, _contract_dict(hostile))
