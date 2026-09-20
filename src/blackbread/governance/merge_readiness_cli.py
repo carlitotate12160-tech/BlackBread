@@ -236,6 +236,7 @@ class _StrictParser(argparse.ArgumentParser):
     def error(self, message: str) -> NoReturn:
         _fail_exit_2("CLI_ARGUMENTS_INVALID")
 
+
 _SHA_REGEX = re.compile(r"^[0-9a-f]{40}$")
 
 
@@ -249,6 +250,7 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         return parser.parse_args(argv)
     except Exception:
         _fail_exit_2("CLI_ARGUMENTS_INVALID")
+
 
 def _evaluate_and_emit(args: argparse.Namespace, token: str) -> None:
     contract = _load_contract()
