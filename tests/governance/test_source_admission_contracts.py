@@ -11,6 +11,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
+from blackbread.governance import source_admission_contracts as contracts
 from blackbread.governance.source_admission_contracts import (
     AIFactEvidence,
     Availability,
@@ -41,6 +42,10 @@ SHA1_A, SHA1_B = "a" * 40, "b" * 40
 SHA1_C, SHA1_D = "c" * 40, "d" * 40
 SHA256_A, SHA256_B = "1" * 64, "2" * 64
 SHA256_C, SHA256_D = "3" * 64, "4" * 64
+UNICODE_TIMESTAMP = "".join(
+    chr(0x0660 + int(character)) if character.isdigit() else character
+    for character in "2026-09-21T03:02:00Z"
+)
 
 
 def _path(value: bytes) -> str:
@@ -232,6 +237,32 @@ def test_hashes_require_exact_lowercase_hex(value: Any) -> None:
         SourceAdmissionReport.model_validate(_report().model_dump() | {"report_digest": value})
 
 
+@pytest.mark.parametrize(
+    ("factory", "field"),
+    [(_review, "reviewed_at"), (_bundle, "collected_at"), (_report, "observed_at")],
+)
+@pytest.mark.parametrize("value", [UNICODE_TIMESTAMP, "2026-99-99T25:61:61Z"])
+def test_timestamps_require_ascii_and_real_utc_instants(
+    factory: Any, field: str, value: str
+) -> None:
+    model = factory()
+    with pytest.raises(ValidationError):
+        type(model).model_validate(model.model_dump() | {field: value})
+
+
+def test_timestamps_accept_adjacent_valid_controls_including_leap_date() -> None:
+    value = "2024-02-29T23:59:59Z"
+    timestamp_fields = (
+        (_review, "reviewed_at"),
+        (_bundle, "collected_at"),
+        (_report, "observed_at"),
+    )
+    for factory, field in timestamp_fields:
+        model = factory()
+        validated = type(model).model_validate(model.model_dump() | {field: value})
+        assert getattr(validated, field) == value
+
+
 def test_set_members_are_unique_and_normalized_but_semantic_arrays_keep_order() -> None:
     with pytest.raises(ValidationError):
         _item(lineage_refs=("same", "same"))
@@ -289,6 +320,15 @@ def test_git_paths_round_trip_as_bytes_and_supported_or_unsupported_objects_are_
         (ObjectKind.UNSUPPORTED, "100640"),
     ):
         assert _item(base_object_kind=kind, head_object_kind=kind, base_mode=mode, head_mode=mode)
+    with pytest.raises(ValidationError):
+        _item(head_object_kind=ObjectKind.SYMLINK, head_mode="100644")
+
+
+def test_object_mode_policy_mutation_cannot_change_validation_outcome() -> None:
+    with pytest.raises(ValidationError):
+        _item(head_object_kind=ObjectKind.SYMLINK, head_mode="100644")
+    with pytest.raises(TypeError):
+        contracts._OBJECT_MODES[0] = (ObjectKind.SYMLINK, "100644")
     with pytest.raises(ValidationError):
         _item(head_object_kind=ObjectKind.SYMLINK, head_mode="100644")
 

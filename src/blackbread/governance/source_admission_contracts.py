@@ -1,14 +1,12 @@
-"""Strict, caller-constructible source-admission semantic models.
+"""Strict caller-constructible source-admission semantic models.
 
-These objects prove normal schema and local coherence only. Digest-shaped fields are unverified
-input. They do not prove authenticity, freshness, permission, admission, merge, capability, or
-target authority.
+They prove schema/local coherence only; digest fields stay unverified and confer no authority.
 """
 
 from __future__ import annotations
 
 import base64
-import binascii
+from datetime import datetime
 from enum import StrEnum
 from typing import Annotated, Literal
 
@@ -91,10 +89,15 @@ def _validate_schema_version(value: object) -> object:
     return value
 
 
+def _validate_timestamp(value: str) -> str:
+    datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ")
+    return value
+
+
 def _validate_git_path(value: str) -> str:
     try:
         decoded = base64.b64decode(value, validate=True)
-    except (ValueError, UnicodeEncodeError, binascii.Error):
+    except (ValueError, UnicodeEncodeError):
         raise ValueError("Git path must use canonical base64") from None
     if not decoded or b"\0" in decoded or base64.b64encode(decoded).decode("ascii") != value:
         raise ValueError("Git path must use canonical non-empty base64")
@@ -105,7 +108,7 @@ SchemaVersion = Annotated[Literal[1], BeforeValidator(_validate_schema_version)]
 Text = Annotated[str, Field(min_length=1, max_length=500), AfterValidator(_non_blank)]
 Sha1 = Annotated[str, Field(pattern=r"^[0-9a-f]{40}$")]
 Sha256 = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
-Timestamp = Annotated[str, Field(pattern=r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")]
+Timestamp = Annotated[str, AfterValidator(_validate_timestamp)]
 GitPath = Annotated[str, Field(min_length=4, max_length=5500), AfterValidator(_validate_git_path)]
 StringSet = Annotated[tuple[Text, ...], AfterValidator(_normalize_set)]
 Sha256Set = Annotated[tuple[Sha256, ...], AfterValidator(_normalize_set)]
@@ -128,11 +131,12 @@ class SourceSubject(_StrictModel):
     coverage_description: Text
 
 
-_OBJECT_MODES = {
-    ObjectKind.BLOB: frozenset({"100644", "100755"}),
-    ObjectKind.SYMLINK: frozenset({"120000"}),
-    ObjectKind.SUBMODULE: frozenset({"160000"}),
-}
+_OBJECT_MODES = (
+    (ObjectKind.BLOB, "100644"),
+    (ObjectKind.BLOB, "100755"),
+    (ObjectKind.SYMLINK, "120000"),
+    (ObjectKind.SUBMODULE, "160000"),
+)
 
 
 def _validate_side(
@@ -142,7 +146,7 @@ def _validate_side(
         raise ValueError("change side is incomplete")
     if not required and any(value is not None for value in values):
         raise ValueError("absent change side must be empty")
-    if required and kind in _OBJECT_MODES and mode not in _OBJECT_MODES[kind]:
+    if required and kind is not ObjectKind.UNSUPPORTED and (kind, mode) not in _OBJECT_MODES:
         raise ValueError("object kind and Git mode disagree")
 
 
