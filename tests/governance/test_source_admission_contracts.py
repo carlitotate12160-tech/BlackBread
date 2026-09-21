@@ -241,7 +241,15 @@ def test_hashes_require_exact_lowercase_hex(value: Any) -> None:
     ("factory", "field"),
     [(_review, "reviewed_at"), (_bundle, "collected_at"), (_report, "observed_at")],
 )
-@pytest.mark.parametrize("value", [UNICODE_TIMESTAMP, "2026-99-99T25:61:61Z"])
+@pytest.mark.parametrize(
+    "value",
+    [
+        UNICODE_TIMESTAMP,
+        "2026-99-99T25:61:61Z",
+        "2026-9-1T3:2:0Z",
+        "2026-09- 1T03:02:00Z",
+    ],
+)
 def test_timestamps_require_ascii_and_real_utc_instants(
     factory: Any, field: str, value: str
 ) -> None:
@@ -250,8 +258,8 @@ def test_timestamps_require_ascii_and_real_utc_instants(
         type(model).model_validate(model.model_dump() | {field: value})
 
 
-def test_timestamps_accept_adjacent_valid_controls_including_leap_date() -> None:
-    value = "2024-02-29T23:59:59Z"
+@pytest.mark.parametrize("value", ["2026-09-21T03:02:00Z", "2024-02-29T23:59:59Z"])
+def test_timestamps_accept_adjacent_valid_controls_including_leap_date(value: str) -> None:
     timestamp_fields = (
         (_review, "reviewed_at"),
         (_bundle, "collected_at"),

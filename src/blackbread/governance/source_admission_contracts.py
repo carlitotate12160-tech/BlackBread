@@ -108,7 +108,11 @@ SchemaVersion = Annotated[Literal[1], BeforeValidator(_validate_schema_version)]
 Text = Annotated[str, Field(min_length=1, max_length=500), AfterValidator(_non_blank)]
 Sha1 = Annotated[str, Field(pattern=r"^[0-9a-f]{40}$")]
 Sha256 = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
-Timestamp = Annotated[str, AfterValidator(_validate_timestamp)]
+_TIMESTAMP_PATTERN = (
+    r"^[0-9]{4}-[0-9]{2}-[0-9]{2}"
+    r"T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+)
+Timestamp = Annotated[str, Field(pattern=_TIMESTAMP_PATTERN), AfterValidator(_validate_timestamp)]
 GitPath = Annotated[str, Field(min_length=4, max_length=5500), AfterValidator(_validate_git_path)]
 StringSet = Annotated[tuple[Text, ...], AfterValidator(_normalize_set)]
 Sha256Set = Annotated[tuple[Sha256, ...], AfterValidator(_normalize_set)]
