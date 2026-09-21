@@ -211,7 +211,8 @@ The repository owns policy versions. An access-controlled engineering evidence d
 store owns append-only run bundles; it is separate from the campaign ledger and contains no target
 evidence. No new database, key service or provenance platform is required for the pilot.
 The controller owns ephemeral snapshots and run IDs. Persist evidence atomically before publishing
-a report reference; a crash yields INCOMPLETE and never replaces a previous report. Conflicting
+a report reference; a crash leaves the run in the lifecycle state INCOMPLETE — an evidence-store
+state, never a published report verdict — and never replaces a previous report. Conflicting
 content for the same run ID is rejected. Concurrent runs use separate namespaces and may not overwrite
 each other. Cancellation prevents further processing/disclosure and records partial evidence.
 Policy, use, processor, head, inventory or review-evidence changes invalidate reuse. Historical reports
@@ -288,9 +289,9 @@ Future-consumer safety
 admission cannot become merge, target permission, whole-repository clearance or capability promotion
 Proof oracles
 IP01–IP10 specify behavioral counterexamples and mutation sensitivity; none has been run here
-Seal state: DESIGN_HOLD for executable 001B. This draft is reviewable; it does not claim
-DESIGN_SEALED or owner acceptance while policy inputs below are unresolved. This is an explicit
-activation condition inside the agreed A/B work, not a new governance project.
+Seal state: DESIGN_HOLD for executable 001B. This ADR is accepted as the documentation boundary;
+it does not seal the executable design while the §10 policy inputs remain unresolved. This is an
+explicit activation condition inside the agreed A/B work, not a new governance project.
 10. Owner policy record needed before activation
 Decision
 Proposed bounded default
@@ -311,8 +312,8 @@ A project-wide outbound license choice is not silently made here. It is required
 distribution compatibility, which this pilot does not claim. The owner may approve concrete review
 rights for original repository material without pretending it has an existing public license.
 11. Bounded adoption and implementation boundary
-The requested deliverable consists only of this ADR and its separate grader companion. Neither is
-committed or merged by this drafting task. Proposed repository path is this filename at root; no
+The requested deliverable consists only of this ADR and its separate grader companion; each is
+adopted by its own ADR-only pull request. Repository path is this filename at root; no
 ADR-FINAL number is reserved without repository adoption.
 For a later ADR-only adoption PR, the closed responsibility map is:
 File
