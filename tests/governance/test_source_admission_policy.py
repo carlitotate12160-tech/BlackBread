@@ -206,6 +206,51 @@ def test_parser_rejects_encoding_json_schema_unknown_coercion_and_float() -> Non
     _assert_code(_encoded(float_policy), "POLICY_FLOAT_FORBIDDEN")
 
 
+def test_deep_json_recursion_is_sanitized() -> None:
+    depth = 800
+    payload = b'{"schema_version":1,"nested":' + b"[" * depth + b"0" + b"]" * depth + b"}"
+
+    _assert_code(payload, "POLICY_JSON_MALFORMED")
+
+
+@pytest.mark.parametrize("entry", ["", "   ", "x" * 501])
+def test_string_set_members_must_be_bounded_and_non_blank(entry: str) -> None:
+    raw = _raw_policy()
+    raw["license_family_allowlist"] = [entry]
+
+    _assert_code(_encoded(raw), "POLICY_SCHEMA_INVALID")
+
+
+def test_valid_string_set_member_remains_accepted() -> None:
+    raw = _raw_policy()
+    raw["license_family_allowlist"] = ["MIT"]
+
+    assert parse_policy_bytes(_encoded(raw)).license_family_allowlist == ("MIT",)
+
+
+@pytest.mark.parametrize(
+    ("version", "expected_code"),
+    [
+        (True, "POLICY_SCHEMA_INVALID"),
+        (False, "POLICY_SCHEMA_INVALID"),
+        ("1", "POLICY_SCHEMA_INVALID"),
+        (1.0, "POLICY_FLOAT_FORBIDDEN"),
+        (None, "POLICY_SCHEMA_INVALID"),
+        (1, None),
+        (2, "POLICY_SCHEMA_UNSUPPORTED"),
+    ],
+)
+def test_schema_version_requires_exact_json_integer(
+    version: Any, expected_code: str | None
+) -> None:
+    raw = _raw_policy()
+    raw["schema_version"] = version
+    if expected_code is None:
+        assert parse_policy_bytes(_encoded(raw)).schema_version == 1
+    else:
+        _assert_code(_encoded(raw), expected_code)
+
+
 @pytest.mark.parametrize(
     ("collection", "id_field"),
     [

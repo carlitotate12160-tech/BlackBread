@@ -14,6 +14,7 @@ from typing import Annotated, Any, Literal, NoReturn
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
 
 _POLICY_DOMAIN = b"blackbread.source-policy.v1"
+_MAX_JSON_DEPTH = 100
 
 
 class UseProfile(StrEnum):
@@ -88,13 +89,20 @@ def _normalize_set[SetValue](values: tuple[SetValue, ...]) -> tuple[SetValue, ..
     return tuple(sorted(values, key=str))
 
 
+def _non_blank(value: str) -> str:
+    if not value.strip():
+        raise ValueError("string must contain non-whitespace characters")
+    return value
+
+
 Text = Annotated[str, Field(min_length=1, max_length=500)]
+SetText = Annotated[str, Field(min_length=1, max_length=500), AfterValidator(_non_blank)]
 RoleSet = Annotated[tuple[IdentityRole, ...], AfterValidator(_normalize_set)]
 OriginSet = Annotated[tuple[OriginKind, ...], AfterValidator(_normalize_set)]
 UseSet = Annotated[tuple[UseProfile, ...], AfterValidator(_normalize_set)]
 FactSet = Annotated[tuple[AIFact, ...], AfterValidator(_normalize_set)]
 TriggerSet = Annotated[tuple[RevisionTrigger, ...], AfterValidator(_normalize_set)]
-StringSet = Annotated[tuple[str, ...], AfterValidator(_normalize_set)]
+StringSet = Annotated[tuple[SetText, ...], AfterValidator(_normalize_set)]
 
 
 class _StrictModel(BaseModel):
@@ -226,14 +234,19 @@ def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     return decoded
 
 
-def _contains_float(value: Any) -> bool:
-    if isinstance(value, float):
-        return True
-    if isinstance(value, list):
-        return any(_contains_float(item) for item in value)
-    if isinstance(value, dict):
-        return any(_contains_float(item) for item in value.values())
-    return False
+def _reject_json_float(_: str) -> NoReturn:
+    _fail("POLICY_FLOAT_FORBIDDEN")
+
+
+def _reject_deep_json(value: Any) -> None:
+    stack = [(value, 0)]
+    while stack:
+        item, depth = stack.pop()
+        if depth > _MAX_JSON_DEPTH:
+            _fail("POLICY_JSON_MALFORMED")
+        if isinstance(item, dict | list):
+            children = item.values() if isinstance(item, dict) else item
+            stack.extend((child, depth + 1) for child in children)
 
 
 def parse_policy_bytes(payload: bytes) -> SourceAdmissionPolicy:
@@ -242,22 +255,31 @@ def parse_policy_bytes(payload: bytes) -> SourceAdmissionPolicy:
     except UnicodeDecodeError:
         _fail("POLICY_UTF8_INVALID")
     try:
-        decoded = json.loads(text, object_pairs_hook=_reject_duplicate_keys)
+        decoded = json.loads(
+            text,
+            object_pairs_hook=_reject_duplicate_keys,
+            parse_float=_reject_json_float,
+            parse_constant=_reject_json_float,
+        )
     except PolicyValidationError:
         raise
     except (json.JSONDecodeError, RecursionError):
         _fail("POLICY_JSON_MALFORMED")
+    _reject_deep_json(decoded)
     if not isinstance(decoded, dict):
         _fail("POLICY_SCHEMA_INVALID")
     if "schema_version" not in decoded:
         _fail("POLICY_SCHEMA_MISSING")
-    if type(decoded["schema_version"]) is int and decoded["schema_version"] != 1:
+    version = decoded["schema_version"]
+    if type(version) is not int:
+        _fail("POLICY_SCHEMA_INVALID")
+    if version != 1:
         _fail("POLICY_SCHEMA_UNSUPPORTED")
-    if _contains_float(decoded):
-        _fail("POLICY_FLOAT_FORBIDDEN")
     try:
         normalized = json.dumps(decoded, ensure_ascii=False, allow_nan=False)
         return SourceAdmissionPolicy.model_validate_json(normalized)
+    except RecursionError:
+        _fail("POLICY_JSON_MALFORMED")
     except (TypeError, ValueError):
         _fail("POLICY_SCHEMA_INVALID")
 
