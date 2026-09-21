@@ -34,7 +34,7 @@ revision 11; last released M1.4c2b1b; selected runtime slice M1.4d
 Root license metadata
 recursive tree contains no LICENSE/NOTICE file; pyproject.toml declares no project license
 Deployment
-Oracle HEAD, migrations and health unverified: local deployment configuration and SSH configuration unavailable in this session
+Oracle HEAD, migrations and health unverified: local deployment configuration and SSH access unavailable in this session
 The handoff baseline matches live main. The owner's bounded governance work precedes M1.4d but is
 not yet recorded as a repository selection change. No engineering-state file was modified. Main's
 empty legacy-status response is not interpreted as failed CI or as proof of every required check.
