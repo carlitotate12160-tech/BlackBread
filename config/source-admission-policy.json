@@ -1,0 +1,214 @@
+{
+  "schema_version": 1,
+  "policy_id": "blackbread-source-admission",
+  "policy_version": "1",
+  "canonical_path": "config/source-admission-policy.json",
+  "effective_after_merge": true,
+  "use_profiles": ["ENGINEERING_REVIEW"],
+  "processor_profile": "LOCAL_ONLY",
+  "external_processors_forbidden": true,
+  "review_only_enabled": false,
+  "per_run_override": false,
+  "license_family_allowlist": [],
+  "unknown_default": "REVIEW_REQUIRED",
+  "unsupported_default": "REVIEW_REQUIRED",
+  "unknown_admissible": false,
+  "approved_identities": [
+    {
+      "identity_id": "github:carlitotate12160-tech",
+      "roles": ["GRANTOR", "OWNER", "REPOSITORY_CONTRIBUTOR", "REVIEWER"]
+    }
+  ],
+  "permission_grants": [
+    {
+      "grant_id": "owner-engineering-review-v1",
+      "grantor_identity_id": "github:carlitotate12160-tech",
+      "repository": "carlitotate12160-tech/BlackBread",
+      "permitted_use": "ENGINEERING_REVIEW",
+      "material_scope": ["AI_GENERATED", "REPOSITORY_AUTHORED"],
+      "owner_submitted_only": true,
+      "owner_controlled_rights_only": true,
+      "distribution_right": false,
+      "public_publication_right": false,
+      "waives_third_party_rights": false,
+      "merge_permission": false,
+      "capability_permission": false,
+      "target_permission": false
+    }
+  ],
+  "origin_rules": [
+    {
+      "rule_id": "repository-authored",
+      "origin": "REPOSITORY_AUTHORED",
+      "disposition": "POTENTIALLY_ADMISSIBLE",
+      "grant_id": "owner-engineering-review-v1",
+      "exact_grant_required": true,
+      "approved_contributor_required": true,
+      "bindings_required": true,
+      "human_review_required": true,
+      "complete_ai_facts_required": false,
+      "provider_tool_terms_required": false
+    },
+    {
+      "rule_id": "ai-generated",
+      "origin": "AI_GENERATED",
+      "disposition": "POTENTIALLY_ADMISSIBLE",
+      "grant_id": "owner-engineering-review-v1",
+      "exact_grant_required": true,
+      "approved_contributor_required": true,
+      "bindings_required": true,
+      "human_review_required": true,
+      "complete_ai_facts_required": true,
+      "provider_tool_terms_required": true
+    },
+    {
+      "rule_id": "third-party-source",
+      "origin": "THIRD_PARTY_SOURCE",
+      "disposition": "REVIEW_REQUIRED",
+      "grant_id": null,
+      "exact_grant_required": false,
+      "approved_contributor_required": false,
+      "bindings_required": false,
+      "human_review_required": false,
+      "complete_ai_facts_required": false,
+      "provider_tool_terms_required": false
+    },
+    {
+      "rule_id": "vendored-source",
+      "origin": "VENDORED_SOURCE",
+      "disposition": "REVIEW_REQUIRED",
+      "grant_id": null,
+      "exact_grant_required": false,
+      "approved_contributor_required": false,
+      "bindings_required": false,
+      "human_review_required": false,
+      "complete_ai_facts_required": false,
+      "provider_tool_terms_required": false
+    },
+    {
+      "rule_id": "generated-artifact",
+      "origin": "GENERATED_ARTIFACT",
+      "disposition": "REVIEW_REQUIRED",
+      "grant_id": null,
+      "exact_grant_required": false,
+      "approved_contributor_required": false,
+      "bindings_required": false,
+      "human_review_required": false,
+      "complete_ai_facts_required": false,
+      "provider_tool_terms_required": false
+    },
+    {
+      "rule_id": "external-patch",
+      "origin": "EXTERNAL_PATCH",
+      "disposition": "REVIEW_REQUIRED",
+      "grant_id": null,
+      "exact_grant_required": false,
+      "approved_contributor_required": false,
+      "bindings_required": false,
+      "human_review_required": false,
+      "complete_ai_facts_required": false,
+      "provider_tool_terms_required": false
+    },
+    {
+      "rule_id": "mixed-unresolved",
+      "origin": "MIXED_UNRESOLVED",
+      "disposition": "REVIEW_REQUIRED",
+      "grant_id": null,
+      "exact_grant_required": false,
+      "approved_contributor_required": false,
+      "bindings_required": false,
+      "human_review_required": false,
+      "complete_ai_facts_required": false,
+      "provider_tool_terms_required": false
+    },
+    {
+      "rule_id": "unapproved-contributor",
+      "origin": "UNAPPROVED_CONTRIBUTOR",
+      "disposition": "REVIEW_REQUIRED",
+      "grant_id": null,
+      "exact_grant_required": false,
+      "approved_contributor_required": false,
+      "bindings_required": false,
+      "human_review_required": false,
+      "complete_ai_facts_required": false,
+      "provider_tool_terms_required": false
+    },
+    {
+      "rule_id": "unknown",
+      "origin": "UNKNOWN",
+      "disposition": "NEVER_ADMITTED",
+      "grant_id": null,
+      "exact_grant_required": false,
+      "approved_contributor_required": false,
+      "bindings_required": false,
+      "human_review_required": false,
+      "complete_ai_facts_required": false,
+      "provider_tool_terms_required": false
+    }
+  ],
+  "embedded_third_party_notice_requires_review": true,
+  "license_expression_required_for_grant_material": false,
+  "spdx_is_evidence_only": true,
+  "ai_required_facts": [
+    "AUTHORING_TOOL_IDENTIFIER",
+    "DECLARED_INPUTS",
+    "EXTERNAL_REFERENCES",
+    "GENERATION_EVIDENCE_DIGEST",
+    "GENERATION_EVIDENCE_REFERENCE",
+    "HUMAN_REVIEWER",
+    "HUMAN_SUBMITTER",
+    "MODEL_IDENTIFIER",
+    "MODEL_VERSION",
+    "MODEL_VERSION_AVAILABILITY",
+    "PROVIDER_IDENTIFIER"
+  ],
+  "ai_allowed_unavailable_facts": ["MODEL_VERSION"],
+  "ai_empty_collections_explicit": true,
+  "ai_not_provided_sufficient": false,
+  "obligations": [
+    {"obligation_id": "retained-notices", "requirement": "MANDATORY_IF_PRESENT"},
+    {
+      "obligation_id": "attribution",
+      "requirement": "MANDATORY_IF_REQUIRED_BY_EVIDENCE"
+    },
+    {
+      "obligation_id": "modification-marking",
+      "requirement": "MANDATORY_IF_REQUIRED_BY_EVIDENCE"
+    },
+    {"obligation_id": "ai-provider-tool-terms", "requirement": "MANDATORY_FOR_AI"},
+    {"obligation_id": "redistribution-rights", "requirement": "NOT_EVALUATED"},
+    {
+      "obligation_id": "public-repository-publication",
+      "requirement": "NOT_EVALUATED"
+    },
+    {"obligation_id": "source-disclosure", "requirement": "NOT_EVALUATED"},
+    {"obligation_id": "target-use", "requirement": "FORBIDDEN"}
+  ],
+  "retention": {
+    "store_id": "engineering-source-admission-v1",
+    "writer_principal": "source-admission-runner",
+    "disposition_principal": "repository-owner",
+    "metadata_report_days": 30,
+    "review_quarantine_until_disposition": true,
+    "review_quarantine_max_days": 30,
+    "raw_partial_max_hours": 24,
+    "append_only_metadata": true,
+    "raw_deletion_requires_tombstone": true,
+    "separate_from_campaign_ledger": true
+  },
+  "revision_triggers": [
+    "CANDIDATE_HEAD",
+    "INVENTORY",
+    "POLICY_VERSION_OR_CONTENT",
+    "PROCESSOR_PROFILE",
+    "REVIEW_EVIDENCE",
+    "USE_PROFILE"
+  ],
+  "previous_reports_historical_only": true,
+  "revision_inheritance_allowed": false,
+  "digest_content_consistency_only": true,
+  "digest_authenticates_owner": false,
+  "digest_proves_protected_main_origin": false,
+  "digest_proves_freshness": false,
+  "digest_grants_permission": false
+}
