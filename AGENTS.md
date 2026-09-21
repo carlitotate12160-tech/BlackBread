@@ -6,7 +6,7 @@ rule. It deliberately does not restate the rules — it points to their single s
 rule is never maintained in two places. Full architecture and safety decisions are in
 `ADR-FINAL-002.md`, `ADR-FINAL-003.md`, `ADR-FINAL-004.md`, `ADR-FINAL-005.md`,
 `ADR-FINAL-006.md`, `ADR-FINAL-007.md`, `ADR-FINAL-008.md`, `ADR-FINAL-009.md`,
-`ADR-FINAL-010.md`, `ADR-FINAL-011.md`, and `PRD.md`.
+`ADR-FINAL-010.md`, `ADR-FINAL-011.md`, `ADR-GOV-IP-PROVENANCE-001A.md`, and `PRD.md`.
 
 ## Start from live truth
 
@@ -31,7 +31,8 @@ Lower authority may strengthen but never weaken higher authority. If two authori
 rules, contradict each other, stop and report the contradiction; do not choose the easier rule.
 
 1. law, signed SOW, and engagement manifest;
-2. accepted ADR decisions in `ADR-FINAL-002.md` through `ADR-FINAL-011.md`;
+2. accepted ADR decisions in `ADR-FINAL-002.md` through `ADR-FINAL-011.md` and
+   `ADR-GOV-IP-PROVENANCE-001A.md`;
 3. `PRD.md`;
 4. `.devin/rules/blackbread.md` — the always-on hard invariants and engineering guardrails;
 5. `GAP-REGISTER.md` — blocker status and closure evidence;
