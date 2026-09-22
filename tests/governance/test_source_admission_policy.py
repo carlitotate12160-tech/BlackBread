@@ -352,10 +352,14 @@ def test_every_security_relevant_policy_family_changes_digest(mutation: Mutation
 def test_policy_module_is_intentionally_unwired() -> None:
     policy_path = ROOT / "src" / "blackbread" / "governance" / "source_admission_policy.py"
     contracts_path = ROOT / "src" / "blackbread" / "governance" / "source_admission_contracts.py"
+    codec_path = ROOT / "src" / "blackbread" / "governance" / "source_admission_codec.py"
     for path in (ROOT / "src" / "blackbread").rglob("*.py"):
         text = path.read_text(encoding="utf-8")
         if path == contracts_path:
             assert "source_admission_policy" in text
+        elif path == codec_path:
+            assert "source_admission_contracts" in text
+            assert "source_admission_policy" not in text
         elif path != policy_path:
             assert "source_admission_policy" not in text
             assert "source_admission_contracts" not in text
