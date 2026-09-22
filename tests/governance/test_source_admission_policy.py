@@ -359,6 +359,7 @@ def test_policy_module_is_intentionally_unwired() -> None:
             assert "source_admission_policy" in text
         elif path == codec_path:
             assert "source_admission_contracts" in text
+            assert "source_admission_policy" not in text
         elif path != policy_path:
             assert "source_admission_policy" not in text
             assert "source_admission_contracts" not in text

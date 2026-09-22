@@ -82,7 +82,9 @@ def _decode_strict(payload: bytes) -> dict[str, Any]:
         )
     except SourceAdmissionWireError:
         raise
-    except (json.JSONDecodeError, RecursionError):
+    except (ValueError, RecursionError):
+        # ValueError also covers the parse_int digit-limit escape, which is not
+        # a JSONDecodeError; decoder failures stay sanitized and fail closed.
         _fail("SOURCE_WIRE_JSON_MALFORMED")
     _reject_deep_json(decoded)
     if not isinstance(decoded, dict):

@@ -228,6 +228,7 @@ def _assert_code(payload: bytes, expected: str, parser: Parser = parse_bundle_by
         (b'{"schema_version":NaN}', "SOURCE_WIRE_FLOAT_FORBIDDEN"),
         (b'{"schema_version":Infinity}', "SOURCE_WIRE_FLOAT_FORBIDDEN"),
         (b'{"schema_version":-Infinity}', "SOURCE_WIRE_FLOAT_FORBIDDEN"),
+        (b'{"schema_version":1,"x":' + b"9" * 5000 + b"}", "SOURCE_WIRE_JSON_MALFORMED"),
         (b"[1,2]", "SOURCE_WIRE_SCHEMA_INVALID"),
         (b"null", "SOURCE_WIRE_SCHEMA_INVALID"),
         (b'{"subject":{}}', "SOURCE_WIRE_SCHEMA_MISSING"),
