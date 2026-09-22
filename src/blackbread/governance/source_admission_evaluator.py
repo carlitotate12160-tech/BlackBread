@@ -1,9 +1,8 @@
-"""Pure deterministic source-admission evaluator.
-
-Derives every item decision, aggregate verdict, and report digest internally.
-"""
+"""Pure deterministic source-admission evaluator; derives verdicts and digests internally."""
 
 from __future__ import annotations
+
+from typing import Literal, NamedTuple
 
 from blackbread.governance.source_admission_codec import (
     compute_declarations_digest,
@@ -13,6 +12,7 @@ from blackbread.governance.source_admission_codec import (
 )
 from blackbread.governance.source_admission_contracts import (
     Availability,
+    ChangeKind,
     ItemAdmissionDecision,
     OriginDeclaration,
     ReasonCode,
@@ -28,14 +28,23 @@ from blackbread.governance.source_admission_contracts import (
     _StrictModel,
 )
 from blackbread.governance.source_admission_policy import (
-    AIFact,
     Disposition,
+    IdentityRole,
+    ObligationRequirement,
     OriginKind,
     OriginRule,
+    PermissionGrant,
     ProcessorProfile,
     SourceAdmissionPolicy,
     compute_policy_digest,
 )
+
+RC = ReasonCode
+Obl = ObligationRequirement
+IR = IdentityRole
+# Origins whose rights the owner can control; owner-controlled grants may not exceed these.
+_OWNER_CONTROLLED_ORIGINS = frozenset({OriginKind.REPOSITORY_AUTHORED, OriginKind.AI_GENERATED})
+_Level = Literal["invalid", "rejected", "review_required"]
 
 
 class SourceAdmissionEvaluationContext(_StrictModel):
@@ -47,100 +56,171 @@ class SourceAdmissionEvaluationContext(_StrictModel):
     run_id: Text
 
 
-def _is_approved_reviewer(reviewer_id: str, policy: SourceAdmissionPolicy) -> bool:
-    for identity in policy.approved_identities:
-        if identity.identity_id == reviewer_id and "REVIEWER" in identity.roles:
-            return True
-    return False
+class _EvalInputs(NamedTuple):
+    policy: SourceAdmissionPolicy
+    subject: SourceSubject
+    origin_rules: dict[OriginKind, OriginRule]
+    obligations: dict[str, ObligationRequirement]
+    valid_reviews: frozenset[str]
+
+
+class _Outcome:
+    """Fail-closed finding accumulator; INVALID > REJECTED > REVIEW_REQUIRED."""
+
+    def __init__(self) -> None:
+        self.reasons: set[ReasonCode] = set()
+        self.invalid = self.rejected = self.review_required = False
+
+    def flag(self, code: ReasonCode, level: _Level) -> None:
+        self.reasons.add(code)
+        setattr(self, level, True)
+
+    def flag_if(self, condition: bool, code: ReasonCode, level: _Level) -> None:
+        if condition:
+            self.flag(code, level)
+
+    def verdict(self) -> Verdict:
+        if self.invalid:
+            return Verdict.INVALID
+        if self.rejected:
+            return Verdict.REJECTED
+        return Verdict.REVIEW_REQUIRED if self.review_required else Verdict.ADMITTED
+
+
+def _has_role(identity_id: str | None, role: IdentityRole, policy: SourceAdmissionPolicy) -> bool:
+    return any(i.identity_id == identity_id and role in i.roles for i in policy.approved_identities)
 
 
 def _check_origins(
-    item: SourceItem, origin_rules: dict[OriginKind, OriginRule], reasons: set[ReasonCode]
-) -> tuple[bool, bool]:
-    invalid = False
-    review_required = False
+    item: SourceItem, origin_rules: dict[OriginKind, OriginRule], out: _Outcome
+) -> list[OriginRule]:
+    pa_rules: list[OriginRule] = []
+    out.flag_if(not item.origins, RC.PROVENANCE_AMBIGUOUS, "review_required")
     for origin in item.origins:
-        if origin not in origin_rules:
-            reasons.add(ReasonCode.POLICY_UNAVAILABLE)
-            invalid = True
-        elif origin_rules[origin].disposition == Disposition.NEVER_ADMITTED:
-            reasons.add(ReasonCode.ORIGIN_UNKNOWN)
-            review_required = True
-    return invalid, review_required
+        rule = origin_rules.get(origin)
+        pa = rule is not None and rule.disposition is Disposition.POTENTIALLY_ADMISSIBLE
+        out.flag_if(rule is None, RC.POLICY_UNAVAILABLE, "invalid")
+        # REVIEW_REQUIRED/NEVER_ADMITTED never admit, even after APPROVED review.
+        out.flag_if(rule is not None and not pa, RC.ORIGIN_UNKNOWN, "review_required")
+        if rule is not None and pa:
+            pa_rules.append(rule)
+    return pa_rules
 
 
 def _check_declarations(
-    item: SourceItem,
-    decs: list[OriginDeclaration],
-    policy: SourceAdmissionPolicy,
-    reasons: set[ReasonCode],
-) -> tuple[bool, bool]:
-    invalid = False
-    review_required = False
+    item: SourceItem, decs: list[OriginDeclaration], out: _Outcome
+) -> str | None:
+    """Bind every covering declaration; return the unambiguous contributor."""
+    bound = item.head_content_sha256
+    if item.change_kind is ChangeKind.DELETED:
+        bound = item.base_content_sha256
     for dec in decs:
-        if item.head_content_sha256 and item.head_content_sha256 not in dec.content_sha256s:
-            reasons.add(ReasonCode.SNAPSHOT_MISMATCH)
-            invalid = True
-        if not set(item.origins).issubset(set(dec.origins)):
-            reasons.add(ReasonCode.PROVENANCE_AMBIGUOUS)
-            invalid = True
-        has_mandatory_fact = any(
-            f.fact == AIFact.MODEL_IDENTIFIER and f.availability == Availability.AVAILABLE
-            for f in dec.ai_facts
+        if bound is not None and bound not in dec.content_sha256s:
+            out.flag(RC.SNAPSHOT_MISMATCH, "invalid")
+        if set(dec.origins) != set(item.origins):
+            out.flag(RC.PROVENANCE_AMBIGUOUS, "invalid")
+    contributors = {dec.contributor_identity_id for dec in decs}
+    out.flag_if(len(contributors) > 1, RC.PROVENANCE_AMBIGUOUS, "review_required")
+    return contributors.pop() if len(contributors) == 1 else None
+
+
+def _grant_level(
+    grant: PermissionGrant,
+    subject: SourceSubject,
+    item: SourceItem,
+    contributor: str | None,
+    policy: SourceAdmissionPolicy,
+) -> _Level | None:
+    """Return the fail-closed level a grant defect maps to, or None when sound."""
+    uncontrolled = set(grant.material_scope) - _OWNER_CONTROLLED_ORIGINS
+    overreach = bool(
+        grant.waives_third_party_rights
+        or grant.merge_permission
+        or grant.capability_permission
+        or grant.target_permission
+        or (grant.owner_controlled_rights_only and uncontrolled)
+    )
+    inconsistent = (
+        overreach
+        or not _has_role(grant.grantor_identity_id, IR.GRANTOR, policy)
+        or grant.permitted_use not in policy.use_profiles
+    )
+    unpermitted = (
+        grant.repository != subject.repository
+        or grant.permitted_use != subject.use_profile
+        or not set(item.origins) <= set(grant.material_scope)
+        or (grant.owner_submitted_only and not _has_role(contributor, IR.OWNER, policy))
+    )
+    if inconsistent:
+        return "invalid"
+    if unpermitted:
+        return "rejected"
+    return None
+
+
+def _check_grants(
+    item: SourceItem,
+    pa_rules: list[OriginRule],
+    contributor: str | None,
+    ctx: _EvalInputs,
+    out: _Outcome,
+) -> None:
+    grants = {g.grant_id: g for g in ctx.policy.permission_grants}
+    for rule in pa_rules:
+        if rule.approved_contributor_required and not _has_role(
+            contributor, IR.REPOSITORY_CONTRIBUTOR, ctx.policy
+        ):
+            out.flag(RC.PROVENANCE_AMBIGUOUS, "review_required")
+        if rule.grant_id is None and not rule.exact_grant_required:
+            continue
+        grant = grants.get(rule.grant_id or "")
+        level = (
+            "invalid"
+            if grant is None
+            else _grant_level(grant, ctx.subject, item, contributor, ctx.policy)
         )
-        if OriginKind.AI_GENERATED in item.origins and not has_mandatory_fact:
-            reasons.add(ReasonCode.REQUIRED_OBLIGATION_UNSATISFIED)
-            review_required = True
-        for f in dec.ai_facts:
-            if (
-                f.availability == Availability.UNAVAILABLE
-                and f.fact not in policy.ai_allowed_unavailable_facts
-            ):
-                reasons.add(ReasonCode.REQUIRED_OBLIGATION_UNSATISFIED)
-                review_required = True
-    return invalid, review_required
+        out.flag_if(level == "invalid", RC.POLICY_UNAVAILABLE, "invalid")
+        out.flag_if(level == "rejected", RC.POLICY_FORBIDS_USE, "rejected")
 
 
 def _evaluate_item(
-    item: SourceItem,
-    bundle: SourceAdmissionBundle,
-    policy: SourceAdmissionPolicy,
-    origin_rules: dict[OriginKind, OriginRule],
-    valid_reviews: set[str],
+    item: SourceItem, bundle: SourceAdmissionBundle, ctx: _EvalInputs
 ) -> ItemAdmissionDecision:
-    reasons = set()
+    out = _Outcome()
     decs = [d for d in bundle.declarations if item.item_id in d.item_ids]
-    if not decs:
-        reasons.add(ReasonCode.PROVENANCE_AMBIGUOUS)
-    inv1, rev1 = _check_origins(item, origin_rules, reasons)
-    inv2, rev2 = _check_declarations(item, decs, policy, reasons)
-    rejected = (
-        "ai-provider-tool-terms" not in item.obligation_refs
-        and OriginKind.AI_GENERATED in item.origins
+    out.flag_if(not decs, RC.PROVENANCE_AMBIGUOUS, "review_required")
+    pa_rules = _check_origins(item, ctx.origin_rules, out)
+    contributor = _check_declarations(item, decs, out)
+    _check_grants(item, pa_rules, contributor, ctx, out)
+    ai_item = OriginKind.AI_GENERATED in item.origins
+    if ai_item:
+        for fact in ctx.policy.ai_required_facts:
+            evidence = [f for d in decs for f in d.ai_facts if f.fact is fact]
+            values = {f.value for f in evidence if f.availability is Availability.AVAILABLE}
+            unavailable = any(f.availability is Availability.UNAVAILABLE for f in evidence)
+            allowed = unavailable and fact in ctx.policy.ai_allowed_unavailable_facts
+            if len(values) > 1 or (values and unavailable):
+                out.flag(RC.PROVENANCE_AMBIGUOUS, "review_required")
+            elif not values and not allowed:
+                out.flag(RC.REQUIRED_OBLIGATION_UNSATISFIED, "review_required")
+    for obligation_id, req in ctx.obligations.items():
+        if req is Obl.FORBIDDEN and obligation_id in item.obligation_refs:
+            out.flag(RC.REQUIRED_OBLIGATION_UNSATISFIED, "rejected")
+        if ai_item and req is Obl.MANDATORY_FOR_AI and obligation_id not in item.obligation_refs:
+            out.flag(RC.REQUIRED_OBLIGATION_UNSATISFIED, "rejected")
+    for ref in item.obligation_refs:
+        out.flag_if(ref not in ctx.obligations, RC.PROVENANCE_AMBIGUOUS, "review_required")
+    needs_review = any(r.human_review_required for r in pa_rules)
+    reviewed = any(
+        item.item_id in r.item_ids and r.review_id in ctx.valid_reviews for r in bundle.reviews
     )
-    if rejected:
-        reasons.add(ReasonCode.REQUIRED_OBLIGATION_UNSATISFIED)
-    has_review = any(
-        item.item_id in rev.item_ids and rev.review_id in valid_reviews for rev in bundle.reviews
-    )
-    if not has_review:
-        reasons.add(ReasonCode.REVIEW_MISSING)
-
-    invalid = inv1 or inv2
-    review_required = rev1 or rev2 or not decs or not has_review
-    if invalid:
-        verdict = Verdict.INVALID
-    elif rejected:
-        verdict = Verdict.REJECTED
-    elif review_required:
-        verdict = Verdict.REVIEW_REQUIRED
-    else:
-        verdict = Verdict.ADMITTED
+    out.flag_if(needs_review and not reviewed, RC.REVIEW_MISSING, "review_required")
+    verdict = out.verdict()
     return ItemAdmissionDecision(
         item_id=item.item_id,
         verdict=verdict,
-        reason_codes=tuple(sorted(reasons)),
-        evidence_complete=verdict == Verdict.ADMITTED,
+        reason_codes=tuple(sorted(out.reasons)),
+        evidence_complete=verdict is Verdict.ADMITTED,
     )
 
 
@@ -148,37 +228,34 @@ def _check_global(
     bundle: SourceAdmissionBundle,
     policy: SourceAdmissionPolicy,
     context: SourceAdmissionEvaluationContext,
-) -> tuple[set[ReasonCode], bool, bool]:
-    reasons: set[ReasonCode] = set()
-    if bundle.subject != context.expected_subject:
-        reasons.add(ReasonCode.SNAPSHOT_MISMATCH)
-    if bundle.run_id != context.run_id:
-        reasons.add(ReasonCode.IDENTITY_MISMATCH)
-    if bundle.policy_ref != context.expected_policy_ref:
-        reasons.add(ReasonCode.DIGEST_MISMATCH)
-    if compute_policy_digest(policy) != context.expected_policy_ref.policy_sha256:
-        reasons.add(ReasonCode.DIGEST_MISMATCH)
-    if not bundle.items:
-        reasons.add(ReasonCode.INCOMPLETE_INVENTORY)
-
-    inv = bool(reasons)
+    out: _Outcome,
+) -> None:
+    ref, subject = bundle.policy_ref, bundle.subject
+    out.flag_if(subject != context.expected_subject, RC.SNAPSHOT_MISMATCH, "invalid")
+    out.flag_if(bundle.run_id != context.run_id, RC.IDENTITY_MISMATCH, "invalid")
+    out.flag_if(ref != context.expected_policy_ref, RC.DIGEST_MISMATCH, "invalid")
+    if compute_policy_digest(policy) != ref.policy_sha256:
+        out.flag(RC.DIGEST_MISMATCH, "invalid")
+    # The ref must describe this exact policy and subject, not merely carry a
+    # matching digest; commit/blob SHAs and protected-main provenance are B2.
+    for field in ("policy_id", "policy_version", "retention"):
+        out.flag_if(getattr(ref, field) != getattr(policy, field), RC.IDENTITY_MISMATCH, "invalid")
+    for field in ("use_profile", "processor_profile"):
+        out.flag_if(getattr(ref, field) != getattr(subject, field), RC.IDENTITY_MISMATCH, "invalid")
+    out.flag_if(not bundle.items, RC.INCOMPLETE_INVENTORY, "invalid")
+    if len({r.origin for r in policy.origin_rules}) != len(policy.origin_rules):
+        out.flag(RC.POLICY_UNAVAILABLE, "invalid")
     item_ids = {item.item_id for item in bundle.items}
     for dec in bundle.declarations:
         if not set(dec.item_ids).issubset(item_ids):
-            reasons.add(ReasonCode.INCOMPLETE_INVENTORY)
-            inv = True
-
-    rej = False
-    if bundle.subject.use_profile not in policy.use_profiles:
-        reasons.add(ReasonCode.POLICY_FORBIDS_USE)
-        rej = True
+            out.flag(RC.INCOMPLETE_INVENTORY, "invalid")
+    if subject.use_profile not in policy.use_profiles:
+        out.flag(RC.POLICY_FORBIDS_USE, "rejected")
     if (
-        bundle.subject.processor_profile == ProcessorProfile.EXTERNAL
+        subject.processor_profile is ProcessorProfile.EXTERNAL
         and policy.external_processors_forbidden
     ):
-        reasons.add(ReasonCode.DISCLOSURE_FORBIDDEN)
-        rej = True
-    return reasons, inv, rej
+        out.flag(RC.DISCLOSURE_FORBIDDEN, "rejected")
 
 
 def _check_reviews(
@@ -186,37 +263,20 @@ def _check_reviews(
     policy: SourceAdmissionPolicy,
     item_ids: set[str],
     inv_digest: str,
-    reasons: set[ReasonCode],
-) -> tuple[set[str], bool]:
+    out: _Outcome,
+) -> frozenset[str]:
     valid = set()
-    inv = False
     for rev in bundle.reviews:
         if not set(rev.item_ids).issubset(item_ids):
-            reasons.add(ReasonCode.INCOMPLETE_INVENTORY)
-            inv = True
-        if rev.inventory_digest != inv_digest:
-            reasons.add(ReasonCode.DIGEST_MISMATCH)
-            inv = True
-        if (
-            rev.revoked
-            or rev.superseded_by
-            or not _is_approved_reviewer(rev.reviewer_identity_id, policy)
-        ):
-            reasons.add(ReasonCode.UNTRUSTED_REVIEW)
-            inv = True
-        elif rev.decision == ReviewDecision.APPROVED:
+            out.flag(RC.INCOMPLETE_INVENTORY, "invalid")
+        out.flag_if(rev.inventory_digest != inv_digest, RC.DIGEST_MISMATCH, "invalid")
+        untrusted = bool(rev.revoked or rev.superseded_by) or not _has_role(
+            rev.reviewer_identity_id, IR.REVIEWER, policy
+        )
+        out.flag_if(untrusted, RC.UNTRUSTED_REVIEW, "invalid")
+        if not untrusted and rev.decision is ReviewDecision.APPROVED:
             valid.add(rev.review_id)
-    return valid, inv
-
-
-def _aggregate_verdict(decisions: list[ItemAdmissionDecision], inv: bool, rej: bool) -> Verdict:
-    if inv or any(d.verdict == Verdict.INVALID for d in decisions):
-        return Verdict.INVALID
-    if rej or any(d.verdict == Verdict.REJECTED for d in decisions):
-        return Verdict.REJECTED
-    if any(d.verdict == Verdict.REVIEW_REQUIRED for d in decisions):
-        return Verdict.REVIEW_REQUIRED
-    return Verdict.ADMITTED
+    return frozenset(valid)
 
 
 def evaluate_source_admission(
@@ -224,23 +284,21 @@ def evaluate_source_admission(
     policy: SourceAdmissionPolicy,
     context: SourceAdmissionEvaluationContext,
 ) -> SourceAdmissionReport:
-    global_reasons, global_inv, global_rej = _check_global(bundle, policy, context)
+    out = _Outcome()
+    _check_global(bundle, policy, context, out)
     inv_digest = compute_inventory_digest(bundle)
-    valid_reviews, rev_inv = _check_reviews(
-        bundle, policy, {i.item_id for i in bundle.items}, inv_digest, global_reasons
-    )
-
-    origin_rules = {r.origin: r for r in policy.origin_rules}
-    decisions = [
-        _evaluate_item(item, bundle, policy, origin_rules, valid_reviews) for item in bundle.items
-    ]
-
-    all_reasons = set(global_reasons)
+    rules = {r.origin: r for r in policy.origin_rules}
+    obligations = {o.obligation_id: o.requirement for o in policy.obligations}
+    item_ids = {i.item_id for i in bundle.items}
+    reviews = _check_reviews(bundle, policy, item_ids, inv_digest, out)
+    ctx = _EvalInputs(policy, bundle.subject, rules, obligations, reviews)
+    decisions = [_evaluate_item(item, bundle, ctx) for item in bundle.items]
     for d in decisions:
-        all_reasons.update(d.reason_codes)
-
-    verdict = _aggregate_verdict(decisions, global_inv or rev_inv, global_rej)
-
+        out.reasons.update(d.reason_codes)
+        out.invalid |= d.verdict is Verdict.INVALID
+        out.rejected |= d.verdict is Verdict.REJECTED
+        out.review_required |= d.verdict is Verdict.REVIEW_REQUIRED
+    verdict = out.verdict()
     report = SourceAdmissionReport(
         schema_version=1,
         subject=bundle.subject,
@@ -251,14 +309,12 @@ def evaluate_source_admission(
         evaluator_version=context.evaluator_version,
         item_decisions=tuple(decisions),
         verdict=verdict,
-        reason_codes=tuple(sorted(all_reasons)),
-        evidence_complete=verdict == Verdict.ADMITTED,
+        reason_codes=tuple(sorted(out.reasons)),
+        evidence_complete=verdict is Verdict.ADMITTED,
         coverage_description=bundle.subject.coverage_description,
         observed_at=context.observed_at,
         producer=context.producer,
         run_id=context.run_id,
         report_digest="0" * 64,
     )
-    return SourceAdmissionReport(
-        **{**report.model_dump(), "report_digest": compute_report_digest(report)}
-    )
+    return report.model_copy(update={"report_digest": compute_report_digest(report)})
