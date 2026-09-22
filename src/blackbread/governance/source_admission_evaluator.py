@@ -16,7 +16,9 @@ from blackbread.governance.source_admission_codec import (
 from blackbread.governance.source_admission_contracts import (
     Availability,
     ItemAdmissionDecision,
+    OriginDeclaration,
     ReasonCode,
+    ReviewDecision,
     SourceAdmissionBundle,
     SourceAdmissionReport,
     SourceItem,
@@ -34,6 +36,7 @@ from blackbread.governance.source_admission_policy import (
     OriginRule,
     ProcessorProfile,
     SourceAdmissionPolicy,
+    compute_policy_digest,
 )
 
 
@@ -69,7 +72,7 @@ def _check_origins(
 
 
 def _check_declarations(
-    item: SourceItem, decs: list[Any], policy: SourceAdmissionPolicy, reasons: set[ReasonCode]
+    item: SourceItem, decs: list[OriginDeclaration], policy: SourceAdmissionPolicy, reasons: set[ReasonCode]
 ) -> tuple[bool, bool]:
     invalid = False
     review_required = False
@@ -84,7 +87,7 @@ def _check_declarations(
             f.fact == AIFact.MODEL_IDENTIFIER and f.availability == Availability.AVAILABLE
             for f in dec.ai_facts
         )
-        if "AI_GENERATED" in item.origins and not has_mandatory_fact:
+        if OriginKind.AI_GENERATED in item.origins and not has_mandatory_fact:
             reasons.add(ReasonCode.REQUIRED_OBLIGATION_UNSATISFIED)
             review_required = True
         for f in dec.ai_facts:
@@ -111,7 +114,7 @@ def _evaluate_item(
     inv1, rev1 = _check_origins(item, origin_rules, reasons)
     inv2, rev2 = _check_declarations(item, decs, policy, reasons)
     rejected = (
-        "ai-provider-tool-terms" not in item.obligation_refs and "AI_GENERATED" in item.origins
+        "ai-provider-tool-terms" not in item.obligation_refs and OriginKind.AI_GENERATED in item.origins
     )
     if rejected:
         reasons.add(ReasonCode.REQUIRED_OBLIGATION_UNSATISFIED)
@@ -150,6 +153,8 @@ def _check_global(
     if bundle.run_id != context.run_id:
         reasons.add(ReasonCode.IDENTITY_MISMATCH)
     if bundle.policy_ref != context.expected_policy_ref:
+        reasons.add(ReasonCode.DIGEST_MISMATCH)
+    if compute_policy_digest(policy) != context.expected_policy_ref.policy_sha256:
         reasons.add(ReasonCode.DIGEST_MISMATCH)
     if not bundle.items:
         reasons.add(ReasonCode.INCOMPLETE_INVENTORY)
@@ -197,7 +202,7 @@ def _check_reviews(
         ):
             reasons.add(ReasonCode.UNTRUSTED_REVIEW)
             inv = True
-        elif rev.decision == "APPROVED":
+        elif rev.decision == ReviewDecision.APPROVED:
             valid.add(rev.review_id)
     return valid, inv
 
