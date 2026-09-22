@@ -306,6 +306,10 @@ _EXT_SUBJECT = _subject(processor_profile=ProcessorProfile.EXTERNAL)
 _EXT_REF = _mutate(_policy_ref(), processor_profile=ProcessorProfile.EXTERNAL)
 _EXT_BUNDLE = _assemble(_ITEM, _DEC, subject=_EXT_SUBJECT, policy_ref=_EXT_REF)
 _EXT_CTX = _context(subject=_EXT_SUBJECT, expected_policy_ref=_EXT_REF)
+_EXT_POLICY = _pmut(
+    processor_profile=ProcessorProfile.EXTERNAL, external_processors_forbidden=False
+)
+_EXT_POLICY_REF = _policy_ref(_EXT_POLICY)
 _GHOST_BUNDLE = _assemble(_ITEM, _dec_mut(contributor_identity_id="ghost:unapproved"))
 _NO_CONTRIB_BUNDLE = _assemble(_ITEM, _dec_mut(contributor_identity_id=None))
 _CONTRIB_REF = _policy_ref(_CONTRIB_POLICY)
@@ -323,7 +327,7 @@ _CONFLICT_BUNDLE = _bundle(
 _FAIL_CASES = [
     _case(_bundle((), (), ()), V.INVALID, INCOMPLETE),
     _case(_bundle((_ITEM,), (_ORPHAN_DEC,), (_ORPHAN_REV,)), V.INVALID, INCOMPLETE),
-    _case(_bundle((_ITEM,), (), (_REV,)), V.REJECTED, AMBIGUOUS),
+    _case(_bundle((_ITEM,), (), (_REV,)), V.REVIEW_REQUIRED, AMBIGUOUS),
     _case(_bundle((_ITEM,), (_DEC,), ()), V.REVIEW_REQUIRED, RC.REVIEW_MISSING),
     _case(_bmut(subject=_ALT_SUBJECT), V.INVALID, SNAP_MISMATCH, ctx=_CTX),
     _case(_bmut(run_id="alt-run"), V.INVALID, ID_MISMATCH, ctx=_CTX),
@@ -333,10 +337,16 @@ _FAIL_CASES = [
     _case(_VALID, V.INVALID, NO_POLICY, policy=_pmut(origin_rules=_NO_AI_RULES)),
     _case(_VALID, V.INVALID, NO_POLICY, policy=_DUP_POLICY),
     _case(_EXT_BUNDLE, V.REJECTED, RC.DISCLOSURE_FORBIDDEN, ctx=_EXT_CTX),
-    _case(_GHOST_BUNDLE, V.REJECTED, AMBIGUOUS),
-    _case(_NO_CONTRIB_BUNDLE, V.REJECTED, AMBIGUOUS),
-    _case(_CONTRIB_BUNDLE, V.REJECTED, RC.POLICY_FORBIDS_USE, policy=_CONTRIB_POLICY),
-    _case(_CONFLICT_BUNDLE, V.REJECTED, AMBIGUOUS),
+    _case(
+        _bmut(policy_ref=_EXT_POLICY_REF),
+        V.REJECTED,
+        RC.DISCLOSURE_FORBIDDEN,
+        policy=_EXT_POLICY,
+    ),
+    _case(_GHOST_BUNDLE, V.REVIEW_REQUIRED, AMBIGUOUS),
+    _case(_NO_CONTRIB_BUNDLE, V.REVIEW_REQUIRED, AMBIGUOUS),
+    _case(_CONTRIB_BUNDLE, V.REVIEW_REQUIRED, AMBIGUOUS, policy=_CONTRIB_POLICY),
+    _case(_CONFLICT_BUNDLE, V.REVIEW_REQUIRED, AMBIGUOUS),
     _case(_SUBSET_BUNDLE, V.INVALID, AMBIGUOUS),
     _case(_SUPERSET_BUNDLE, V.INVALID, AMBIGUOUS),
     _case(_assemble(_FORBID_OBL_ITEM, _DEC), V.REJECTED, UNSAT),

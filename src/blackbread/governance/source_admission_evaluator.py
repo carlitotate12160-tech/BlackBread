@@ -149,12 +149,15 @@ def _grant_level(
         grant.repository != subject.repository
         or grant.permitted_use != subject.use_profile
         or not set(item.origins) <= set(grant.material_scope)
-        or (grant.owner_submitted_only and not _has_role(contributor, IR.OWNER, policy))
     )
     if inconsistent:
         return "invalid"
     if unpermitted:
         return "rejected"
+    # An owner-submitted-only grant whose submitter identity is not yet
+    # established is a provenance gap, not a hard policy refusal.
+    if grant.owner_submitted_only and not _has_role(contributor, IR.OWNER, policy):
+        return "review_required"
     return None
 
 
@@ -181,6 +184,7 @@ def _check_grants(
         )
         out.flag_if(level == "invalid", RC.POLICY_UNAVAILABLE, "invalid")
         out.flag_if(level == "rejected", RC.POLICY_FORBIDS_USE, "rejected")
+        out.flag_if(level == "review_required", RC.PROVENANCE_AMBIGUOUS, "review_required")
 
 
 def _evaluate_item(
@@ -251,6 +255,10 @@ def _check_global(
             out.flag(RC.INCOMPLETE_INVENTORY, "invalid")
     if subject.use_profile not in policy.use_profiles:
         out.flag(RC.POLICY_FORBIDS_USE, "rejected")
+    # Symmetric: the declared processor profile must equal the policy-permitted
+    # profile, not merely avoid EXTERNAL while external is forbidden.
+    if subject.processor_profile != policy.processor_profile:
+        out.flag(RC.DISCLOSURE_FORBIDDEN, "rejected")
     if (
         subject.processor_profile is ProcessorProfile.EXTERNAL
         and policy.external_processors_forbidden
