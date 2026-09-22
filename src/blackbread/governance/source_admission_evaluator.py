@@ -5,8 +5,6 @@ Derives every item decision, aggregate verdict, and report digest internally.
 
 from __future__ import annotations
 
-from typing import Any
-
 from blackbread.governance.source_admission_codec import (
     compute_declarations_digest,
     compute_inventory_digest,
@@ -72,7 +70,10 @@ def _check_origins(
 
 
 def _check_declarations(
-    item: SourceItem, decs: list[OriginDeclaration], policy: SourceAdmissionPolicy, reasons: set[ReasonCode]
+    item: SourceItem,
+    decs: list[OriginDeclaration],
+    policy: SourceAdmissionPolicy,
+    reasons: set[ReasonCode],
 ) -> tuple[bool, bool]:
     invalid = False
     review_required = False
@@ -114,7 +115,8 @@ def _evaluate_item(
     inv1, rev1 = _check_origins(item, origin_rules, reasons)
     inv2, rev2 = _check_declarations(item, decs, policy, reasons)
     rejected = (
-        "ai-provider-tool-terms" not in item.obligation_refs and OriginKind.AI_GENERATED in item.origins
+        "ai-provider-tool-terms" not in item.obligation_refs
+        and OriginKind.AI_GENERATED in item.origins
     )
     if rejected:
         reasons.add(ReasonCode.REQUIRED_OBLIGATION_UNSATISFIED)
