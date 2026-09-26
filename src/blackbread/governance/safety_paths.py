@@ -28,6 +28,7 @@ SAFETY_CRITICAL_PATH_PARTS = (
     "src/blackbread/tenant",
     "src/blackbread/tenancy/",
     "src/blackbread/models/core.py",
+    "src/blackbread/governance/source_admission_git_trees.py",
     "config/capability-registry.json",
 )
 
