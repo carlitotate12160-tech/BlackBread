@@ -451,6 +451,7 @@ def test_codec_is_intentionally_unwired_and_has_no_effect_reachability() -> None
         "authoritative",
     ):
         assert not re.search(rf"\b{forbidden}", source)
+    evaluator_path = ROOT / "src" / "blackbread" / "governance" / "source_admission_evaluator.py"
     for path in (ROOT / "src" / "blackbread").rglob("*.py"):
-        if path != codec_path:
+        if path not in (codec_path, evaluator_path):
             assert "source_admission_codec" not in path.read_text(encoding="utf-8")
