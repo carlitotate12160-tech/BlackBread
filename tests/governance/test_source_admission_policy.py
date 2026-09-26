@@ -354,6 +354,7 @@ def test_policy_module_is_intentionally_unwired() -> None:
     contracts_path = ROOT / "src" / "blackbread" / "governance" / "source_admission_contracts.py"
     codec_path = ROOT / "src" / "blackbread" / "governance" / "source_admission_codec.py"
     evaluator_path = ROOT / "src" / "blackbread" / "governance" / "source_admission_evaluator.py"
+    source_path = ROOT / "src" / "blackbread" / "governance" / "source_admission_policy_source.py"
     for path in (ROOT / "src" / "blackbread").rglob("*.py"):
         text = path.read_text(encoding="utf-8")
         if path == contracts_path:
@@ -363,6 +364,9 @@ def test_policy_module_is_intentionally_unwired() -> None:
             assert "source_admission_policy" not in text
         elif path == evaluator_path:
             assert "source_admission_policy" in text or "source_admission_contracts" in text
+        elif path == source_path:
+            assert "source_admission_policy" in text
+            assert "source_admission_contracts" in text
         elif path != policy_path:
             assert "source_admission_policy" not in text
             assert "source_admission_contracts" not in text
