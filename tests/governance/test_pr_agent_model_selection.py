@@ -22,6 +22,19 @@ def test_path_classification_is_segment_aware() -> None:
     assert paths_require_binding_review(["src/blackbread/kill_switch.py"])
 
 
+def test_git_tree_census_requires_binding_review_only_at_exact_production_path() -> None:
+    path = "src/blackbread/governance/source_admission_git_trees.py"
+    assert paths_require_binding_review([path])
+    assert paths_require_binding_review(["docs/design.md", path])
+    for lookalike in (
+        f"{path}.backup",
+        "src/blackbread/governance/source_admission_git_trees_extra.py",
+        "src/blackbread/governance/other.py",
+        "tests/governance/test_source_admission_git_trees.py",
+    ):
+        assert not paths_require_binding_review([lookalike])
+
+
 def test_migration_versions_are_safety_critical() -> None:
     assert paths_require_binding_review(["migrations/versions/0008_m1_policy_recorder_identity.py"])
     assert paths_require_binding_review(["migrations/versions/0007_m1_policy_records.py"])
