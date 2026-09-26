@@ -374,16 +374,32 @@ def test_executable_bit_blob_remains_a_regular_file() -> None:
     assert _load(_FakeTransport(responses=responses)).policy_ref.source_blob_sha1 == BLOB_SHA
 
 
-def test_changed_policy_bytes_with_consistent_parse_still_fail_on_identity() -> None:
-    # Even self-consistent substituted policy bytes cannot match the pinned
-    # blob identity: the served object hash disagrees with the tree's SHA.
-    tampered = b'{"schema_version": 2}'
-    tampered_sha = _git_blob_sha(tampered)
+def test_parseable_substituted_bytes_still_fail_on_blob_identity() -> None:
+    # A strict-valid alternate policy never reaches parsing: the tree pins a
+    # blob SHA that the served bytes cannot reproduce, and the preimage check
+    # fires even though echo, encoding, and size are all self-consistent.
+    alt_doc = json.loads(POLICY_BYTES.decode("utf-8"))
+    alt_doc["unknown_default"] = "POTENTIALLY_ADMISSIBLE"
+    alt_doc["unknown_admissible"] = True
+    alt_bytes = json.dumps(alt_doc).encode("utf-8")
+    alt_policy = parse_policy_bytes(alt_bytes)
+    assert compute_policy_digest(alt_policy) != KNOWN_DIGEST
     responses = _default_responses()
-    key = f"{REPO_PATH}/git/trees/{CONFIG_TREE_SHA}"
-    alt = _entry("source-admission-policy.json", "100644", "blob", tampered_sha)
-    responses[key] = _result(_config_tree(entries=[alt]))
-    responses[f"{REPO_PATH}/git/blobs/{tampered_sha}"] = _result(_blob_body(content=tampered))
+    _replace_leaf(responses, _entry("source-admission-policy.json", "100644", "blob", OTHER_SHA))
+    forged = _blob_body(content=alt_bytes)
+    forged["sha"] = OTHER_SHA
+    responses[f"{REPO_PATH}/git/blobs/{OTHER_SHA}"] = _result(forged)
+    _assert_code("OBJECT_IDENTITY_MISMATCH", transport=_FakeTransport(responses=responses))
+
+
+def test_strict_parse_failures_keep_stable_codes() -> None:
+    # A self-consistent pinned blob whose bytes are a bad policy still fails:
+    # parser codes propagate through PolicySourceError unchanged.
+    bad = b'{"schema_version": 2}'
+    bad_sha = _git_blob_sha(bad)
+    responses = _default_responses()
+    _replace_leaf(responses, _entry("source-admission-policy.json", "100644", "blob", bad_sha))
+    responses[f"{REPO_PATH}/git/blobs/{bad_sha}"] = _result(_blob_body(content=bad))
     error = _assert_code("POLICY_SCHEMA_UNSUPPORTED", transport=_FakeTransport(responses=responses))
     assert "2" not in str(error)
 
