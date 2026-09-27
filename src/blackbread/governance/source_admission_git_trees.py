@@ -294,8 +294,9 @@ def _well_formed_leaf(leaf: TreeLeaf) -> bool:
     )
 
 
-def _canonical_leaves(leaves: tuple[TreeLeaf, ...]) -> dict[bytes, TreeLeaf]:
+def _canonical_leaves(leaves: tuple[TreeLeaf, ...] | list[TreeLeaf]) -> dict[bytes, TreeLeaf]:
     """Validate leaf shape and require canonical unique sorted path order."""
+    _require(isinstance(leaves, (tuple, list)), "MALFORMED_CENSUS")
     decoded: dict[bytes, TreeLeaf] = {}
     previous: bytes | None = None
     for leaf in leaves:

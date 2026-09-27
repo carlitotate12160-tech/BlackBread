@@ -329,8 +329,8 @@ def _typed_leaf(path: bytes, mode: str, sha: str) -> TreeLeaf:
     return TreeLeaf(_b64(path), mode, kind, sha)
 
 
-def _census(base: list[TreeLeaf], head: list[TreeLeaf]) -> GitTreeCensus:
-    return GitTreeCensus(REPO, BASE, HEAD, "d" * 40, "e" * 40, tuple(base), tuple(head))
+def _census(base: Any, head: Any) -> GitTreeCensus:
+    return GitTreeCensus(REPO, BASE, HEAD, "d" * 40, "e" * 40, base, head)
 
 
 def _reject_reconcile(census: Any, code: str) -> None:
@@ -433,6 +433,21 @@ def test_reconcile_rejects_malformed_leaf_input(leaf: Any) -> None:
 
 def test_reconcile_rejects_non_census_input() -> None:
     _reject_reconcile("not-a-census", "MALFORMED_CENSUS")
+
+
+@pytest.mark.parametrize(
+    "leaves",
+    [
+        None,
+        "",
+        123,
+        {"a": 1},
+        frozenset({_typed_leaf(b"x", "100644", OTHER)}),
+    ],
+)
+def test_reconcile_rejects_non_sequence_leaf_sides(leaves: Any) -> None:
+    _reject_reconcile(_census(leaves, []), "MALFORMED_CENSUS")
+    _reject_reconcile(_census([], leaves), "MALFORMED_CENSUS")
 
 
 def test_reconcile_is_pure_caller_constructible_without_authority() -> None:
