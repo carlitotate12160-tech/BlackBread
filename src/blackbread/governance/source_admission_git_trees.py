@@ -282,14 +282,27 @@ def collect_git_tree_census(
     )
 
 
+def _well_formed_leaf(leaf: TreeLeaf) -> bool:
+    """Check a leaf carries a real non-tree mode, matching kind, and SHA-1."""
+    return (
+        isinstance(leaf.mode, str)
+        and leaf.mode in _MODES
+        and leaf.mode != _TREE_MODE
+        and leaf.kind == _MODES[leaf.mode]
+        and isinstance(leaf.object_sha1, str)
+        and _SHA1_RE.fullmatch(leaf.object_sha1) is not None
+    )
+
+
 def _canonical_leaves(leaves: tuple[TreeLeaf, ...]) -> dict[bytes, TreeLeaf]:
-    """Decode leaf paths and require the canonical unique sorted order."""
+    """Validate leaf shape and require canonical unique sorted path order."""
     decoded: dict[bytes, TreeLeaf] = {}
     previous: bytes | None = None
     for leaf in leaves:
         _require(isinstance(leaf, TreeLeaf), "MALFORMED_CENSUS")
         encoded = leaf.path_base64
         _require(isinstance(encoded, str), "MALFORMED_CENSUS")
+        _require(_well_formed_leaf(leaf), "MALFORMED_CENSUS")
         try:
             raw = base64.b64decode(encoded, validate=True)
         except ValueError:

@@ -419,6 +419,11 @@ def test_reconcile_rejects_noncanonical_leaf_order(side: str) -> None:
         TreeLeaf("", "100644", "blob", OTHER),
         TreeLeaf("QX==", "100644", "blob", OTHER),
         TreeLeaf(123, "100644", "blob", OTHER),
+        TreeLeaf(_b64(b"x"), "999999", "blob", OTHER),
+        TreeLeaf(_b64(b"x"), "040000", "tree", OTHER),
+        TreeLeaf(_b64(b"x"), "160000", "blob", OTHER),
+        TreeLeaf(_b64(b"x"), "100644", "blob", "zzzz"),
+        TreeLeaf(_b64(b"x"), "100644", "blob", 123),
         ("not-a-leaf",),
     ],
 )
