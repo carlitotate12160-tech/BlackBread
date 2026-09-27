@@ -14,10 +14,14 @@ import pytest
 
 from blackbread.governance.github_merge_transport import TransportError, TransportResult
 from blackbread.governance.source_admission_git_trees import (
+    CensusEntry,
     GitTreeCensus,
     GitTreeCensusError,
+    GitTreeInventory,
+    LeafStatus,
     TreeLeaf,
     collect_git_tree_census,
+    reconcile_git_tree_census,
 )
 
 REPO = "owner/repo"
@@ -318,3 +322,138 @@ def test_unwired_and_caller_constructible_without_authority() -> None:
             else:
                 continue
             assert not any(name.endswith("source_admission_git_trees") for name in imported)
+
+
+def _typed_leaf(path: bytes, mode: str, sha: str) -> TreeLeaf:
+    kind = "commit" if mode == "160000" else "blob"
+    return TreeLeaf(_b64(path), mode, kind, sha)
+
+
+def _census(base: Any, head: Any) -> GitTreeCensus:
+    return GitTreeCensus(REPO, BASE, HEAD, "d" * 40, "e" * 40, base, head)
+
+
+def _reject_reconcile(census: Any, code: str) -> None:
+    with pytest.raises(GitTreeCensusError) as exc:
+        reconcile_git_tree_census(census)
+    assert exc.value.code == code
+    assert REPO not in str(exc.value)
+
+
+def test_reconcile_collected_census_marks_each_union_path_once() -> None:
+    census = _collect(FakeTransport())
+    result = reconcile_git_tree_census(census)
+    assert isinstance(result, GitTreeInventory)
+    assert result[:5] == census[:5]
+    paths = [base64.b64decode(entry.path_base64) for entry in result.entries]
+    assert paths == sorted(paths)
+    assert len(paths) == len(set(paths))
+    observed = {entry.path_base64: entry for entry in result.entries}
+    assert {path: entry.status for path, entry in observed.items()} == {
+        _b64(b"readme.txt"): LeafStatus.MODIFIED,
+        _b64(b"link"): LeafStatus.UNCHANGED,
+        _b64(b"vendor"): LeafStatus.UNCHANGED,
+        _b64(b"src/main.py"): LeafStatus.UNCHANGED,
+        _b64("café.txt".encode()): LeafStatus.ADDED,
+    }
+    link = TreeLeaf(_b64(b"link"), "120000", "blob", _blob(b"readme.txt"))
+    assert observed[_b64(b"link")].base_leaf == observed[_b64(b"link")].head_leaf == link
+    vendor = TreeLeaf(_b64(b"vendor"), "160000", "commit", OTHER)
+    assert observed[_b64(b"vendor")].base_leaf == observed[_b64(b"vendor")].head_leaf == vendor
+    added = observed[_b64("café.txt".encode())]
+    assert added.base_leaf is None and added.head_leaf is not None
+
+
+def test_reconcile_union_statuses_without_rename_inference() -> None:
+    keep = _typed_leaf(b"keep.txt", "100644", _blob(b"keep"))
+    chmod_base = _typed_leaf(b"chmod.sh", "100644", _blob(b"run"))
+    chmod_head = _typed_leaf(b"chmod.sh", "100755", _blob(b"run"))
+    edit_base = _typed_leaf(b"edit.py", "100644", _blob(b"old"))
+    edit_head = _typed_leaf(b"edit.py", "100644", _blob(b"new"))
+    moved = _blob(b"payload")
+    old = _typed_leaf(b"old.txt", "100644", moved)
+    new = _typed_leaf(b"new.txt", "100644", moved)
+    base = sorted([keep, chmod_base, edit_base, old], key=_path)
+    head = sorted([keep, chmod_head, edit_head, new], key=_path)
+    result = reconcile_git_tree_census(_census(base, head))
+    paths = [base64.b64decode(entry.path_base64) for entry in result.entries]
+    assert paths == [b"chmod.sh", b"edit.py", b"keep.txt", b"new.txt", b"old.txt"]
+    observed = {base64.b64decode(entry.path_base64): entry for entry in result.entries}
+    assert observed[b"keep.txt"].status is LeafStatus.UNCHANGED
+    mode_only = observed[b"chmod.sh"]
+    assert mode_only.status is LeafStatus.MODIFIED
+    assert (mode_only.base_leaf, mode_only.head_leaf) == (chmod_base, chmod_head)
+    assert observed[b"edit.py"].status is LeafStatus.MODIFIED
+    deleted, added = observed[b"old.txt"], observed[b"new.txt"]
+    assert (deleted.status, added.status) == (LeafStatus.DELETED, LeafStatus.ADDED)
+    assert deleted.head_leaf is None and added.base_leaf is None
+    assert deleted.base_leaf is not None and added.head_leaf is not None
+    assert added.head_leaf.object_sha1 == deleted.base_leaf.object_sha1
+
+
+def test_reconcile_empty_census_yields_empty_union() -> None:
+    result = reconcile_git_tree_census(_census([], []))
+    assert result == GitTreeInventory(REPO, BASE, HEAD, "d" * 40, "e" * 40, ())
+
+
+@pytest.mark.parametrize("side", ["base", "head"])
+def test_reconcile_rejects_duplicate_path_bytes(side: str) -> None:
+    leaf = _typed_leaf(b"dup.txt", "100644", _blob(b"dup"))
+    duplicate = [leaf, TreeLeaf(leaf.path_base64, "100755", "blob", OTHER)]
+    census = _census(duplicate, []) if side == "base" else _census([], duplicate)
+    _reject_reconcile(census, "DUPLICATE_PATH")
+
+
+@pytest.mark.parametrize("side", ["base", "head"])
+def test_reconcile_rejects_noncanonical_leaf_order(side: str) -> None:
+    first = _typed_leaf(b"a.txt", "100644", _blob(b"a"))
+    unordered = [_typed_leaf(b"b.txt", "100644", _blob(b"b")), first]
+    census = _census(unordered, []) if side == "base" else _census([], unordered)
+    _reject_reconcile(census, "NONCANONICAL_CENSUS")
+
+
+@pytest.mark.parametrize(
+    "leaf",
+    [
+        TreeLeaf("!!!not-base64!!!", "100644", "blob", OTHER),
+        TreeLeaf("", "100644", "blob", OTHER),
+        TreeLeaf("QX==", "100644", "blob", OTHER),
+        TreeLeaf(123, "100644", "blob", OTHER),
+        TreeLeaf(_b64(b"x"), "999999", "blob", OTHER),
+        TreeLeaf(_b64(b"x"), "040000", "tree", OTHER),
+        TreeLeaf(_b64(b"x"), "160000", "blob", OTHER),
+        TreeLeaf(_b64(b"x"), "100644", "blob", "zzzz"),
+        TreeLeaf(_b64(b"x"), "100644", "blob", 123),
+        ("not-a-leaf",),
+    ],
+)
+def test_reconcile_rejects_malformed_leaf_input(leaf: Any) -> None:
+    _reject_reconcile(_census([leaf], []), "MALFORMED_CENSUS")
+
+
+def test_reconcile_rejects_non_census_input() -> None:
+    _reject_reconcile("not-a-census", "MALFORMED_CENSUS")
+
+
+@pytest.mark.parametrize(
+    "leaves",
+    [
+        None,
+        "",
+        123,
+        {"a": 1},
+        frozenset({_typed_leaf(b"x", "100644", OTHER)}),
+    ],
+)
+def test_reconcile_rejects_non_sequence_leaf_sides(leaves: Any) -> None:
+    _reject_reconcile(_census(leaves, []), "MALFORMED_CENSUS")
+    _reject_reconcile(_census([], leaves), "MALFORMED_CENSUS")
+
+
+def test_reconcile_is_pure_caller_constructible_without_authority() -> None:
+    leaf = _typed_leaf(b"only.txt", "100644", _blob(b"only"))
+    result = reconcile_git_tree_census(_census([leaf], [leaf]))
+    assert GitTreeInventory(*result) == result
+    assert CensusEntry(*result.entries[0]) == result.entries[0]
+    assert not hasattr(result, "authorize")
+    assert set(inspect.signature(reconcile_git_tree_census).parameters) == {"census"}

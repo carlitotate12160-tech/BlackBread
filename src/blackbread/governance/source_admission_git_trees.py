@@ -6,14 +6,19 @@ link, fetches every reachable tree object non-recursively, rejects
 truncation, validates every entry, and recomputes each tree's Git object
 identity from its ordered raw entries before trusting its contents. Each
 side yields a separately sorted leaf census whose canonical path bytes are
-base64-encoded next to the Git mode, object kind, and object SHA-1.
+base64-encoded next to the Git mode, object kind, and object SHA-1. A pure
+reconciler joins both sides into one deterministic entry per unioned path
+byte with an ADDED, DELETED, MODIFIED, or UNCHANGED status.
 
 Trust boundary: the caller owns pin selection and freshness. The pins are
 inputs, not proof of protected origin, PR currency, review state, or
 permission; this collector reads no moving ref and makes no freshness claim.
 Only leaf facts are emitted -- blob contents are never fetched, no rename or
 legal-origin lineage is derived, and the caller-constructible result grants
-no admission, merge, or target authority.
+no admission, merge, or target authority. The reconciler performs no I/O and
+authenticates nothing: it keys by decoded path bytes, rejects duplicate or
+non-canonical leaf order instead of overwriting entries, and passes census
+pins and leaf contents through verbatim.
 """
 
 from __future__ import annotations
@@ -21,6 +26,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import re
+from enum import StrEnum
 from typing import Any, NamedTuple, NoReturn, cast
 
 from blackbread.governance.github_merge_transport import (
@@ -78,6 +84,35 @@ class GitTreeCensus(NamedTuple):
     head_tree_sha1: str
     base_leaves: tuple[TreeLeaf, ...]
     head_leaves: tuple[TreeLeaf, ...]
+
+
+class LeafStatus(StrEnum):
+    """Reconciliation status for one unioned path; a fact, never a decision."""
+
+    ADDED = "ADDED"
+    DELETED = "DELETED"
+    MODIFIED = "MODIFIED"
+    UNCHANGED = "UNCHANGED"
+
+
+class CensusEntry(NamedTuple):
+    """One unioned path row; each side's leaf passes through verbatim or None."""
+
+    path_base64: str
+    status: LeafStatus
+    base_leaf: TreeLeaf | None
+    head_leaf: TreeLeaf | None
+
+
+class GitTreeInventory(NamedTuple):
+    """Deterministic path union of both census sides; data only, no authority."""
+
+    repository: str
+    base_commit_sha1: str
+    head_commit_sha1: str
+    base_tree_sha1: str
+    head_tree_sha1: str
+    entries: tuple[CensusEntry, ...]
 
 
 def _fail(code: str) -> NoReturn:
@@ -244,4 +279,85 @@ def collect_git_tree_census(
         head_tree_sha1=head_tree,
         base_leaves=base_leaves,
         head_leaves=head_leaves,
+    )
+
+
+def _well_formed_leaf(leaf: TreeLeaf) -> bool:
+    """Check a leaf carries a real non-tree mode, matching kind, and SHA-1."""
+    return (
+        isinstance(leaf.mode, str)
+        and leaf.mode in _MODES
+        and leaf.mode != _TREE_MODE
+        and leaf.kind == _MODES[leaf.mode]
+        and isinstance(leaf.object_sha1, str)
+        and _SHA1_RE.fullmatch(leaf.object_sha1) is not None
+    )
+
+
+def _canonical_leaves(leaves: tuple[TreeLeaf, ...] | list[TreeLeaf]) -> dict[bytes, TreeLeaf]:
+    """Validate leaf shape and require canonical unique sorted path order."""
+    _require(isinstance(leaves, (tuple, list)), "MALFORMED_CENSUS")
+    decoded: dict[bytes, TreeLeaf] = {}
+    previous: bytes | None = None
+    for leaf in leaves:
+        _require(isinstance(leaf, TreeLeaf), "MALFORMED_CENSUS")
+        encoded = leaf.path_base64
+        _require(isinstance(encoded, str), "MALFORMED_CENSUS")
+        _require(_well_formed_leaf(leaf), "MALFORMED_CENSUS")
+        try:
+            raw = base64.b64decode(encoded, validate=True)
+        except ValueError:
+            _fail("MALFORMED_CENSUS")
+        _require(
+            bool(raw) and base64.b64encode(raw).decode("ascii") == encoded,
+            "MALFORMED_CENSUS",
+        )
+        if previous is not None and raw == previous:
+            _fail("DUPLICATE_PATH")
+        _require(previous is None or previous < raw, "NONCANONICAL_CENSUS")
+        decoded[raw] = leaf
+        previous = raw
+    return decoded
+
+
+def reconcile_git_tree_census(census: GitTreeCensus) -> GitTreeInventory:
+    """Join both leaf sides into one sorted entry per unioned path byte.
+
+    Pure function over caller-supplied data: it reads no moving ref and
+    performs no I/O. Census pins pass through unverified and leaf contents
+    are preserved verbatim; identical leaf identity yields UNCHANGED and any
+    difference in mode, kind, or object SHA-1 yields MODIFIED. No rename or
+    origin lineage is inferred. Malformed leaves, duplicated paths, or a
+    non-canonical leaf order fail closed with no partial inventory.
+    """
+    _require(isinstance(census, GitTreeCensus), "MALFORMED_CENSUS")
+    base = _canonical_leaves(census.base_leaves)
+    head = _canonical_leaves(census.head_leaves)
+    entries: list[CensusEntry] = []
+    for path in sorted(set(base) | set(head)):
+        base_leaf = base.get(path)
+        head_leaf = head.get(path)
+        if base_leaf is None:
+            status = LeafStatus.ADDED
+        elif head_leaf is None:
+            status = LeafStatus.DELETED
+        elif base_leaf == head_leaf:
+            status = LeafStatus.UNCHANGED
+        else:
+            status = LeafStatus.MODIFIED
+        entries.append(
+            CensusEntry(
+                path_base64=base64.b64encode(path).decode("ascii"),
+                status=status,
+                base_leaf=base_leaf,
+                head_leaf=head_leaf,
+            )
+        )
+    return GitTreeInventory(
+        repository=census.repository,
+        base_commit_sha1=census.base_commit_sha1,
+        head_commit_sha1=census.head_commit_sha1,
+        base_tree_sha1=census.base_tree_sha1,
+        head_tree_sha1=census.head_tree_sha1,
+        entries=tuple(entries),
     )
